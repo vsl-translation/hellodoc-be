@@ -1,0 +1,23 @@
+import { Controller, Get, Param } from '@nestjs/common';
+import { UsersService } from '../services/users.service';
+
+@Controller('user')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) { }
+
+  //trong microservices sử dụng message và event
+  @Get()
+  findAll() {
+    return this.usersService.findAll();
+  }
+
+  @Get('getallusers')
+  getAllUsers() {
+    return this.usersService.getAllUsers();
+  }
+
+  @Get('userbyid/:id')
+  getUserByID(@Param('id') id: string) {
+    return this.usersService.getUserById(id);
+  }
+}

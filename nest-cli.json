@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/api-gateway/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/api-gateway/tsconfig.app.json",
+    "assets": [
+      {
+        "include": "**/*.json",
+        "outDir": "./dist"
+      }
+    ]
+  },
+  "monorepo": true,
+  "root": "apps/api-gateway",
+  "projects": {
+    "bookstore-api-gateway": {
+      "type": "application",
+      "root": "apps/api-gateway",
+      "entryFile": "main",
+      "sourceRoot": "apps/api-gateway/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
+      }
+    },
+    "users": {
+      "type": "application",
+      "root": "apps/users",
+      "entryFile": "main",
+      "sourceRoot": "apps/users/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/users/tsconfig.app.json"
+      }
+    },
+    "contracts": {
+      "type": "library",
+      "root": "libs/contracts",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/tsconfig.lib.json"
+      }
+    },
+    "projects": {
+      "type": "application",
+      "root": "apps/projects",
+      "entryFile": "main",
+      "sourceRoot": "apps/projects/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/projects/tsconfig.app.json"
+      }
+    },
+    "doctor": {
+      "type": "application",
+      "root": "apps/doctor",
+      "entryFile": "main",
+      "sourceRoot": "apps/doctor/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/doctor/tsconfig.app.json"
+      }
+    },
+    "news": {
+      "type": "application",
+      "root": "apps/news",
+      "entryFile": "main",
+      "sourceRoot": "apps/news/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/news/tsconfig.app.json"
+      }
+    },
+    "cloudinary": {
+      "type": "application",
+      "root": "apps/cloudinary",
+      "entryFile": "main",
+      "sourceRoot": "apps/cloudinary/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/cloudinary/tsconfig.app.json"
+      }
+    }
+  }
+}
