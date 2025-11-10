@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import * as bcrypt from 'bcrypt';
 import { loginDto } from '../dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
-import { CacheService } from 'apps/cache.service';
+import { CacheService } from 'libs/cache.service';
 import { LoginGoogleDto } from '../dto/loginGoogle.dto';
 import { OAuth2Client } from 'google-auth-library';
 import { ConfigService } from '@nestjs/config';

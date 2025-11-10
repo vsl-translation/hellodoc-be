@@ -13,6 +13,7 @@ import { DoctorModule } from './doctor.module';
 import { NewsModule } from './news.module';
 import { AuthModule } from './auth.module';
 import { CloudinaryModule } from './cloudinary.module';
+import { AppointmentModule } from './appointment.module';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { CloudinaryModule } from './cloudinary.module';
       url: 'rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379',
       isGlobal: true,
     }),
-    UsersModule, ProjectsModule, DoctorModule, NewsModule, AuthModule, CloudinaryModule
+    UsersModule, DoctorModule, NewsModule, AuthModule, CloudinaryModule, AppointmentModule
   ],
   controllers: [ApiGatewayController],
   providers: [ApiGatewayService],

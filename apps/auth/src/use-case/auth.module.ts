@@ -5,7 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from 'apps/config/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { CacheService } from 'apps/cache.service';
+import { CacheService } from 'libs/cache.service';
 import { JwtModule } from '@nestjs/jwt';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-store';
@@ -18,14 +18,14 @@ import { redisStore } from 'cache-manager-redis-store';
       load: [config],
     }),
 
-    // ✅ JWT cấu hình global
+    // JWT cấu hình global
     JwtModule.register({
       global: true,
       secret: 'secretKey',
       signOptions: { expiresIn: '24h' },
     }),
 
-    // ✅ MongoDB kết nối động
+    // MongoDB kết nối động
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
@@ -39,7 +39,7 @@ import { redisStore } from 'cache-manager-redis-store';
       connectionName: 'authConnection',
     }),
 
-    // ✅ Redis cache config (phải async)
+    // Redis cache config (phải async)
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async () => ({
@@ -50,7 +50,7 @@ import { redisStore } from 'cache-manager-redis-store';
       }),
     }),
 
-    // ✅ Microservice client
+    // Microservice client
     ClientsModule.register([
       {
         name: 'USERS_CLIENT',

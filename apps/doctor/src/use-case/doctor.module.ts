@@ -5,7 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from 'apps/config/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Doctor, DoctorSchema } from '../core/schema/doctor.schema';
-import { CacheService } from 'apps/cache.service';
+import { CacheService } from 'libs/cache.service';
 import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({

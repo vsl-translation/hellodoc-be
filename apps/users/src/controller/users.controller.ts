@@ -42,4 +42,9 @@ export class UsersController {
   async updatePassword(@Body() email: string, newPassword: string) {
     return this.usersService.updatePassword(email, newPassword);
   }
+
+  @MessagePattern('user.notify')
+  async notify(userId: string, message: string) {
+    return this.usersService.notify(userId, message);
+  }
 }

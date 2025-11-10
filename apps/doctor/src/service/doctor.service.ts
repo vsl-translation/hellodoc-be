@@ -2,8 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Doctor } from '../core/schema/doctor.schema';
-import { CacheService } from 'apps/cache.service';
+import { CacheService } from 'libs/cache.service';
 import * as bcrypt from 'bcrypt';
+import * as admin from 'firebase-admin';
 
 @Injectable()
 export class DoctorService {
@@ -60,4 +61,26 @@ export class DoctorService {
     if (!updated) throw new NotFoundException('Không tìm thấy bác sĩ');
     return updated;
   }
+
+  async notify(doctorId: string, message: string) {
+    try {
+      const doctor = await this.DoctorModel.findById(doctorId);
+      if (doctor?.fcmToken) {
+        await admin.messaging().send({
+          token: doctor.fcmToken,
+          notification: {
+            title: 'Thông báo lịch hẹn mới',
+            body: message,
+          },
+        });
+        console.log(`Đã gửi thông báo đến bác sĩ ${doctorId}`);
+      } else {
+        console.warn(`Bác sĩ ${doctorId} không có fcmToken`);
+      }
+    } catch (error) {
+      console.error(`Lỗi khi gửi thông báo đến bác sĩ ${doctorId}:`, error);
+    }
+  }
+
+
 }

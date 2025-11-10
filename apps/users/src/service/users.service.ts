@@ -8,6 +8,7 @@ import { lastValueFrom, timeout } from 'rxjs';
 import { UpdateFcmDto } from '../core/dto/update-fcm.dto';
 import { CreateUserDto } from '../core/dto/createUser.dto';
 import * as bcrypt from 'bcrypt';
+import * as admin from 'firebase-admin';
 
 @Injectable()
 export class UsersService {
@@ -115,5 +116,28 @@ export class UsersService {
       }
     }
     return updated;
+  }
+
+  async notify(userId: string, message: string) {
+    try {
+      var user = await this.UserModel.findById(userId);
+      if (!user) {
+        user = await lastValueFrom(this.doctorClient.send('doctor.get-by-id', userId).pipe(timeout(3000)));
+      }
+      if (user?.fcmToken) {
+        await admin.messaging().send({
+          token: user.fcmToken,
+          notification: {
+            title: 'Thông báo lịch hẹn mới',
+            body: message,
+          },
+        });
+        console.log(`Đã gửi thông báo đến người dùng ${userId}`);
+      } else {
+        console.warn(`Người dùng ${userId} không có fcmToken`);
+      }
+    } catch (error) {
+      console.error(`Lỗi khi gửi thông báo đến người dùng ${userId}:`, error);
+    }
   }
 }
