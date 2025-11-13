@@ -96,6 +96,24 @@
       "compilerOptions": {
         "tsConfigPath": "apps/appointment/tsconfig.app.json"
       }
+    },
+    "specialty": {
+      "type": "application",
+      "root": "apps/specialty",
+      "entryFile": "main",
+      "sourceRoot": "apps/specialty/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/specialty/tsconfig.app.json"
+      }
+    },
+    "neo4j": {
+      "type": "application",
+      "root": "apps/neo4j",
+      "entryFile": "main",
+      "sourceRoot": "apps/neo4j/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/neo4j/tsconfig.app.json"
+      }
     }
   }
 }

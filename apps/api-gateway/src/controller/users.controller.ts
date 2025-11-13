@@ -20,4 +20,5 @@ export class UsersController {
   getUserByID(@Param('id') id: string) {
     return this.usersService.getUserById(id);
   }
+
 }

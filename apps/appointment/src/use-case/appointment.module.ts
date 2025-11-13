@@ -33,7 +33,7 @@ import { Appointment, AppointmentSchema } from '../core/schema/Appointment.schem
         const isDev = configService.get<string>('isDev') === 'true';
         const uri = isDev
           ? configService.get<string>('MONGO_URI_DEV')
-          : configService.get<string>('MONGO_URI_PROD');
+          : configService.get<string>('MONGO_URI_APPOINTMENT');
         return { uri };
       },
       inject: [ConfigService],

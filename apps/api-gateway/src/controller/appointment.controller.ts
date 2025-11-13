@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { BookAppointmentDto } from "../core/dto/appointment.dto";
 import { AppointmentService } from "../services/appointment.service";
 
@@ -15,4 +15,10 @@ export class AppointmentController {
     async getAllAppointments() {
         return await this.appointmentService.getAllAppointments();
     }
+
+    @Get('doctor/:doctorID')
+    async getDoctorAppointments(@Param('doctorID') doctorID: string) {
+        return await this.appointmentService.getDoctorAppointments(doctorID);
+    }
+
 }
