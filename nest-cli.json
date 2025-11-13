@@ -96,6 +96,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/appointment/tsconfig.app.json"
       }
+    },
+    "specialty": {
+      "type": "application",
+      "root": "apps/specialty",
+      "entryFile": "main",
+      "sourceRoot": "apps/specialty/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/specialty/tsconfig.app.json"
+      }
     }
   }
 }

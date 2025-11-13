@@ -4,17 +4,20 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User } from '../core/schema/user.schema';
 import { ClientProxy } from '@nestjs/microservices';
-import { lastValueFrom, timeout } from 'rxjs';
+import { catchError, lastValueFrom, of, timeout } from 'rxjs';
 import { UpdateFcmDto } from '../core/dto/update-fcm.dto';
 import { CreateUserDto } from '../core/dto/createUser.dto';
 import * as bcrypt from 'bcrypt';
 import * as admin from 'firebase-admin';
+import { CloudinaryService } from 'apps/cloudinary/src/service/cloudinary.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name, 'userConnection') private UserModel: Model<User>,
     @Inject('DOCTOR_CLIENT') private readonly doctorClient: ClientProxy,
+    @Inject('SPECIALTY_CLIENT') private readonly specialtyClient: ClientProxy,
+    @Inject('CLOUDINARY_CLIENT') private cloudinaryService: CloudinaryService
 
   ) { }
   async updateFcmToken(userId: string, updateFcmDto: UpdateFcmDto) {
@@ -138,6 +141,116 @@ export class UsersService {
       }
     } catch (error) {
       console.error(`Lỗi khi gửi thông báo đến người dùng ${userId}:`, error);
+    }
+  }
+
+
+  // Đăng ký làm bác sĩ (Lưu vào bảng chờ phê duyệt)
+  async applyForDoctor(userId: string, applyData: any) {
+    // Kiểm tra người dùng tồn tại
+    const user = await this.UserModel.findById(userId);
+    if (!user) throw new NotFoundException('Người dùng không tồn tại.');
+
+    // Kiểm tra nếu đã đăng ký trước đó
+    const existing = await lastValueFrom(
+      this.doctorClient.send('doctor.get-by-user-id', userId).pipe(
+        timeout(3000),
+        catchError(() => of(null)) // Trả về null nếu lỗi
+      )
+    );
+
+    if (existing) {
+      throw new BadRequestException('Bạn đã gửi yêu cầu trở thành bác sĩ trước đó.');
+    } else {
+
+      // Danh sách các trường hợp lệ từ form data
+      const allowedFields = [
+        'CCCD',
+        'certificates',
+        'experience',
+        'license',
+        'specialty',
+        'faceUrl',
+        'avatarURL',
+        'licenseUrl',
+        'frontCccdUrl',
+        'backCccdUrl',
+        'address',
+      ];
+
+      // Lọc dữ liệu hợp lệ
+      const filteredApplyData = {};
+      Object.keys(applyData).forEach((key) => {
+        if (allowedFields.includes(key)) {
+          filteredApplyData[key] = applyData[key];
+        }
+      });
+
+      filteredApplyData['email'] = user.email;
+      filteredApplyData['phone'] = user.phone;
+      filteredApplyData['name'] = user.name;
+
+      if (filteredApplyData['specialty']) {
+        const specialtyExists = await lastValueFrom(
+          this.specialtyClient.send('specialty.get-by-id', filteredApplyData['specialty']).pipe(
+            timeout(3000)
+          )
+        );
+        if (!specialtyExists) {
+          throw new BadRequestException('Chuyên khoa không tìm thấy.');
+        }
+      }
+
+      if (applyData.faceUrl) {
+        const uploadResult = await this.cloudinaryService.uploadFile(applyData.faceUrl, `PendingDoctors/${userId}/Face`);
+        filteredApplyData['faceUrl'] = uploadResult.secure_url;
+      }
+
+      if (applyData.avatarURL) {
+        const uploadResult = await this.cloudinaryService.uploadFile(applyData.avatarURL, `PendingDoctors/${userId}/Avatar`);
+        filteredApplyData['avatarURL'] = uploadResult.secure_url;
+      }
+
+      if (applyData.licenseUrl) {
+        const uploadResult = await this.cloudinaryService.uploadFile(applyData.licenseUrl, `PendingDoctors/${userId}/License`);
+        filteredApplyData['licenseUrl'] = uploadResult.secure_url;
+      }
+
+      if (applyData.frontCccdUrl) {
+        const uploadResult = await this.cloudinaryService.uploadFile(applyData.frontCccdUrl, `PendingDoctors/${userId}/Info`);
+        filteredApplyData['frontCccdUrl'] = uploadResult.secure_url;
+      }
+
+      if (applyData.backCccdUrl) {
+        const uploadResult = await this.cloudinaryService.uploadFile(applyData.backCccdUrl, `PendingDoctors/${userId}/Info`);
+        filteredApplyData['backCccdUrl'] = uploadResult.secure_url;
+      }
+
+      // const pendingDoctor = new this.pendingDoctorModel({
+      //   userId,
+      //   ...filteredApplyData,
+      // });
+
+      const pendingDoctor = await lastValueFrom(
+        this.doctorClient.send('doctor.create-pending-doctor', {
+          userId,
+          ...filteredApplyData
+        }).pipe(
+          timeout(5000),
+          catchError(err => {
+            console.error('Error calling doctor service:', err);
+            throw new BadRequestException('Không thể kết nối với dịch vụ bác sĩ');
+          })
+        )
+      );
+
+      if (!pendingDoctor) {
+        throw new BadRequestException('Đăng ký thất bại!');
+      }
+
+      return {
+        message: 'Đăng ký bác sĩ thành công!'
+      };
     }
   }
 }

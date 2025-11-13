@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
-import { UsersController } from '../controller/users.controller';
-import { UsersService } from '../service/users.service';
 import { MongooseModule } from '@nestjs/mongoose';
-import { User, UserSchema } from '../core/schema/user.schema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from 'apps/config/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { JwtModule } from '@nestjs/jwt';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-store';
+import { Specialty, SpecialtySchema } from '../core/schema/specialty.schema';
+import { SpecialtyController } from '../controller/specialty.controller';
+import { SpecialtyService } from '../service/specialty.service';
+import { CacheService } from 'libs/cache.service';
 
 @Module({
   imports: [
@@ -30,7 +31,7 @@ import { redisStore } from 'cache-manager-redis-store';
         return { uri };
       },
       inject: [ConfigService],
-      connectionName: 'userConnection',
+      connectionName: 'specialtyConnection',
     }),
 
     CacheModule.register({
@@ -41,26 +42,11 @@ import { redisStore } from 'cache-manager-redis-store';
     }),
     //khai bao model cho USER
     MongooseModule.forFeature(
-      [{ name: User.name, schema: UserSchema }],
-      'userConnection',
+      [{ name: Specialty.name, schema: SpecialtySchema }],
+      'specialtyConnection',
     ),
-
-    //ket noi voi doctor service
+    //ket noi voi cloudnary service
     ClientsModule.register([
-      {
-        name: 'DOCTOR_CLIENT',
-        transport: Transport.TCP,
-        options: {
-          port: 3003,
-        },
-      },
-      {
-        name: 'SPECIALTY_CLIENT',
-        transport: Transport.TCP,
-        options: {
-          port: 3009,
-        },
-      },
       {
         name: 'CLOUDINARY_CLIENT',
         transport: Transport.TCP,
@@ -69,8 +55,9 @@ import { redisStore } from 'cache-manager-redis-store';
         },
       },
     ]),
+
   ],
-  controllers: [UsersController],
-  providers: [UsersService],
+  controllers: [SpecialtyController],
+  providers: [SpecialtyService, CacheService],
 })
-export class UsersModule { }
+export class SpecialtyModule { }
