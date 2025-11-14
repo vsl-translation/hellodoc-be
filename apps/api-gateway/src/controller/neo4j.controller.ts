@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { Neo4jService } from '../services/neo4j-client.service';
-import { CreateNodeDto } from 'apps/neo4j/src/core/dto/createNode.dto';
-import { CreateRelationDto } from 'apps/neo4j/src/core/dto/createRelation.dto';
+import { CreateNodeDto } from '../core/dto/createNode.dto';
+import { CreateRelationDto } from '../core/dto/createRelation.dto';
 
 @Controller('neo4j')
 export class Neo4jController {
@@ -22,7 +22,7 @@ export class Neo4jController {
         return this.neo4jService.getSuggestions(word);
     }
 
-    @Get('all')
+    @Get('get-all')
     getAll() {
         return this.neo4jService.getAll();
     }

@@ -49,10 +49,24 @@ export class DoctorController {
     return this.doctorService.createPendingDoctor(data);
   }
 
-
   @MessagePattern('doctor.apply-for-doctor')
   async applyForDoctor(@Payload() payload: { userId: string, applyData: any }) {
     const { userId, applyData } = payload;
     return this.doctorService.applyForDoctor(userId, applyData);
+  }
+
+  @MessagePattern('doctor.delete')
+  async delete(id: string) {
+    return this.doctorService.delete(id);
+  }
+
+  @MessagePattern('doctor.create')
+  async create(@Payload() data: any) {
+    return this.doctorService.create(data);
+  }
+
+  @MessagePattern('doctor.update')
+  async update(@Param('id') id: string, @Payload() data: any) {
+    return this.doctorService.update(id, data);
   }
 }

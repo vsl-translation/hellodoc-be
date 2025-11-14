@@ -102,5 +102,26 @@ export class DoctorService {
     return this.usersClient.send('user.apply-for-doctor', { userId, applyData });
   }
 
+  async delete(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ID format');
+    }
+    const doctor = await this.DoctorModel.findById(id);
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+    if (doctor.isDeleted) {
+      return { message: 'Doctor already deleted' };
+    }
+    await this.DoctorModel.findByIdAndDelete(id, { isDeleted: true });
+    return { message: 'Doctor deleted successfully' };
+  }
 
+  async create(createDoctorDto: any) {
+    return this.DoctorModel.create(createDoctorDto);
+  }
+
+  async update(id: string, updateDoctorDto: any) {
+    return this.DoctorModel.findByIdAndUpdate(id, updateDoctorDto);
+  }
 }

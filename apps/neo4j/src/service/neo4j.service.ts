@@ -1,4 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import neo4j, { Driver, Session } from 'neo4j-driver';
 import { CreateNodeDto } from '../core/dto/createNode.dto';
 import { CreateRelationDto } from '../core/dto/createRelation.dto';
@@ -7,11 +8,16 @@ import { CreateRelationDto } from '../core/dto/createRelation.dto';
 export class Neo4jService {
   private driver: Driver;
 
-  constructor() {
-    this.driver = neo4j.driver(
-      process.env.NEO4J_URI || 'bolt://localhost:7687',
-      neo4j.auth.basic(process.env.NEO4J_USER || 'neo4j', process.env.NEO4J_PASSWORD || 'password')
-    );
+  constructor(private readonly configService: ConfigService) {
+    const uri = process.env.NEO4J_URI;
+
+    const username = process.env.NEO4J_USERNAME;
+
+    const password = process.env.NEO4J_PASSWORD;
+
+    console.log('neo4j uri: ', uri)
+
+    this.driver = neo4j.driver(uri, neo4j.auth.basic(username, password));
   }
 
   private getSession(): Session {
@@ -39,16 +45,25 @@ export class Neo4jService {
     const session = this.getSession();
     try {
       const query = `
-        MATCH (a:${dto.fromLabel} {name: $fromName})
-        MATCH (b:${dto.toLabel} {name: $toName})
+        MERGE (a:${dto.fromLabel} {name: $fromName})
+        MERGE (b:${dto.toLabel} {name: $toName})
         MERGE (a)-[r:${dto.relationType}]->(b)
-        RETURN type(r)
+        SET r.weight = coalesce(r.weight, 0) + coalesce($weight, 0)
+        RETURN a, r, b
       `;
       const result = await session.run(query, {
         fromName: dto.fromName,
-        toName: dto.toName
+        toName: dto.toName,
+        weight: dto.weight ?? 1, // mặc định weight = 1 nếu không truyền
       });
-      return { relation: result.records[0]?.get('type(r)') };
+
+      const record = result.records[0];
+      return {
+        from: record.get('a').properties,
+        relation: record.get('r').type,
+        weight: record.get('r').properties.weight,
+        to: record.get('b').properties,
+      };
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException('Lỗi khi tạo quan hệ');
@@ -62,13 +77,29 @@ export class Neo4jService {
     try {
       const query = `
         MATCH (a {name: $word})-[:RELATES_TO]->(b)
-        RETURN b.name AS suggestion
+        RETURN b.name AS suggestion, r.weight AS score
+        ORDER BY r.weight DESC
+        LIMIT 10;
       `;
       const result = await session.run(query, { word });
       return result.records.map(r => r.get('suggestion'));
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException('Lỗi khi truy vấn gợi ý');
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getAll() {
+    const session = this.getSession();
+    try {
+      const query = `MATCH (n) RETURN n LIMIT 100`;
+      const result = await session.run(query);
+      return result.records.map(r => r.get('n').properties);
+    } catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Lỗi khi lấy toàn bộ node');
     } finally {
       await session.close();
     }

@@ -57,4 +57,14 @@ export class UsersController {
 
     return this.usersService.applyForDoctor(userId, doctorData);
   }
+
+  @MessagePattern('user.delete')
+  async delete(id: string) {
+    return this.usersService.delete(id);
+  }
+
+  @MessagePattern('user.create')
+  async create(@Payload() data: any) {
+    return this.usersService.create(data);
+  }
 }

@@ -46,7 +46,6 @@ import { CloudinaryService } from 'libs/cloudinary/src/service/cloudinary.servic
       'userConnection',
     ),
 
-    //ket noi voi doctor service
     ClientsModule.register([
       {
         name: 'DOCTOR_CLIENT',
