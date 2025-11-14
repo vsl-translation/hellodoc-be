@@ -1,4 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import neo4j, { Driver, Session } from 'neo4j-driver';
 import { CreateNodeDto } from '../core/dto/createNode.dto';
 import { CreateRelationDto } from '../core/dto/createRelation.dto';
@@ -7,11 +8,16 @@ import { CreateRelationDto } from '../core/dto/createRelation.dto';
 export class Neo4jService {
   private driver: Driver;
 
-  constructor() {
-    this.driver = neo4j.driver(
-      process.env.NEO4J_URI || 'bolt://localhost:7687',
-      neo4j.auth.basic(process.env.NEO4J_USER || 'neo4j', process.env.NEO4J_PASSWORD || 'password')
-    );
+  constructor(private readonly configService: ConfigService) {
+    const uri = this.configService.get<string>('NEO4J_URI');
+
+    const username = this.configService.get<string>('NEO4J_USERNAME');
+
+    const password = this.configService.get<string>('NEO4J_PASSWORD');
+
+    console.log('neo4j uri: ',uri)
+
+    this.driver = neo4j.driver(uri, neo4j.auth.basic(username, password));
   }
 
   private getSession(): Session {
