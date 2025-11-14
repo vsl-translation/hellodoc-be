@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsString, IsOptional, IsNumber } from 'class-validator';
 
 export class CreateRelationDto {
   @IsString()
@@ -15,4 +15,8 @@ export class CreateRelationDto {
 
   @IsString()
   relationType: string;
+
+  @IsOptional()
+  @IsNumber()
+  weight?: number;
 }
