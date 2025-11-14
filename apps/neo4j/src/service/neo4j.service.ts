@@ -8,16 +8,11 @@ import { CreateRelationDto } from '../core/dto/createRelation.dto';
 export class Neo4jService {
   private driver: Driver;
 
-  constructor(private readonly configService: ConfigService) {
-    const uri = this.configService.get<string>('NEO4J_URI');
-
-    const username = this.configService.get<string>('NEO4J_USERNAME');
-
-    const password = this.configService.get<string>('NEO4J_PASSWORD');
-
-    console.log('neo4j uri: ',uri)
-
-    this.driver = neo4j.driver(uri, neo4j.auth.basic(username, password));
+  constructor() {
+    this.driver = neo4j.driver(
+      process.env.NEO4J_URI || 'neo4j://localhost:7687',
+      neo4j.auth.basic(process.env.NEO4J_USERNAME || 'neo4j', process.env.NEO4J_PASSWORD || 'password')
+    );
   }
 
   private getSession(): Session {
@@ -92,6 +87,7 @@ export class Neo4jService {
   }
 
   async getAll() {
+    // console.log('env neo4j uri: ', process.env.NEO4J_URI);
     const session = this.getSession();
     try {
       const query = `MATCH (n) RETURN n LIMIT 100`;
