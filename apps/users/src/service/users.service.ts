@@ -356,13 +356,11 @@ export class UsersService {
         throw new NotFoundException('Update failed, user not found in UserModel');
       }
 
-      // Handle role change if any
-      if (roleChanged) {
-        await this.handleRoleUpdate(objectId, user.role, newRole, updatedUser);
-      }
 
       return { message: 'User updated successfully in UserModel', user: updatedUser };
-    } else if (user instanceof this.DoctorModel) {
+    } else if (
+      //Kiểm tra nếu user là instance của DoctorModel
+      user instanceof this.DoctorModel) {
       // Update the user in DoctorModel
       const updatedDoctor = await this.doctorClient.send('update', 
         objectId,
