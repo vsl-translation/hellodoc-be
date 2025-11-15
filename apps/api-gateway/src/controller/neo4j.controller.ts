@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Delete } from '@nestjs/common';
 import { Neo4jService } from '../services/neo4j-client.service';
 import { CreateNodeDto } from '../core/dto/createNode.dto';
 import { CreateRelationDto } from '../core/dto/createRelation.dto';
@@ -25,5 +25,10 @@ export class Neo4jController {
     @Get('get-all')
     getAll() {
         return this.neo4jService.getAll();
+    }
+
+    @Delete('delete-all')
+    deleteAll() {
+        return this.neo4jService.deleteAll();
     }
 }
