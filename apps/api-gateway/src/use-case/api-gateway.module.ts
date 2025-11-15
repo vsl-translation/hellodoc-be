@@ -16,6 +16,7 @@ import { Neo4jModule } from './neo4j.module';
 import { CloudinaryModule } from './cloudinary.module';
 import { AppointmentModule } from './appointment.module';
 import { SpecialtyModule } from './specialty.module';
+import { NotificationModule } from './notification.module';
 
 @Module({
   imports: [
@@ -43,7 +44,7 @@ import { SpecialtyModule } from './specialty.module';
       url: 'rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379',
       isGlobal: true,
     }),
-    UsersModule, DoctorModule, NewsModule, AuthModule, AppointmentModule, SpecialtyModule, Neo4jModule
+    UsersModule, DoctorModule, NewsModule, AuthModule, AppointmentModule, SpecialtyModule, Neo4jModule, NotificationModule
   ],
   controllers: [ApiGatewayController],
   providers: [ApiGatewayService],
