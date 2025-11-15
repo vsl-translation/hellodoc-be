@@ -281,8 +281,9 @@ export class UsersService {
   }
 
   async updateUser(id: string, updateData: any) {
+    console.log('ID type:', typeof id, 'Value:', id); 
     // Validate ObjectId format
-    if (!isValidObjectId(id)) {
+    if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid ID format');
     }
 
@@ -290,12 +291,16 @@ export class UsersService {
 
     // Check if the user exists
     let user = await this.UserModel.findById(objectId);
+    console.log('User fetched from UserModel:', user);
     if (!user) {
       user = await lastValueFrom(this.doctorClient.send('doctor.get-by-id', id).pipe(timeout(3000)));
+      console.log('User fetched from Doctor service:', user);
       if (!user) {
         throw new NotFoundException('User not found');
       }
     }
+
+    console.log('Current user data:', user);
 
     // Prepare the update object
     const updateFields: Partial<updateUserDto> = {};

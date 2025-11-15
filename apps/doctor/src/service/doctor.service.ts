@@ -18,28 +18,29 @@ export class DoctorService {
   ) { }
   async getDoctorById(id: string) {
     console.log('Received doctor ID:', id, typeof id);
+    const objectId = new Types.ObjectId(id);
 
-    if (!Types.ObjectId.isValid(id)) {
+    if (!Types.ObjectId.isValid(objectId)) {
       throw new BadRequestException('ID không hợp lệ');
     }
 
-    const cacheKey = `doctor_${id}`;
-    console.log('Trying to get doctor by id from cache...');
+    // const cacheKey = `doctor_${id}`;
+    // console.log('Trying to get doctor by id from cache...');
 
-    const cached = await this.cacheService.getCache(cacheKey);
-    if (cached) {
-      console.log('Cache HIT');
-      return cached;
-    }
+    // const cached = await this.cacheService.getCache(cacheKey);
+    // if (cached) {
+    //   console.log('Cache HIT');
+    //   return cached;
+    // }
 
     console.log('Cache MISS - querying DB');
-    const doctor = await this.DoctorModel.findById(id).populate('specialty');
+    const doctor = await this.DoctorModel.findById(objectId).populate('specialty');
     if (!doctor) {
       throw new NotFoundException('Không tìm thấy bác sĩ');
     }
 
     console.log('Setting cache...');
-    await this.cacheService.setCache(cacheKey, doctor, 30 * 1000);
+    // await this.cacheService.setCache(cacheKey, doctor, 30 * 1000);
     return doctor;
   }
 

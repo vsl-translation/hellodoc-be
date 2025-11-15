@@ -1,5 +1,6 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { UsersService } from '../services/users.service';
+import { Payload } from '@nestjs/microservices';
 
 @Controller('user')
 export class UsersController {
@@ -19,6 +20,11 @@ export class UsersController {
   @Get('userbyid/:id')
   getUserByID(@Param('id') id: string) {
     return this.usersService.getUserById(id);
+  }
+
+  @Put('updateUser/:id')
+  updateUser(@Param('id') id: string, @Body() data: any) {
+    return this.usersService.updateUser(id, data);
   }
 
 }
