@@ -344,7 +344,7 @@ export class UsersService {
     }
 
     // Determine which model to update based on the user's existence in the models
-    if (user instanceof this.UserModel) {
+    if (user) {
       // Update the user in UserModel
       const updatedUser = await this.UserModel.findByIdAndUpdate(
         objectId,
@@ -355,27 +355,18 @@ export class UsersService {
       if (!updatedUser) {
         throw new NotFoundException('Update failed, user not found in UserModel');
       }
-
-
       return { message: 'User updated successfully in UserModel', user: updatedUser };
-    } else if (
-      //Kiểm tra nếu user là instance của DoctorModel
-      user instanceof this.DoctorModel) {
+    } else if (!user) {
       // Update the user in DoctorModel
-      const updatedDoctor = await this.doctorClient.send('update', 
-        objectId,
-        { $set: updateFields },
-        { new: true },
-        
+      const updatedDoctor = await this.doctorClient.send('doctor.update', 
+        {
+          objectId,
+          ...updateFields,
+        }
       );
 
       if (!updatedDoctor) {
         throw new NotFoundException('Update failed, user not found in DoctorModel');
-      }
-
-      // Handle role change if any
-      if (roleChanged) {
-        await this.handleRoleUpdate(objectId, user.role, newRole, updatedDoctor);
       }
 
       return { message: 'User updated successfully in DoctorModel', user: updatedDoctor };
