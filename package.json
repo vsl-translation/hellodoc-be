@@ -20,7 +20,9 @@
     "start:auth": "nest start auth --watch",
     "start:neo4j": "nest start neo4j --watch",
     "start:appointment": "nest start appointment --watch",
-    "start:all": "npm-run-all --parallel start:gateway start:users start:doctor start:news start:auth start:neo4j start:appointment",
+    "start:specialty": "nest start specialty --watch",
+    "start:all": "npm-run-all --parallel start:gateway start:users start:doctor start:news start:auth start:neo4j start:appointment start:specialty",
+
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",

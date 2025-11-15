@@ -7,6 +7,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Doctor, DoctorSchema } from '../core/schema/doctor.schema';
 import { CacheService } from 'libs/cache.service';
 import { CacheModule } from '@nestjs/cache-manager';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { PendingDoctor, PendingDoctorSchema } from '../core/schema/PendingDoctor.schema';
 
 @Module({
   imports: [
@@ -21,7 +23,7 @@ import { CacheModule } from '@nestjs/cache-manager';
         const isDev = configService.get<string>('isDev') === 'true';
         const uri = isDev
           ? configService.get<string>('MONGO_URI_DEV')
-          : configService.get<string>('MONGO_URI_PROD');
+          : configService.get<string>('MONGO_URI_DOCTOR');
 
         return { uri };
       },
@@ -29,10 +31,22 @@ import { CacheModule } from '@nestjs/cache-manager';
       connectionName: 'doctorConnection',
     }),
     MongooseModule.forFeature(
-      [{ name: Doctor.name, schema: DoctorSchema }],
+      [
+        { name: Doctor.name, schema: DoctorSchema },
+        { name: PendingDoctor.name, schema: PendingDoctorSchema },
+      ],
       'doctorConnection',
     ),
     CacheModule.register(),
+    ClientsModule.register([
+      {
+        name: 'USERS_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3001,
+        },
+      },
+    ]),
   ],
   controllers: [DoctorController],
   providers: [DoctorService, CacheService],

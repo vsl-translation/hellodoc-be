@@ -14,8 +14,53 @@ export class AppointmentController {
     return await this.appointmentService.bookAppointment(bookData);
   }
 
+  @MessagePattern('appointment.cancel')
+  async cancelAppoinentment(id: string) {
+    return await this.appointmentService.cancelAppointment(id);
+  }
+
+  @MessagePattern('appointment.getById')
+  async getAppointmentsbyitsID(id: string) {
+    return await this.appointmentService.getAppointmentsbyitsID(id);
+  }
+
+  @MessagePattern('appointment.confirm')
+  async confirmAppoinentment(id: string) {
+    return await this.appointmentService.confirmAppointmentDone(id);
+  }
+
   @MessagePattern('appointment.getAll')
   async getAllAppointments() {
     return await this.appointmentService.getAllAppointments();
   }
+
+  @MessagePattern('appointment.getByDoctorID')
+  async getDoctorAppointments(doctorID: string) {
+    return await this.appointmentService.getDoctorAppointments(doctorID);
+  }
+
+  @MessagePattern('appointment.getByPatientID')
+  async getPatientAppointments(patientID: string) {
+    return await this.appointmentService.getPatientAppointments(patientID);
+  }
+
+  @MessagePattern('appointment.getByStatus')
+  async getAppointmentsByStatus(patientID: string, status: string) {
+    return await this.appointmentService.getAppointmentsByStatus(patientID, status);
+  }
+
+  @MessagePattern('appointment.update')
+  async updateAppointment(id: string, updateData: Partial<BookAppointmentDto>) {
+    return await this.appointmentService.updateAppointment(id, updateData);
+  }
+
+  @MessagePattern('appointment.delete')
+  async deleteAppointment(id: string) {
+    return await this.appointmentService.deleteAppointment(id);
+  }
+
+  // @MessagePattern('appointment.doctorStats')
+  // async getDoctorStats(doctorID: string) {
+  //   return await this.appointmentService.getDoctorStats(doctorID);
+  // }
 }

@@ -1,8 +1,9 @@
-import { Body, Controller, Param } from '@nestjs/common';
+import { Body, Controller, Param, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { UsersService } from '../service/users.service';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UpdateFcmDto } from '../core/dto/update-fcm.dto';
 import { CreateUserDto } from '../core/dto/createUser.dto';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
 @Controller()
 export class UsersController {
@@ -46,5 +47,14 @@ export class UsersController {
   @MessagePattern('user.notify')
   async notify(userId: string, message: string) {
     return this.usersService.notify(userId, message);
+  }
+
+  @MessagePattern('user.apply-for-doctor')
+  async applyForDoctor(@Payload() data: { userId: string, applyData: any }) {
+    const { userId, applyData } = data;
+
+    const doctorData = { ...applyData };
+
+    return this.usersService.applyForDoctor(userId, doctorData);
   }
 }
