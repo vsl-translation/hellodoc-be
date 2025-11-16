@@ -37,12 +37,13 @@ async function bootstrap() {
   });
 
   const app = await NestFactory.create(ApiGatewayModule);
+
   //Thêm CORS vào để FE access BE
   app.enableCors({
     origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
-  })
+  });
 
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
@@ -50,7 +51,7 @@ async function bootstrap() {
     transform: true
   }));
 
-  const port = process.env.PORT || process.env.port || 4000;
+  const port = process.env.PORT || 4000;
   await app.listen(port);
   console.log(`API Gateway is running on http://localhost:${port}`);
 }
