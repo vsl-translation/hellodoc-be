@@ -27,4 +27,9 @@ export class Neo4jController {
   async getAll() {
     return this.neo4jService.getAll();
   }
+
+  @MessagePattern('neo4j.delete-all')
+  async deleteAll() {
+    return this.neo4jService.deleteAll();
+  }
 }

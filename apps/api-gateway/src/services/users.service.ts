@@ -16,4 +16,8 @@ export class UsersService {
   getUserById(id: string) {
     return this.usersClient.send('user.userbyid', id);
   }
+
+  updateUser(id: string, data: any) {
+    return this.usersClient.send('user.update', { id, data });
+  }
 }

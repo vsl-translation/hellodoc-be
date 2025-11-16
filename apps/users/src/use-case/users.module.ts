@@ -45,6 +45,7 @@ import { CloudinaryService } from 'libs/cloudinary/src/service/cloudinary.servic
       [{ name: User.name, schema: UserSchema }],
       'userConnection',
     ),
+    
 
     ClientsModule.register([
       {

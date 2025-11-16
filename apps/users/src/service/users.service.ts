@@ -281,107 +281,100 @@ export class UsersService {
     return this.UserModel.create(userDto);
   }
 
-  // async updateUser(id: string, updateData: any) {
-  //   // Validate ObjectId format
-  //   if (!isValidObjectId(id)) {
-  //     throw new BadRequestException('Invalid ID format');
-  //   }
+  async updateUser(id: string, updateData: any) {
+    console.log('ID type:', typeof id, 'Value:', id);
+    // Validate ObjectId format
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ID format');
+    }
 
-  //   const objectId = new Types.ObjectId(id);
+    const objectId = new Types.ObjectId(id);
 
-  //   // Check if the user exists
-  //   let user = await this.UserModel.findById(objectId);
-  //   if (!user) {
-  //     user = await lastValueFrom(this.doctorClient.send('doctor.get-by-id', id).pipe(timeout(3000)));
-  //     if (!user) {
-  //       throw new NotFoundException('User not found');
-  //     }
-  //   }
+    // Check if the user exists
+    let user = await this.UserModel.findById(objectId);
+    console.log('User fetched from UserModel:', user);
+    if (!user) {
+      user = await lastValueFrom(this.doctorClient.send('doctor.get-by-id', id).pipe(timeout(3000)));
+      console.log('User fetched from Doctor service:', user);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+    }
 
-  //   // Prepare the update object
-  //   const updateFields: Partial<updateUserDto> = {};
-  //   if (updateData.avatarURL) {
-  //     try {
-  //       const uploadResult = await this.cloudinaryService.uploadFile(updateData.avatarURL, `Doctors/${id}/License`);
-  //       updateFields.avatarURL = uploadResult.secure_url;
-  //       console.log('Avatar da tai len:', updateData.avatarURL);
-  //     } catch (error) {
-  //       console.error('Lỗi Cloudinary:', error);
-  //       throw new BadRequestException('Lỗi khi tải avatar lên Cloudinary');
-  //     }
-  //   }
+    console.log('Current user data:', user);
 
-  //   if (updateData.email) updateFields.email = updateData.email;
-  //   if (updateData.name) updateFields.name = updateData.name;
-  //   if (updateData.phone) updateFields.phone = updateData.phone;
-  //   if (updateData.address) updateFields.address = updateData.address;
+    // Prepare the update object
+    const updateFields: Partial<updateUserDto> = {};
+    if (updateData.avatarURL) {
+      try {
+        const uploadResult = await this.cloudinaryService.uploadFile(updateData.avatarURL, `Doctors/${id}/License`);
+        updateFields.avatarURL = uploadResult.secure_url;
+        console.log('Avatar da tai len:', updateData.avatarURL);
+      } catch (error) {
+        console.error('Lỗi Cloudinary:', error);
+        throw new BadRequestException('Lỗi khi tải avatar lên Cloudinary');
+      }
+    }
 
-  //   // 🔥 Only hash password if it is actually changed
-  //   if (
-  //     updateData.password &&
-  //     updateData.password.trim() !== '' &&
-  //     updateData.password !== user.password
-  //   ) {
-  //     updateFields.password = await bcrypt.hash(updateData.password, 10);
-  //   } else {
-  //     updateFields.password = user.password; // Keep the old password if it's not changed
-  //   }
+    if (updateData.email) updateFields.email = updateData.email;
+    if (updateData.name) updateFields.name = updateData.name;
+    if (updateData.phone) updateFields.phone = updateData.phone;
+    if (updateData.address) updateFields.address = updateData.address;
 
-  //   let roleChanged = false;
-  //   let newRole = user.role; // Keep the old role by default
+    // 🔥 Only hash password if it is actually changed
+    if (
+      updateData.password &&
+      updateData.password.trim() !== '' &&
+      updateData.password !== user.password
+    ) {
+      updateFields.password = await bcrypt.hash(updateData.password, 10);
+    } else {
+      updateFields.password = user.password; // Keep the old password if it's not changed
+    }
 
-  //   if (updateData.role && updateData.role !== user.role) {
-  //     roleChanged = true;
-  //     newRole = updateData.role;
-  //   }
-  //   // Log thông tin cập nhật
-  //   console.log('Thông tin cập nhật nguoi dung:', {
-  //     id,
-  //     updatedData: updateFields
-  //   });
-  //   // If no fields have changed, return a message
-  //   if (Object.keys(updateFields).length === 0 && !roleChanged) {
-  //     return { message: 'No changes detected' };
-  //   }
+    let roleChanged = false;
+    let newRole = user.role; // Keep the old role by default
 
-  //   // Determine which model to update based on the user's existence in the models
-  //   if (user instanceof this.UserModel) {
-  //     // Update the user in UserModel
-  //     const updatedUser = await this.UserModel.findByIdAndUpdate(
-  //       objectId,
-  //       { $set: updateFields },
-  //       { new: true },
-  //     );
+    if (updateData.role && updateData.role !== user.role) {
+      roleChanged = true;
+      newRole = updateData.role;
+    }
+    // Log thông tin cập nhật
+    console.log('Thông tin cập nhật nguoi dung:', {
+      id,
+      updatedData: updateFields
+    });
+    // If no fields have changed, return a message
+    if (Object.keys(updateFields).length === 0 && !roleChanged) {
+      return { message: 'No changes detected' };
+    }
 
-  //     if (!updatedUser) {
-  //       throw new NotFoundException('Update failed, user not found in UserModel');
-  //     }
+    // Determine which model to update based on the user's existence in the models
+    if (user) {
+      // Update the user in UserModel
+      const updatedUser = await this.UserModel.findByIdAndUpdate(
+        objectId,
+        { $set: updateFields },
+        { new: true },
+      );
 
-  //     // Handle role change if any
-  //     if (roleChanged) {
-  //       await this.handleRoleUpdate(objectId, user.role, newRole, updatedUser);
-  //     }
+      if (!updatedUser) {
+        throw new NotFoundException('Update failed, user not found in UserModel');
+      }
+      return { message: 'User updated successfully in UserModel', user: updatedUser };
+    } else if (!user) {
+      // Update the user in DoctorModel
+      const updatedDoctor = await this.doctorClient.send('doctor.update',
+        {
+          objectId,
+          ...updateFields,
+        }
+      );
 
-  //     return { message: 'User updated successfully in UserModel', user: updatedUser };
-  //   } else if (user instanceof this.DoctorModel) {
-  //     // Update the user in DoctorModel
-  //     const updatedDoctor = await this.doctorClient.send('update', 
-  //       objectId,
-  //       { $set: updateFields },
-  //       { new: true },
-
-  //     );
-
-  //     if (!updatedDoctor) {
-  //       throw new NotFoundException('Update failed, user not found in DoctorModel');
-  //     }
-
-  //     // Handle role change if any
-  //     if (roleChanged) {
-  //       await this.handleRoleUpdate(objectId, user.role, newRole, updatedDoctor);
-  //     }
-
-  //     return { message: 'User updated successfully in DoctorModel', user: updatedDoctor };
-  //   }
-  // }
+      if (!updatedDoctor) {
+        throw new NotFoundException('Update failed, user not found in DoctorModel');
+      }
+      return { message: 'User updated successfully in DoctorModel', user: updatedDoctor };
+    }
+  }
 }
