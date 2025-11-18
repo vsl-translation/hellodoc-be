@@ -76,10 +76,10 @@ export class PostController {
   //   return this.postService.update(id, updatePostDto);
   // }
 
-  // @MessagePattern('post.delete')
-  // async delete(@Param('id') id: string) {
-  //   return this.postService.delete(id);
-  // }
+  @MessagePattern('post.delete')
+  async delete(@Payload() data: { id: string }) {
+    return this.postService.delete(data.id);
+  }
 
   // @MessagePattern('post.find-similar')
   // async findSimilarPosts(

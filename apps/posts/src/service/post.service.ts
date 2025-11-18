@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { Express } from 'express';
 import { Model } from 'mongoose';
@@ -6,16 +7,15 @@ import { In } from 'typeorm';
 import { CloudinaryService } from 'libs/cloudinary/src/service/cloudinary.service';
 import { CacheService } from 'libs/cache.service';
 import { Post } from '../core/schema/post.schema';
-import { Doctor } from 'apps/doctor/src/core/schema/doctor.schema';
-import { User } from 'apps/users/src/core/schema/user.schema';
+import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom, timeout } from 'rxjs';
 
 @Injectable()
 export class PostService {
     private readonly logger = new Logger(PostService.name);
     constructor(
-        @InjectModel(User.name, 'postConnection') private userModel: Model<User>,
-        @InjectModel(Doctor.name, 'postConnection') private doctorModel: Model<Doctor>,
+        @Inject('USERS_CLIENT') private usersClient: ClientProxy,
+        @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
         @InjectModel(Post.name, 'postConnection') private postModel: Model<Post>,
         private cloudinaryService: CloudinaryService,
         private cacheService: CacheService,
@@ -163,13 +163,21 @@ export class PostService {
         }
     }
 
-    private async findOwnerById(ownerId: string): Promise<{ data: any; model: 'User' | 'Doctor' }> {
+    private async findOwnerById(ownerId: string): Promise<{  model: 'User' | 'Doctor',data: any; }> {
         try {
-            const user = await this.userModel.findById(ownerId).lean();
-            if (user) return { data: user, model: 'User' };
+            let user = await lastValueFrom(this.usersClient.send('user.getuserbyid',ownerId).pipe(timeout(3000)))
+            console.log("user nhan duov la "+ user);
+            if (!user) {
+                user = await lastValueFrom(
+                    this.doctorClient.send('doctor.get-by-id', ownerId)
+                    .pipe(timeout(3000)));
+                if (!user) {
+                    throw new NotFoundException('User not found');
+                }
+                return { model: 'Doctor', data: user };
 
-            const doctor = await this.doctorModel.findById(ownerId).lean();
-            if (doctor) return { data: doctor, model: 'Doctor' };
+            }
+            return { model: 'User', data: user };
 
             throw new NotFoundException(`Không tìm thấy người dùng với id ${ownerId}`);
         } catch (error) {
@@ -185,19 +193,26 @@ export class PostService {
         skip: number
     ): Promise<{ posts: Post[]; hasMore: boolean; total: number }> {
         try {
+            if (!Types.ObjectId.isValid(ownerId)) {
+                // Xử lý lỗi nếu ownerId không hợp lệ (ví dụ: trả về 400 Bad Request)
+                // Thay vì InternalServerError, bạn nên dùng một exception phù hợp hơn
+                throw new InternalServerErrorException('ID người dùng không hợp lệ'); 
+            }
+
             const { model: ownerModel } = await this.findOwnerById(ownerId);
+
+            const ownerObjectId = new Types.ObjectId(ownerId);
+
             const filter = {
-                user: ownerId,
+                user: ownerObjectId,
                 userModel: ownerModel,
                 $or: [{ isHidden: false }, { isHidden: { $exists: false } }],
             };
+            console.log(filter)
 
             const total = await this.postModel.countDocuments(filter);
-            const user = await lastValueFrom(
-                this.userModel.send('user.user')
-            )
 
-            const posts = await lastValueFrom(this.postModel
+            const posts = await this.postModel
                 .find(filter)
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -206,16 +221,36 @@ export class PostService {
                     path: 'user',
                     model: ownerModel,
                     select: 'name avatarURL',
-                }).pipe(timeout(3000)));
+                })
+                .exec();
             
             console.log(posts);
 
             const hasMore = skip + posts.length < total;
+            console.log(posts.length)
             return { posts, hasMore, total };
 
         } catch (error) {
             this.logger.error('Error getting posts by owner:', error);
             throw new InternalServerErrorException('Lỗi khi lấy bài viết của người dùng');
+        }
+    }
+
+    async delete(id: string): Promise<{ message: string }> {
+        try {
+            const updated = await this.postModel.findByIdAndUpdate(
+                id,
+                { isHidden: true },
+                { new: true }
+            );
+            if (!updated) {
+                throw new NotFoundException(`Post with id ${id} not found`);
+            }
+
+            return { message: `Post with id ${id} deleted successfully` };
+        } catch (error) {
+            this.logger.error('Error deleting post:', error);
+            throw new InternalServerErrorException('Lỗi khi xóa bài viết');
         }
     }
 }

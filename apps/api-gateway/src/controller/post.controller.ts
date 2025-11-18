@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Delete, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { MessagePattern } from '@nestjs/microservices';
 import { PostService } from '../services/post.service';
@@ -37,5 +37,10 @@ export class PostController {
     const limitNum = parseInt(limit);
     const skipNum = parseInt(skip);
     return this.postService.getByUserId(id, limitNum, skipNum);
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: string) {
+    return this.postService.delete(id);
   }
 }

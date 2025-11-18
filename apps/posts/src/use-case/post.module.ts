@@ -11,6 +11,7 @@ import { CloudinaryService } from 'libs/cloudinary/src/service/cloudinary.servic
 import { CacheService } from 'libs/cache.service';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-store';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 
 @Module({
   imports: [
@@ -45,7 +46,24 @@ import { redisStore } from 'cache-manager-redis-store';
         { name: Doctor.name, schema: DoctorSchema }
       ],
       'postConnection',
-    ),],
+    ),
+    ClientsModule.register([
+      {
+        name: 'USERS_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3001,
+        },
+      },
+      {
+        name: 'DOCTOR_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3003,
+        },
+      },
+    ]),
+  ],
   controllers: [PostController],
   providers: [PostService, CloudinaryService, CacheService],
 })

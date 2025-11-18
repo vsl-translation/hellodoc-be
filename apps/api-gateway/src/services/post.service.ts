@@ -21,4 +21,8 @@ export class PostService {
     async getByUserId(id: string, limit: number = 10, skip: number = 0) {
         return lastValueFrom(this.postClient.send('post.get-by-user-id', { id, limit: limit.toString(), skip: skip.toString() }));
     }
+
+    async delete(id: string) {
+        return lastValueFrom(this.postClient.send('post.delete', { id }));
+    }
 }
