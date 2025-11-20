@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { CreatePostDto } from '../core/dto/post/createPost.dto';
+import { UpdatePostDto, UpdateKeywordsDto } from '../core/dto/post/updatePost.dto';
 import { lastValueFrom } from 'rxjs';
 
 @Injectable()
@@ -25,6 +26,10 @@ export class PostService {
 
     async getByUserId(id: string, limit: number = 10, skip: number = 0) {
         return lastValueFrom(this.postClient.send('post.get-by-user-id', { id, limit: limit.toString(), skip: skip.toString() }));
+    }
+
+    async update(id: string, updatePostDto: UpdatePostDto, images?: Express.Multer.File[]) {
+        return lastValueFrom(this.postClient.send('post.update', { id, updatePostDto, images }));
     }
 
     async delete(id: string) {

@@ -5,6 +5,7 @@ import { Express } from 'express';
 import { Model } from 'mongoose';
 import { In } from 'typeorm';
 import { CreatePostDto } from '../core/dto/createPost.dto';
+import { UpdatePostDto, UpdateKeywordsDto } from '../core/dto/updatePost.dto';
 import { CacheService } from 'libs/cache.service';
 import { Post } from '../core/schema/post.schema';
 import { ClientProxy } from '@nestjs/microservices';
@@ -21,20 +22,6 @@ export class PostService {
         @InjectModel(Post.name, 'postConnection') private postModel: Model<Post>,
         private cacheService: CacheService,
     ) { }
-    //  private async findOwnerById(ownerId: string): Promise<User | Doctor> {
-    //     try {
-    //         const owner = await this.userModel.findById(ownerId).lean() ||
-    //             await this.doctorModel.findById(ownerId).lean();
-
-    //         if (!owner) {
-    //             throw new NotFoundException(`Không tìm thấy người dùng với id ${ownerId}`);
-    //         }
-    //         return owner;
-    //     } catch (error) {
-    //         this.logger.error(`Error finding owner: ${error.message}`);
-    //         throw new InternalServerErrorException('Lỗi khi tìm người dùng');
-    //     }
-    // }
 
     async create(createPostDto: CreatePostDto): Promise<Post> {
         let savedPost: Post;
@@ -268,6 +255,81 @@ export class PostService {
         } catch (error) {
             this.logger.error('Error deleting post:', error);
             throw new InternalServerErrorException('Lỗi khi xóa bài viết');
+        }
+    }
+
+    async update(id: string, updatePostDto: UpdatePostDto) {
+        let updatedPost: Post;
+
+        try {
+            this.logger.log(`Updating post ${id} with data:`, JSON.stringify(updatePostDto, null, 2));
+
+            const existingPost = await this.postModel.findById(id);
+            if (!existingPost) {
+                throw new NotFoundException('Post not found');
+            }
+
+            const mediaUrls = updatePostDto.media ?? existingPost.media ?? [];
+            const images = (updatePostDto.images ?? []) as Express.Multer.File[];
+
+            // Upload ảnh mới nếu có
+            if (images.length > 0) {
+                const newMediaUrls: string[] = [];
+                for (const file of images) {
+                    try {
+                        console.log(`Uploading image: ${file.originalname}`);
+
+                        // Gửi qua Cloudinary Client (RPC)
+                        const uploadResult = await this.cloudinaryClient
+                            .send('cloudinary.upload', {
+                            buffer: file.buffer, // Base64 string
+                            filename: file.originalname,
+                            mimetype: file.mimetype,
+                            folder: `Post/${updatePostDto.userId}/Image`,
+                            })
+                            .toPromise();
+
+                        console.log(`Upload success: ${uploadResult.secure_url}`);
+                        newMediaUrls.push(uploadResult.secure_url);
+                        } catch (error) {
+                        console.error(
+                            `Error uploading image ${file.originalname}:`,
+                            error.message,
+                        );
+                        throw new Error(
+                            `Failed to upload image ${file.originalname}: ${error.message}`,
+                        );
+                    }
+                }
+                existingPost.media = [...mediaUrls, ...newMediaUrls];
+            } else if (updatePostDto.media) {
+                existingPost.media = updatePostDto.media;
+            }
+
+            // Cập nhật content & keywords
+            if (updatePostDto.content !== undefined) {
+                existingPost.content = updatePostDto.content;
+            }
+
+            if (updatePostDto.keywords !== undefined) {
+                existingPost.keywords = updatePostDto.keywords;
+            }
+
+            updatedPost = await existingPost.save();
+
+            this.logger.log(`Post updated successfully:`, JSON.stringify((updatedPost as any).toObject(), null, 2));
+
+            // TODO: Uncomment when EmbeddingService is available
+            // Nếu có thay đổi content/keywords -> cập nhật embedding
+            // if (updatePostDto.content !== undefined || updatePostDto.keywords !== undefined) {
+            //     this.updateEmbeddingAsync(updatedPost._id.toString(), updatedPost.content, updatedPost.keywords);
+            // }
+
+            return updatedPost;
+
+        } catch (error) {
+            this.logger.error(`Error updating post ${id}:`, error);
+            throw new InternalServerErrorException('Lỗi khi cập nhật bài viết');
         }
     }
 }

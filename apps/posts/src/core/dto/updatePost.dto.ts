@@ -1,7 +1,11 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsMongoId, IsNotEmpty, IsString } from 'class-validator';
 import { Express } from 'express';
 
 export class UpdatePostDto {
+    @IsNotEmpty()
+    @IsMongoId()
+    userId: string;
+
     @IsOptional()
     content?: string;
 

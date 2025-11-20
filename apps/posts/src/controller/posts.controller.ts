@@ -3,6 +3,7 @@ import { PostService } from '../service/post.service';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CreatePostDto } from '../core/dto/createPost.dto';
+import { UpdatePostDto, UpdateKeywordsDto } from '../core/dto/updatePost.dto';
 
 @Controller()
 export class PostController {
@@ -42,35 +43,20 @@ export class PostController {
     return this.postService.getByUserId(data.id, limitNum, skipNum);
   }
 
-  // @MessagePattern('post.update')
-  // @UseInterceptors(FilesInterceptor('images'))
-  // async updatePost(
-  //   @Param('id') id: string,
-  //   @UploadedFiles() images: Express.Multer.File[],
-  //   @Body() updatePostDto: UpdatePostDto,
-  //   @Req() request: Request, // Add this parameter to access the request
-  // ) {
-  //   // Gán images từ multipart vào DTO
-  //   updatePostDto.images = images;
-  //   console.log(images)
-  //   // Xử lý media (ảnh cũ) từ form-data
-  //   // In NestJS, form-data fields (except files) are available in request.body
-  //   const body = request.body as any; // Type assertion since form-data fields might not be typed
+  @MessagePattern('post.update')
+  async updatePost(@Payload() data: { id: string; updatePostDto: UpdatePostDto; images?: Express.Multer.File[] }) {
+    const { id, updatePostDto, images } = data;
+    
+    // Gán images từ multipart vào DTO
+    if (images) {
+      updatePostDto.images = images;
+    }
 
-  //   // Handle media array
-  //   if (body.media) {
-  //     // If media is sent as array (media[0], media[1],...)
-  //     if (Array.isArray(body.media)) {
-  //       updatePostDto.media = body.media;
-  //     }
-  //     // If media is sent as string (single image case)
-  //     else if (typeof body.media === 'string') {
-  //       updatePostDto.media = [body.media];
-  //     }
-  //   }
+    // Handle media array if provided in updatePostDto
+    // Media should be passed directly in updatePostDto
 
-  //   return this.postService.update(id, updatePostDto);
-  // }
+    return this.postService.update(id, updatePostDto);
+  }
 
   @MessagePattern('post.delete')
   async delete(@Payload() data: { id: string }) {
