@@ -153,7 +153,11 @@ export class DoctorService {
   }
 
   async getPendingDoctorById(id: string) {
-    return this.pendingDoctorModel.findById(id);
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ID format');
+    }
+    const objectId = new Types.ObjectId(id);
+    return this.pendingDoctorModel.findById(objectId);
   }
 
   async createPendingDoctor(data: any) {

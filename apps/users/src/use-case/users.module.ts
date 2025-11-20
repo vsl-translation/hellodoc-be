@@ -62,13 +62,13 @@ import { redisStore } from 'cache-manager-redis-store';
           port: 3009,
         },
       },
-      // {
-      //   name: 'CLOUDINARY_CLIENT',
-      //   transport: Transport.TCP,
-      //   options: {
-      //     port: 3006,
-      //   },
-      // },
+      {
+        name: 'CLOUDINARY_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3006,
+        },
+      },
     ]),
   ],
   controllers: [UsersController],

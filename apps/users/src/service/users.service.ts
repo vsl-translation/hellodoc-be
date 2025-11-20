@@ -8,7 +8,6 @@ import { catchError, lastValueFrom, of, timeout } from 'rxjs';
 import { UpdateFcmDto } from '../core/dto/update-fcm.dto';
 import { CreateUserDto } from '../core/dto/createUser.dto';
 import * as bcrypt from 'bcrypt';
-//import { CloudinaryService } from 'libs/cloudinary/src/service/cloudinary.service';
 import { updateUserDto } from '../core/dto/updateUser.dto';
 import * as admin from 'firebase-admin';
 
@@ -18,9 +17,8 @@ export class UsersService {
     @InjectModel(User.name, 'userConnection') private UserModel: Model<User>,
     @Inject('DOCTOR_CLIENT') private readonly doctorClient: ClientProxy,
     @Inject('SPECIALTY_CLIENT') private readonly specialtyClient: ClientProxy,
-    //private cloudinaryService: CloudinaryService
+    @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy) { }
 
-  ) { }
   async updateFcmToken(userId: string, updateFcmDto: UpdateFcmDto) {
     console.log(updateFcmDto.token);
     if (updateFcmDto.userModel == 'User') {
@@ -150,113 +148,155 @@ export class UsersService {
 
 
   // Đăng ký làm bác sĩ (Lưu vào bảng chờ phê duyệt)
-  // async applyForDoctor(userId: string, applyData: any) {
-  //   // Kiểm tra người dùng tồn tại
-  //   const user = await this.UserModel.findById(userId);
-  //   if (!user) throw new NotFoundException('Người dùng không tồn tại.');
+  async applyForDoctor(id: string, applyData: any) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('User ID không hợp lệ.');
+    }
 
-  //   // Kiểm tra nếu đã đăng ký trước đó
-  //   const existing = await lastValueFrom(
-  //     this.doctorClient.send('doctor.get-by-user-id', userId).pipe(
-  //       timeout(3000),
-  //       catchError(() => of(null)) // Trả về null nếu lỗi
-  //     )
-  //   );
+    const userId = new Types.ObjectId(id);
 
-  //   if (existing) {
-  //     throw new BadRequestException('Bạn đã gửi yêu cầu trở thành bác sĩ trước đó.');
-  //   } else {
+    // Kiểm tra người dùng tồn tại
+    const user = await this.UserModel.findById(userId);
+    if (!user) throw new NotFoundException('Người dùng không tồn tại.');
 
-  //     // Danh sách các trường hợp lệ từ form data
-  //     const allowedFields = [
-  //       'CCCD',
-  //       'certificates',
-  //       'experience',
-  //       'license',
-  //       'specialty',
-  //       'faceUrl',
-  //       'avatarURL',
-  //       'licenseUrl',
-  //       'frontCccdUrl',
-  //       'backCccdUrl',
-  //       'address',
-  //     ];
+    // Kiểm tra nếu đã đăng ký trước đó
+    const existing = await lastValueFrom(
+      this.doctorClient.send('doctor.get-pedingDoctor-by-id', userId).pipe(
+        timeout(3000),
+        catchError((error) => of(null))
+      )
+    );
 
-  //     // Lọc dữ liệu hợp lệ
-  //     const filteredApplyData = {};
-  //     Object.keys(applyData).forEach((key) => {
-  //       if (allowedFields.includes(key)) {
-  //         filteredApplyData[key] = applyData[key];
-  //       }
-  //     });
+    if (existing) {
+      throw new BadRequestException('Bạn đã gửi yêu cầu trở thành bác sĩ trước đó.');
+    } else {
 
-  //     filteredApplyData['email'] = user.email;
-  //     filteredApplyData['phone'] = user.phone;
-  //     filteredApplyData['name'] = user.name;
+      // Danh sách các trường hợp lệ từ form data
+      const allowedFields = [
+        'CCCD',
+        'certificates',
+        'experience',
+        'license',
+        'specialty',
+        'faceUrl',
+        'avatarURL',
+        'licenseUrl',
+        'frontCccdUrl',
+        'backCccdUrl',
+        'address',
+      ];
 
-  //     if (filteredApplyData['specialty']) {
-  //       const specialtyExists = await lastValueFrom(
-  //         this.specialtyClient.send('specialty.get-by-id', filteredApplyData['specialty']).pipe(
-  //           timeout(3000)
-  //         )
-  //       );
-  //       if (!specialtyExists) {
-  //         throw new BadRequestException('Chuyên khoa không tìm thấy.');
-  //       }
-  //     }
+      // Lọc dữ liệu hợp lệ
+      const filteredApplyData = {};
+      Object.keys(applyData).forEach((key) => {
+        if (allowedFields.includes(key)) {
+          filteredApplyData[key] = applyData[key];
+        }
+      });
 
-  //     if (applyData.faceUrl) {
-  //       const uploadResult = await this.cloudinaryService.uploadFile(applyData.faceUrl, `PendingDoctors/${userId}/Face`);
-  //       filteredApplyData['faceUrl'] = uploadResult.secure_url;
-  //     }
+      filteredApplyData['email'] = user.email;
+      filteredApplyData['phone'] = user.phone;
+      filteredApplyData['name'] = user.name;
 
-  //     if (applyData.avatarURL) {
-  //       const uploadResult = await this.cloudinaryService.uploadFile(applyData.avatarURL, `PendingDoctors/${userId}/Avatar`);
-  //       filteredApplyData['avatarURL'] = uploadResult.secure_url;
-  //     }
+      if (filteredApplyData['specialty']) {
+        const specialtyId = filteredApplyData['specialty'];
+        if (!Types.ObjectId.isValid(specialtyId)) {
+          throw new BadRequestException('Chuyên khoa không hợp lệ.');
+        }
 
-  //     if (applyData.licenseUrl) {
-  //       const uploadResult = await this.cloudinaryService.uploadFile(applyData.licenseUrl, `PendingDoctors/${userId}/License`);
-  //       filteredApplyData['licenseUrl'] = uploadResult.secure_url;
-  //     }
+        const specialtyIdObj = new Types.ObjectId(specialtyId);
+        const specialtyExists = await lastValueFrom(
+          this.specialtyClient.send('specialty.get-by-id', specialtyIdObj).pipe(
+            timeout(3000)
+          )
+        );
+        if (!specialtyExists) {
+          throw new BadRequestException('Chuyên khoa không tìm thấy.');
+        }
+      }
 
-  //     if (applyData.frontCccdUrl) {
-  //       const uploadResult = await this.cloudinaryService.uploadFile(applyData.frontCccdUrl, `PendingDoctors/${userId}/Info`);
-  //       filteredApplyData['frontCccdUrl'] = uploadResult.secure_url;
-  //     }
+      if (applyData.faceUrl) {
+        const uploadResult = await this.cloudinaryClient
+          .send('cloudinary.upload', {
+            buffer: applyData.faceUrl.buffer, // Base64 string
+            filename: applyData.faceUrl.originalname,
+            mimetype: applyData.faceUrl.mimetype,
+            folder: `PendingDoctors/${userId}/Face`,
+          })
+          .toPromise();
+        filteredApplyData['faceUrl'] = uploadResult.secure_url;
+      }
 
-  //     if (applyData.backCccdUrl) {
-  //       const uploadResult = await this.cloudinaryService.uploadFile(applyData.backCccdUrl, `PendingDoctors/${userId}/Info`);
-  //       filteredApplyData['backCccdUrl'] = uploadResult.secure_url;
-  //     }
+      if (applyData.avatarURL) {
+        const uploadResult = await this.cloudinaryClient
+          .send('cloudinary.upload', {
+            buffer: applyData.avatarURL.buffer, // Base64 string
+            filename: applyData.avatarURL.originalname,
+            mimetype: applyData.avatarURL.mimetype,
+            folder: `PendingDoctors/${userId}/Avatar`,
+          })
+          .toPromise();
+        filteredApplyData['avatarURL'] = uploadResult.secure_url;
+      }
 
-  //     // const pendingDoctor = new this.pendingDoctorModel({
-  //     //   userId,
-  //     //   ...filteredApplyData,
-  //     // });
+      if (applyData.licenseUrl) {
+        const uploadResult = await this.cloudinaryClient
+          .send('cloudinary.upload', {
+            buffer: applyData.licenseUrl.buffer, // Base64 string
+            filename: applyData.licenseUrl.originalname,
+            mimetype: applyData.licenseUrl.mimetype,
+            folder: `PendingDoctors/${userId}/License`,
+          })
+          .toPromise();
+        filteredApplyData['licenseUrl'] = uploadResult.secure_url;
+      }
 
-  //     const pendingDoctor = await lastValueFrom(
-  //       this.doctorClient.send('doctor.create-pending-doctor', {
-  //         userId,
-  //         ...filteredApplyData
-  //       }).pipe(
-  //         timeout(5000),
-  //         catchError(err => {
-  //           console.error('Error calling doctor service:', err);
-  //           throw new BadRequestException('Không thể kết nối với dịch vụ bác sĩ');
-  //         })
-  //       )
-  //     );
+      if (applyData.frontCccdUrl) {
+        const uploadResult = await this.cloudinaryClient
+          .send('cloudinary.upload', {
+            buffer: applyData.frontCccdUrl.buffer, // Base64 string
+            filename: applyData.frontCccdUrl.originalname,
+            mimetype: applyData.frontCccdUrl.mimetype,
+            folder: `PendingDoctors/${userId}/Info`,
+          })
+          .toPromise();
+        filteredApplyData['frontCccdUrl'] = uploadResult.secure_url;
+      }
 
-  //     if (!pendingDoctor) {
-  //       throw new BadRequestException('Đăng ký thất bại!');
-  //     }
+      if (applyData.backCccdUrl) {
+        const uploadResult = await this.cloudinaryClient
+          .send('cloudinary.upload', {
+            buffer: applyData.backCccdUrl.buffer, // Base64 string
+            filename: applyData.backCccdUrl.originalname,
+            mimetype: applyData.backCccdUrl.mimetype,
+            folder: `PendingDoctors/${userId}/Info`,
+          })
+          .toPromise();
+        filteredApplyData['backCccdUrl'] = uploadResult.secure_url;
+      }
 
-  //     return {
-  //       message: 'Đăng ký bác sĩ thành công!'
-  //     };
-  //   }
-  // }
+      const pendingDoctor = await lastValueFrom(
+        this.doctorClient.send('doctor.create-pending-doctor', {
+          userId,
+          ...filteredApplyData
+        }).pipe(
+          timeout(40000),
+          catchError(err => {
+            console.error('Error calling doctor service:', err);
+            throw new BadRequestException('Không thể kết nối với dịch vụ bác sĩ');
+          })
+        )
+      );
+
+      if (!pendingDoctor) {
+        throw new BadRequestException('Đăng ký thất bại!');
+      }
+
+      return {
+        message: 'Đăng ký bác sĩ thành công!'
+      };
+    }
+  }
 
   async delete(id: string) {
     // Check if the user exists in either UserModel or DoctorModel
@@ -283,100 +323,107 @@ export class UsersService {
     return this.UserModel.create(userDto);
   }
 
-  // async updateUser(id: string, updateData: any) {
-  //   console.log('ID type:', typeof id, 'Value:', id);
-  //   // Validate ObjectId format
-  //   if (!Types.ObjectId.isValid(id)) {
-  //     throw new BadRequestException('Invalid ID format');
-  //   }
+  async updateUser(id: string, updateData: any) {
+    console.log('ID type:', typeof id, 'Value:', id);
+    // Validate ObjectId format
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ID format');
+    }
 
-  //   const objectId = new Types.ObjectId(id);
+    const objectId = new Types.ObjectId(id);
 
-  //   // Check if the user exists
-  //   let user = await this.UserModel.findById(objectId);
-  //   console.log('User fetched from UserModel:', user);
-  //   if (!user) {
-  //     user = await lastValueFrom(this.doctorClient.send('doctor.get-by-id', id).pipe(timeout(3000)));
-  //     console.log('User fetched from Doctor service:', user);
-  //     if (!user) {
-  //       throw new NotFoundException('User not found');
-  //     }
-  //   }
+    // Check if the user exists
+    let user = await this.UserModel.findById(objectId);
+    console.log('User fetched from UserModel:', user);
+    if (!user) {
+      user = await lastValueFrom(this.doctorClient.send('doctor.get-by-id', id).pipe(timeout(3000)));
+      console.log('User fetched from Doctor service:', user);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+    }
 
-  //   console.log('Current user data:', user);
+    console.log('Current user data:', user);
 
-  //   // Prepare the update object
-  //   const updateFields: Partial<updateUserDto> = {};
-  //   if (updateData.avatarURL) {
-  //     try {
-  //       const uploadResult = await this.cloudinaryService.uploadFile(updateData.avatarURL, `Doctors/${id}/License`);
-  //       updateFields.avatarURL = uploadResult.secure_url;
-  //       console.log('Avatar da tai len:', updateData.avatarURL);
-  //     } catch (error) {
-  //       console.error('Lỗi Cloudinary:', error);
-  //       throw new BadRequestException('Lỗi khi tải avatar lên Cloudinary');
-  //     }
-  //   }
+    // Prepare the update object
+    const updateFields: Partial<updateUserDto> = {};
+    if (updateData.avatarURL) {
+      try {
+        const uploadResult = await this.cloudinaryClient
+          .send('cloudinary.upload', {
+            buffer: updateData.avatarURL.buffer, // Base64 string
+            filename: updateData.avatarURL.originalname,
+            mimetype: updateData.avatarURL.mimetype,
+            folder: `Doctors/${id}/License`,
+          })
+          .toPromise();
+        updateFields.avatarURL = uploadResult.secure_url;
+        console.log('Avatar da tai len:', updateData.avatarURL);
+      } catch (error) {
+        console.error('Lỗi Cloudinary:', error);
+        throw new BadRequestException('Lỗi khi tải avatar lên Cloudinary');
+      }
+    }
 
-  //   if (updateData.email) updateFields.email = updateData.email;
-  //   if (updateData.name) updateFields.name = updateData.name;
-  //   if (updateData.phone) updateFields.phone = updateData.phone;
-  //   if (updateData.address) updateFields.address = updateData.address;
+    if (updateData.email) updateFields.email = updateData.email;
+    if (updateData.name) updateFields.name = updateData.name;
+    if (updateData.phone) updateFields.phone = updateData.phone;
+    if (updateData.address) updateFields.address = updateData.address;
 
-  //   // 🔥 Only hash password if it is actually changed
-  //   if (
-  //     updateData.password &&
-  //     updateData.password.trim() !== '' &&
-  //     updateData.password !== user.password
-  //   ) {
-  //     updateFields.password = await bcrypt.hash(updateData.password, 10);
-  //   } else {
-  //     updateFields.password = user.password; // Keep the old password if it's not changed
-  //   }
+    // 🔥 Only hash password if it is actually changed
+    if (
+      updateData.password &&
+      updateData.password.trim() !== '' &&
+      updateData.password !== user.password
+    ) {
+      updateFields.password = await bcrypt.hash(updateData.password, 10);
+    } else {
+      updateFields.password = user.password; // Keep the old password if it's not changed
+    }
 
-  //   let roleChanged = false;
-  //   let newRole = user.role; // Keep the old role by default
+    let roleChanged = false;
+    let newRole = user.role; // Keep the old role by default
 
-  //   if (updateData.role && updateData.role !== user.role) {
-  //     roleChanged = true;
-  //     newRole = updateData.role;
-  //   }
-  //   // Log thông tin cập nhật
-  //   console.log('Thông tin cập nhật nguoi dung:', {
-  //     id,
-  //     updatedData: updateFields
-  //   });
-  //   // If no fields have changed, return a message
-  //   if (Object.keys(updateFields).length === 0 && !roleChanged) {
-  //     return { message: 'No changes detected' };
-  //   }
+    if (updateData.role && updateData.role !== user.role) {
+      roleChanged = true;
+      newRole = updateData.role;
+    }
+    // Log thông tin cập nhật
+    console.log('Thông tin cập nhật nguoi dung:', {
+      id,
+      updatedData: updateFields
+    });
+    // If no fields have changed, return a message
+    if (Object.keys(updateFields).length === 0 && !roleChanged) {
+      return { message: 'No changes detected' };
+    }
 
-  //   // Determine which model to update based on the user's existence in the models
-  //   if (user) {
-  //     // Update the user in UserModel
-  //     const updatedUser = await this.UserModel.findByIdAndUpdate(
-  //       objectId,
-  //       { $set: updateFields },
-  //       { new: true },
-  //     );
+    // Determine which model to update based on the user's existence in the models
+    if (user) {
+      // Update the user in UserModel
+      const updatedUser = await this.UserModel.findByIdAndUpdate(
+        objectId,
+        { $set: updateFields },
+        { new: true },
+      );
 
-  //     if (!updatedUser) {
-  //       throw new NotFoundException('Update failed, user not found in UserModel');
-  //     }
-  //     return { message: 'User updated successfully in UserModel', user: updatedUser };
-  //   } else if (!user) {
-  //     // Update the user in DoctorModel
-  //     const updatedDoctor = await lastValueFrom(this.doctorClient.send('doctor.update',
-  //       {
-  //         objectId,
-  //         ...updateFields,
-  //       }
-  //     ).pipe(timeout(3000)));
+      if (!updatedUser) {
+        throw new NotFoundException('Update failed, user not found in UserModel');
+      }
+      return { message: 'User updated successfully in UserModel', user: updatedUser };
+    } else if (!user) {
+      // Update the user in DoctorModel
+      const updatedDoctor = await lastValueFrom(this.doctorClient.send('doctor.update',
+        {
+          objectId,
+          ...updateFields,
+        }
+      ).pipe(timeout(3000)));
 
-  //     if (!updatedDoctor) {
-  //       throw new NotFoundException('Update failed, user not found in DoctorModel');
-  //     }
-  //     return { message: 'User updated successfully in DoctorModel', user: updatedDoctor };
-  //   }
-  // }
+      if (!updatedDoctor) {
+        throw new NotFoundException('Update failed, user not found in DoctorModel');
+      }
+      return { message: 'User updated successfully in DoctorModel', user: updatedDoctor };
+    }
+  }
 }

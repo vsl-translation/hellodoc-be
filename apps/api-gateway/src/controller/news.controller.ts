@@ -30,9 +30,17 @@ export class NewsController {
     }
 
     @Patch(':id')
-    @UseInterceptors(FilesInterceptor('images'))
-    async update(@Param('id') id: string, @UploadedFiles() files: Express.Multer.File[], @Body() dto: UpdateNewsDto) {
-        dto.images = files;
+    @UseInterceptors(FileFieldsInterceptor([{ name: 'images', maxCount: 10 }]))
+    async update(@Param('id') id: string, @UploadedFiles() files: { images?: Express.Multer.File[] }, @Body() dto: UpdateNewsDto) {
+        // Chuyển đổi files sang Base64
+        if (files.images && files.images.length > 0) {
+            dto.images = files.images.map((file) => ({
+                buffer: file.buffer.toString('base64'),
+                originalname: file.originalname,
+                mimetype: file.mimetype,
+            } as ImageDto));
+        }
+
         return this.newsService.update(id, dto);
     }
 

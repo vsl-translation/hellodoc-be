@@ -87,12 +87,10 @@ export class NewsController {
     return this.newsService.getOne(id);
   }
 
-  // @MessagePattern('news.update')
-  // @UseInterceptors(FilesInterceptor('images'))
-  // async update(@Param('id') id: string, @UploadedFiles() files: Express.Multer.File[], @Body() dto: UpdateNewsDto) {
-  //   dto.images = files;
-  //   return this.newsService.update(id, dto);
-  // }
+  @MessagePattern('news.update')
+  async update(@Payload() id: string, @Payload() dto: UpdateNewsDto) {
+    return this.newsService.update(id, dto);
+  }
 
   @MessagePattern('news.delete')
   async delete(id: string): Promise<{ message: string }> {
@@ -100,4 +98,6 @@ export class NewsController {
     if (!updated) throw new NotFoundException('Tin tức không tồn tại');
     return { message: 'Đã ẩn tin tức thành công' };
   }
+
+
 }
