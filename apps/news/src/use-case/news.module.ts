@@ -54,18 +54,4 @@ import { v2 as cloudinary } from 'cloudinary';
   controllers: [NewsController],
   providers: [NewsService],
 })
-export class NewsModule {
-  constructor(private configService: ConfigService) {
-    cloudinary.config({
-      cloud_name: this.configService.get('CLOUDINARY_CLOUD_NAME'),
-      api_key: this.configService.get('CLOUDINARY_API_KEY'),
-      api_secret: this.configService.get('CLOUDINARY_API_SECRET'),
-    });
-
-    console.log("CONFIG LOADED:", {
-      cloud: this.configService.get('CLOUDINARY_CLOUD_NAME'),
-      key: this.configService.get('CLOUDINARY_API_KEY'),
-      secret: this.configService.get('CLOUDINARY_API_SECRET'),
-    });
-  }
-}
+export class NewsModule {}
