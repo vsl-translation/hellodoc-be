@@ -15,7 +15,7 @@ import { v2 as cloudinary } from 'cloudinary';
       isGlobal: true,
       cache: true,
       load: [config],
-      envFilePath: ['apps/news/.env'],
+      //envFilePath: ['apps/news/.env'],
     }),
 
 
