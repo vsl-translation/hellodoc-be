@@ -177,6 +177,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/qdrant/tsconfig.app.json"
       }
+    },
+    "post-favorite": {
+      "type": "application",
+      "root": "apps/post-favorite",
+      "entryFile": "main",
+      "sourceRoot": "apps/post-favorite/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/post-favorite/tsconfig.app.json"
+      }
     }
   }
 }
