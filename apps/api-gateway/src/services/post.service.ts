@@ -39,4 +39,8 @@ export class PostService {
     async searchPosts(query: string) {
         return lastValueFrom(this.postClient.send('post.search-advanced', { query }));
     }
+
+    async findSimilarPosts(id: string, limit: number = 10, minSimilarity: number = 0.7) {
+        return lastValueFrom(this.postClient.send('post.find-similar', { id, limit, minSimilarity }));
+    }
 }

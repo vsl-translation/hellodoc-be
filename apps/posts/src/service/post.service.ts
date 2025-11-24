@@ -452,4 +452,72 @@ export class PostService {
             this.logger.error(`Error generating embedding for post ${postId}: ${error.message}`, error.stack || error);
         }
     }
+
+    async findSimilarPosts(id: string, limit: number = 10, minSimilarity: number = 0.7) {
+        console.log(`SERVICE Finding posts similar to ID: ${id} with limit: ${limit} and minSimilarity: ${minSimilarity}`);
+        
+        //Kiem tra có post nào có trường embedding không phải 1024 không
+        if (await this.postModel.exists({ embedding: { $exists: true, $not: { $size: 1024 } } })) {
+            console.log("Found posts with invalid embedding size. Updating embeddings...");
+            await this.updateEmbeddingAsync();
+        }
+        //Lấy post từ DB để lấy embedding
+        let postEmbedding = await this.postModel.findById(id).select('embedding'); 
+        if (postEmbedding == null || postEmbedding.embedding.length === 0) {
+    
+            console.log(`Post embedding not found or empty for post ID: ${id}. Generating embedding...`);
+            //Gọi tạo embeding nếu chưa có, lấy post keyword và content để tạo embedding
+            const post = await this.postModel.findById(id).select('keywords content');
+            await this.generateEmbeddingAsync(id, post.keywords, post.content);
+            postEmbedding = await this.postModel.findById(id).select('embedding');
+        }
+        console.log(`Post embedding retrieved : ${postEmbedding.embedding.length} dimensions.`);
+
+        //Gọi Qdrant service để tìm kiếm
+
+    
+
+        return await this.qdrantClient.send('qdrant.find-similar-posts', { postEmbedding, limit, minSimilarity });
+    }
+
+    //Tạo lại toàn bộ embedding cho tất cả post
+    async updateEmbeddingAsync(): Promise<void> {
+        console.log("⏳ Bắt đầu kiểm tra và cập nhật lại embedding...");
+
+        //Xóa tất cả embedding cũ với kích thước 1024
+        await this.postModel.updateMany(
+            { embedding: { $exists: true, $size: 1024 } },
+            { $set: { embedding: [] } }
+        );
+
+        // Lấy tất cả post (chỉ lấy embedding, keywords và content)
+        const posts = await this.postModel.find({}).select('embedding keywords content');
+        console.log(`🔍 Tổng số post: ${posts.length}`);
+
+        let updatedCount = 0;
+
+        for (const post of posts) {
+            const id = post._id.toString();
+            const embedding = post.embedding || [];
+
+            // Kiểm tra kích thước embedding hiện tại
+            if (embedding.length !== 1024) {
+
+                console.log(`⚠ Post ${id} có embedding sai kích thước: ${embedding.length}. Tiến hành tạo lại...`);
+
+                // Xóa embedding cũ
+                await this.postModel.updateOne(
+                    { _id: id },
+                    { $set: { embedding: [] } }
+                );
+
+                // Tạo lại embedding mới
+                await this.generateEmbeddingAsync(id, post.keywords, post.content);
+
+                updatedCount++;
+            }
+        }
+        console.log(`🎉 Đã cập nhật lại embedding cho ${updatedCount} post.`);
+    }
 }
+

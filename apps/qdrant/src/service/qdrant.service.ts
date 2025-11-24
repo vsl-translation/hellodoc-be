@@ -177,4 +177,6 @@ export class QdrantService implements OnModuleInit {
             similarity: r.score,
         }));
     }
+
+    
 }

@@ -17,6 +17,7 @@ export class QdrantController {
       @Payload ("limit") limit = 5,
       @Payload ("minSimilarity") minSimilarity = 0.5,
   ) {
-    await this.qdrantService.findSimilarPostsQdrant(queryVector, limit, minSimilarity);
+    console.log(`QdrantController: Finding similar posts with limit ${limit} and minSimilarity ${minSimilarity}`);
+    return await this.qdrantService.findSimilarPostsQdrant(queryVector, limit, minSimilarity);
   }
 }

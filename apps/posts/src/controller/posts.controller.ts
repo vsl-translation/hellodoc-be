@@ -64,14 +64,14 @@ export class PostController {
     return this.postService.delete(data.id);
   }
 
-  // @MessagePattern('post.find-similar')
-  // async findSimilarPosts(
-  //   @Param('id') id: string,
-  //   @Query('limit') limit: number = 10,
-  //   @Query('minSimilarity') minSimilarity: number = 0.7
-  // ) {
-  //   return this.postService.findSimilarPosts(id, Number(limit), Number(minSimilarity));
-  // }
+  @MessagePattern('post.find-similar')
+  async findSimilarPosts(
+    @Payload() data: { id: string; limit: number; minSimilarity: number }
+  ) {
+    const { id, limit, minSimilarity } = data;
+    console.log(`Finding posts similar to ID: ${id} with limit: ${limit} and minSimilarity: ${minSimilarity}`);
+    return this.postService.findSimilarPosts(id, Number(limit), Number(minSimilarity));
+  }
 
   // // ================ Hybrid Search ================
   // @MessagePattern('post.hybrid-search')
