@@ -447,6 +447,16 @@ export class PostService {
                 { new: true }
             );
 
+            //Lưu lại embedding vào Qdrant
+            await firstValueFrom(this.qdrantClient.send('qdrant.upsert-post', {
+                postId,
+                vector: embedding,
+                payload: {
+                    content: content || '',
+                    keywords: keywords || ''
+                }
+            }));
+
             this.logger.log(`Embedding generated and stored for post ${postId}`);
         } catch (error: any) {
             this.logger.error(`Error generating embedding for post ${postId}: ${error.message}`, error.stack || error);
@@ -456,8 +466,8 @@ export class PostService {
     async findSimilarPosts(id: string, limit: number = 10, minSimilarity: number = 0.7) {
         console.log(`SERVICE Finding posts similar to ID: ${id} with limit: ${limit} and minSimilarity: ${minSimilarity}`);
         
-        //Kiem tra có post nào có trường embedding không phải 1024 không
-        if (await this.postModel.exists({ embedding: { $exists: true, $not: { $size: 1024 } } })) {
+        //Kiem tra có post nào có trường embedding không phải 384 không
+        if (await this.postModel.exists({ embedding: { $exists: true, $not: { $size: 384 } } })) {
             console.log("Found posts with invalid embedding size. Updating embeddings...");
             await this.updateEmbeddingAsync();
         }
@@ -474,10 +484,18 @@ export class PostService {
         console.log(`Post embedding retrieved : ${postEmbedding.embedding.length} dimensions.`);
 
         //Gọi Qdrant service để tìm kiếm
+        const queryVector = postEmbedding.embedding;
+        if (!queryVector || queryVector.length === 0) {
+            throw new InternalServerErrorException(`Post ${id} does not have a valid embedding`);
+        }
 
-    
-
-        return await this.qdrantClient.send('qdrant.find-similar-posts', { postEmbedding, limit, minSimilarity });
+        return await firstValueFrom(
+            this.qdrantClient.send('qdrant.find-similar-posts', {
+                queryVector,
+                limit,
+                minSimilarity
+            })
+        );
     }
 
     //Tạo lại toàn bộ embedding cho tất cả post
@@ -486,7 +504,7 @@ export class PostService {
 
         //Xóa tất cả embedding cũ với kích thước 1024
         await this.postModel.updateMany(
-            { embedding: { $exists: true, $size: 1024 } },
+            {  },
             { $set: { embedding: [] } }
         );
 
@@ -499,24 +517,18 @@ export class PostService {
         for (const post of posts) {
             const id = post._id.toString();
             const embedding = post.embedding || [];
+            // Xóa embedding cũ
+            await this.postModel.updateOne(
+                { _id: id },
+                { $set: { embedding: [] } }
+            );
 
-            // Kiểm tra kích thước embedding hiện tại
-            if (embedding.length !== 1024) {
+            // Tạo lại embedding mới
+            await this.generateEmbeddingAsync(id, post.keywords, post.content);
 
-                console.log(`⚠ Post ${id} có embedding sai kích thước: ${embedding.length}. Tiến hành tạo lại...`);
-
-                // Xóa embedding cũ
-                await this.postModel.updateOne(
-                    { _id: id },
-                    { $set: { embedding: [] } }
-                );
-
-                // Tạo lại embedding mới
-                await this.generateEmbeddingAsync(id, post.keywords, post.content);
-
-                updatedCount++;
-            }
-        }
+            updatedCount++;
+            
+    }
         console.log(`🎉 Đã cập nhật lại embedding cho ${updatedCount} post.`);
     }
 }

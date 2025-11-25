@@ -119,7 +119,6 @@ export class EmbeddingService {
         try {
             //this.logger.log(`Generating embedding (attempt ${attempt}/${this.maxRetries}) for text: ${truncatedText.substring(0, 50)}...`);
 
-            this.logger.log('HF_API_TOKEN:', process.env.HF_API_TOKEN);
             // Phương pháp 1: Sử dụng Hugging Face SDK
             if (this.hf && process.env.HF_API_TOKEN) {
                 try {

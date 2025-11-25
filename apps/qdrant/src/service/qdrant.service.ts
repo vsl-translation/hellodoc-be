@@ -6,8 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 export class QdrantService implements OnModuleInit {
     private readonly logger = new Logger(QdrantService.name);
     private client: QdrantClient;
-    private readonly collectionName = 'posts';
-    private readonly vectorSize = 384;
+    private readonly collectionName = 'postEmbedding';
+    private readonly vectorSize = 1024; // BAAI/bge-m3 model produces 1024-dimensional embeddings
 
     // trạng thái để tránh tạo nhiều lần khi concurrent
     private collectionReady = false;
@@ -30,19 +30,19 @@ export class QdrantService implements OnModuleInit {
     async initCollection() {
         try {
             await this.client.createCollection(
-                'posts',
+                this.collectionName,
                 {
                     vectors:
                     {
-                        size: 384, // phải khớp với dimension của model embedding bạn đang dùng 
+                        size: this.vectorSize, // phải khớp với dimension của model embedding bạn đang dùng 
                         distance: 'Cosine' // Cosine phổ biến cho semantic search 
                     }
                 }
             );
-            this.logger.log('Qdrant collection "posts" initialized');
+            this.logger.log('Qdrant collection "postEmbedding" initialized');
         } catch (err: any) {
             if (err.status === 409) {
-                this.logger.log('Collection "posts" đã tồn tại, skip.');
+                this.logger.log('Collection "postEmbedding" đã tồn tại, skip.');
             }
             else {
                 this.logger.error('Error creating collection', err);
@@ -166,7 +166,7 @@ export class QdrantService implements OnModuleInit {
         minSimilarity = 0.5,
     ) {
         //await this.ensureCollection(); // optional: đảm bảo collection đã sẵn sàng
-        const results = await this.client.search('post', {
+        const results = await this.client.search(this.collectionName, {
             vector: queryVector,
             limit,
             score_threshold: minSimilarity,
