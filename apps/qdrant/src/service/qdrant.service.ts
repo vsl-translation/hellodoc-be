@@ -191,25 +191,44 @@ export class QdrantService implements OnModuleInit {
     // }
 
     async findSimilarPostsQdrant(
-        queryVector: number[],
-        limit = 5,
-        minSimilarity = 0.5,
-    ) {
-        //await this.ensureCollection(); // optional: đảm bảo collection đã sẵn sàng
-        const results = await this.client.search(this.collectionName, {
-            vector: this.normalizeVector(queryVector),
-            limit: limit,
-            score_threshold: minSimilarity
-        });
+    queryVector: number[],
+    limit = 5,
+    minSimilarity = 0.5,
+    postId?: string
+) {
+    console.log(`QdrantService: Searching similar posts with limit=${limit}, minSimilarity=${minSimilarity}, exclude postId=${postId}`);
+    
+    // Lấy nhiều hơn để bù cho việc filter
+    const searchLimit = postId ? limit + 10 : limit;
+    
+    const results = await this.client.search(this.collectionName, {
+        vector: this.normalizeVector(queryVector),
+        limit: searchLimit,
+        score_threshold: minSimilarity,
+    });
 
-        this.logger.log(`QdrantService: Found ${results.length} similar posts`);
-        this.logger.debug(`QdrantService raw results: ${JSON.stringify(results, null, 2)}`);
-
-        return results.map((r) => ({
-            postId: r.payload?.postId,
-            similarity: r.score,
-        }));
+    if (results.length === 0) {
+        this.logger.log('QdrantService: No similar posts found');
+        return [];
     }
+
+    // Filter bỏ postId hiện tại (nếu có)
+    let filteredResults = results;
+    if (postId) {
+        filteredResults = results.filter(r => r.payload?.postId !== postId);
+    }
+    
+    // Giới hạn lại số lượng
+    filteredResults = filteredResults.slice(0, limit);
+
+    this.logger.log(`QdrantService: Found ${filteredResults.length} similar posts`);
+    this.logger.debug(`QdrantService raw results: ${JSON.stringify(filteredResults, null, 2)}`);
+
+    return filteredResults.map((r) => ({
+        postId: r.payload?.postId,
+        similarity: r.score,
+    }));
+}
 
     async deleteAll() {
         console.log("Deleting all data from Qdrant collection...");
