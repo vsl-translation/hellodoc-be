@@ -441,131 +441,238 @@ export class PostService {
         }
     }
 
-    async generateAndStoreEmbedding(postId: string, keywords?: string, content?: string): Promise<void> {
+    async generateAndStoreEmbedding(
+        postId: string,
+        keywords?: string,
+        content?: string
+    ): Promise<void> {
         try {
-            const existingPost = await this.postModel.findById(postId).select('_id content keywords embedding');
-            if (!existingPost) {
-                this.logger.warn(`Post ${postId} not found when generating embedding`);
+            // ============================
+            // 1. LẤY DỮ LIỆU TỪ MONGO
+            // ============================
+            const mongoPost = await this.postModel
+                .findById(postId)
+                .select("_id content keywords embedding embeddingModel")
+                .lean();
+
+            if (!mongoPost) {
+                this.logger.warn(`❌ Post ${postId} NOT FOUND in MongoDB.`);
                 return;
             }
 
-            if (existingPost.embedding && Array.isArray(existingPost.embedding) && existingPost.embedding.length > 0) {
-                this.logger.log(`Post ${postId} already has embedding, skipping`);
+            // Chuẩn text embedding
+            const textForEmbedding =
+                keywords?.trim() ||
+                mongoPost.keywords?.trim() ||
+                content?.trim() ||
+                mongoPost.content?.trim();
+
+            if (!textForEmbedding) {
+                this.logger.warn(`⚠️ No content or keywords to generate embedding for post ${postId}.`);
                 return;
             }
 
-            // Chuẩn bị văn bản để tạo embedding, nếu keywords trống thì dùng content
-            const textForEmbedding = keywords?.trim() || content?.trim();
+            // ============================
+            // 2. KIỂM TRA TỒN TẠI TRONG QDRANT
+            // ============================
+            const qdrantRecord = await firstValueFrom(
+                this.qdrantClient.send('qdrant.get-by-id', { postId })
+            ).catch(() => null);
 
-            if (!textForEmbedding) return;
+            const hasMongoEmbedding =
+                mongoPost.embedding && Array.isArray(mongoPost.embedding) && mongoPost.embedding.length > 0;
 
-            this.logger.log(`Generating embedding for post ${postId}`);
+            const hasQdrantVector =
+                qdrantRecord?.result?.vector &&
+                Array.isArray(qdrantRecord.result.vector) &&
+                qdrantRecord.result.vector.length > 0;
 
-            // Await the Observable - convert to Promise
-            const embedding = await this.embeddingClient.send('embedding.generate', textForEmbedding).toPromise();
 
-            // Get model name 
-            const modelName = await this.embeddingClient.send('embedding.get-model-name', {}).toPromise();
+            // ============================
+            // 3. TRƯỜNG HỢP ĐỦ DỮ LIỆU
+            // ============================
+            if (hasMongoEmbedding && hasQdrantVector) {
+                this.logger.log(`✔ Post ${postId} already fully synced. Skipping.`);
+                return;
+            }
 
-            this.logger.debug('Embedding raw preview', {
-                length: Array.isArray(embedding) ? embedding.length : 'not-array',
-                sample: Array.isArray(embedding) ? embedding.slice(0, 5) : embedding
-            });
+            // ============================
+            // 4. CHỈ QDRANT THIẾU VECTOR
+            // ============================
+            if (hasMongoEmbedding && !hasQdrantVector) {
+                this.logger.warn(`⚠️ Qdrant missing vector for post ${postId}. Restoring...`);
 
-            // Save embedding with proper string value
+                await firstValueFrom(
+                    this.qdrantClient.send('qdrant.upsert-post', {
+                        postId,
+                        vector: mongoPost.embedding,
+                        payload: {
+                            postId,
+                            content: mongoPost.content || "",
+                            keywords: mongoPost.keywords || ""
+                        }
+                    })
+                );
+
+                this.logger.log(`🔄 Restored Qdrant vector for post ${postId}.`);
+                return;
+            }
+
+            // ============================
+            // 5. CHỈ MONGO THIẾU EMBEDDING
+            // ============================
+            if (!hasMongoEmbedding && hasQdrantVector) {
+                this.logger.warn(`⚠️ MongoDB missing embedding for post ${postId}. Restoring from Qdrant...`);
+
+                await this.postModel.findByIdAndUpdate(postId, {
+                    $set: {
+                        embedding: qdrantRecord.result.vector,
+                        embeddingModel: "restored-from-qdrant",
+                        embeddingUpdatedAt: new Date()
+                    }
+                });
+
+                this.logger.log(`🔄 Restored MongoDB embedding from Qdrant for post ${postId}.`);
+                return;
+            }
+
+            // ============================
+            // 6. CẢ 2 ĐỀU THIẾU → TẠO MỚI
+            // ============================
+            this.logger.log(`🚀 Generating new embedding for post ${postId}`);
+
+            const embedding = await this.embeddingClient
+                .send("embedding.generate", textForEmbedding)
+                .toPromise();
+
+            const modelName = await this.embeddingClient
+                .send("embedding.get-model-name", {})
+                .toPromise();
+
+            // Lưu vào MongoDB
             await this.postModel.findByIdAndUpdate(
                 postId,
                 {
                     $set: {
                         embedding,
                         embeddingModel: modelName,
-                        embeddingUpdatedAt: new Date(),
+                        embeddingUpdatedAt: new Date()
                     }
-                },
-                { new: true }
+                }
             );
 
-            //Lưu lại embedding vào Qdrant
-            await firstValueFrom(this.qdrantClient.send('qdrant.upsert-post', {
-                postId,
-                vector: embedding,
-                payload: {
+            // Lưu vào Qdrant
+            await firstValueFrom(
+                this.qdrantClient.send('qdrant.upsert-post', {
                     postId,
-                    content: content || '',
-                    keywords: keywords || ''
-                }
-            }));
+                    vector: embedding,
+                    payload: {
+                        postId,
+                        content: mongoPost.content || "",
+                        keywords: mongoPost.keywords || ""
+                    }
+                })
+            );
 
-            this.logger.log(`Embedding generated and stored for post ${postId}`);
-        } catch (error: any) {
-            this.logger.error(`Error generating embedding for post ${postId}: ${error.message}`, error.stack || error);
+            this.logger.log(`✅ Embedding generated & synced for post ${postId}.`);
+
+        } catch (error) {
+            this.logger.error(
+                `❌ Error generating/storing embedding for post ${postId}: ${error.message}`,
+                error.stack || error
+            );
         }
     }
 
+
     async findSimilarPosts(id: string, limit: number = 10, minSimilarity: number = 0.7) {
-        console.log(`SERVICE Finding posts similar to ID: ${id}`);
+        this.logger.log(`Finding posts similar to ID: ${id}`);
 
-        // Lấy embedding của post gốc
-        let postEmbedding = await this.postModel.findById(id).select('embedding');
+        try {
+            // await this.updateEmbeddingAsync();
+            // 1. Lấy và đảm bảo embedding hợp lệ
+            let post = await this.postModel.findById(id).select('embedding').lean();
 
-        // Kiem tra có post nào có trường embedding không phải 384 không
-        if (!postEmbedding) {
-            console.log("Found posts with invalid embedding size. Updating embeddings...");
-            // await this.qdrantClient.send('qdrant.delete-all', {});
-            await this.updateEmbeddingByPostId(id);
+            if (!post?.embedding || !Array.isArray(post.embedding) || post.embedding.length === 0) {
+                this.logger.log(`Post ${id} missing valid embedding. Updating...`);
+                await this.updateEmbeddingByPostId(id);
+                post = await this.postModel.findById(id).select('embedding').lean();
+            }
 
+            const queryVector = post.embedding;
+
+            // 2. Kiểm tra và đảm bảo vector tồn tại trên Qdrant
+            const qdrantRecord = await firstValueFrom(
+                this.qdrantClient.send('qdrant.get-by-id', { postId: id })
+            ).catch(() => null);
+
+            if (!qdrantRecord?.result?.vector) {
+                this.logger.log(`Vector not found in Qdrant for post ${id}. Updating...`);
+                await this.updateEmbeddingByPostId(id);
+            }
+
+            // 3. Tìm kiếm similar posts từ Qdrant
+            const similarResults = await firstValueFrom(
+                this.qdrantClient.send('qdrant.find-similar-posts', {
+                    queryVector,
+                    limit,
+                    minSimilarity,
+                    postId: id,
+                })
+            );
+
+            if (!similarResults?.length) {
+                this.logger.log('No similar posts found from Qdrant');
+                return [];
+            }
+
+            this.logger.debug(`Qdrant returned ${similarResults.length} similar posts`);
+
+            // 4. Lấy postIds hợp lệ
+            const postIds = similarResults
+                .map(r => r.postId)
+                .filter(Boolean);
+
+            if (!postIds.length) {
+                this.logger.warn('No valid postIds from Qdrant results');
+                return [];
+            }
+
+            // 5. Tải thông tin chi tiết từ MongoDB
+            const result = await this.postModel
+                .find({ _id: { $in: postIds } })
+                .select('_id content media userInfo userModel createdAt keywords')
+                .lean();
+
+            this.logger.log(`Loaded ${result.length}/${postIds.length} posts from MongoDB`);
+
+            // 6. Map posts để tra cứu nhanh
+            const postMap = new Map(
+                result.map(p => [p._id.toString(), p])
+            );
+
+            // Chuẩn hóa trả về
+            const finalResult = similarResults
+                .map(item => {
+                    const post = postMap.get(item.postId);
+                    if (!post) return null;
+
+                    return {
+                        post,
+                        similarity: item.score,
+                    };
+                })
+                .filter(Boolean);
+
+            console.log("===== FINAL RESULT =====");
+            console.dir(finalResult, { depth: 10 });
+
+            return finalResult;
+
+        } catch (error) {
+            this.logger.error(`Error finding similar posts: ${error.message}`, error.stack);
+            throw error;
         }
-
-        const queryVector = postEmbedding.embedding;
-        // 🔥 Gọi Qdrant
-        let similarResults = await firstValueFrom(
-            this.qdrantClient.send('qdrant.find-similar-posts', {
-                queryVector,
-                limit,
-                minSimilarity
-            })
-        );
-
-        console.log("SERVICE: Received from Qdrant:", JSON.stringify(similarResults, null, 2));
-
-        if (!similarResults?.length) return [];
-
-        // 🔥 Lấy đúng postId trả về từ payload
-        const postIds = similarResults
-            .map(r => r.postId)
-            .filter(Boolean);
-
-        console.log("SERVICE: PostIds:", postIds);
-
-        if (!postIds.length) return [];
-
-        // Tải dữ liệu từ MongoDB
-        const posts = await this.postModel
-            .find({ _id: { $in: postIds } })
-            .select('_id content media userInfo userModel createdAt keywords embedding')
-            .lean();
-
-        console.log(`SERVICE: Loaded ${posts.length} from MongoDB.`);
-
-        const postMap = new Map(posts.map(p => [p._id.toString(), p]));
-
-        // Chuẩn hóa trả về
-        const finalResult = similarResults
-            .map(item => {
-                const post = postMap.get(item.postId);
-                if (!post) return null;
-
-                return {
-                    post,
-                    similarity: item.score,
-                };
-            })
-            .filter(Boolean);
-
-        console.log("===== FINAL RESULT =====");
-        console.dir(finalResult, { depth: 10 });
-
-        return finalResult;
     }
 
     async updateEmbeddingByPostId(postId: string): Promise<void> {
@@ -597,7 +704,6 @@ export class PostService {
 
         for (const post of posts) {
             const id = post._id.toString();
-            const embedding = post.embedding || [];
             // Xóa embedding cũ
             await this.postModel.updateOne(
                 { _id: id },

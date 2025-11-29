@@ -14,11 +14,11 @@ export class QdrantController {
 
   @MessagePattern('qdrant.find-similar-posts')
   async findSimilarPostsQdrant(
-      @Payload() data: { queryVector: number[]; limit?: number; minSimilarity?: number }
+      @Payload() data: { queryVector: number[]; limit?: number; minSimilarity?: number, postId?: string }
   ) {
-    const { queryVector, limit = 5, minSimilarity = 0.5 } = data;
+    const { queryVector, limit = 5, minSimilarity = 0.5, postId="" } = data;
     console.log(`QdrantController: Finding similar posts with limit ${limit} and minSimilarity ${minSimilarity}`);
-    return await this.qdrantService.findSimilarPostsQdrant(queryVector, limit, minSimilarity);
+    return await this.qdrantService.findSimilarPostsQdrant(queryVector, limit, minSimilarity,postId);
   }
 
 
