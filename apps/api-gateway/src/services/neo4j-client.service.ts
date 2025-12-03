@@ -31,6 +31,9 @@ export class Neo4jService {
         return this.neo4jClient.send('neo4j.delete-node', { label, name });
     }
 
+    async deleteNodeById(id: string) {
+        return this.neo4jClient.send('neo4j.delete-node-by-id', { id });
+    }
     async deleteRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
         return this.neo4jClient.send('neo4j.delete-relation', { fromLabel, fromName, toLabel, toName, relationType });
     }

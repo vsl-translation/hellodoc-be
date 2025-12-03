@@ -38,6 +38,11 @@ export class Neo4jController {
     return this.neo4jService.deleteNode(payload.label, payload.name);
   }
 
+  @MessagePattern('neo4j.delete-node-by-id')
+  async deleteNodeById(id: string) {
+    return this.neo4jService.deleteNodeById(id);
+  }
+
   @MessagePattern('neo4j.delete-relation')
   async deleteRelation(@Payload() payload: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string }) {
     return this.neo4jService.deleteRelation(

@@ -32,6 +32,11 @@ export class Neo4jController {
         return this.neo4jService.deleteNode(label, name);
     }
 
+    @Delete('node/:id')
+    deleteNodeById(@Param('id') id: string) {
+        return this.neo4jService.deleteNodeById(id);
+    }
+
     @Delete('relation')
     deleteRelation(
         @Body('fromLabel') fromLabel: string,
