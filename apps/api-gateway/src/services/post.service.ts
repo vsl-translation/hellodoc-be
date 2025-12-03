@@ -12,8 +12,8 @@ export class PostService {
         return lastValueFrom(this.postClient.send('post.create', { createPostDto, files }));
     }
 
-    getAll() {
-        return this.postClient.send('post.get-all', {});
+    getAll(limit?: string, skip?: string) {
+        return this.postClient.send('post.get-all', { limit:limit.toString(), skip:skip.toString() });
     }
 
     async search(q: string) {

@@ -23,6 +23,7 @@ export class PostController {
   async getAll(@Payload() data: { limit?: number; skip?: number }) {
     const limit = data.limit ?? 10;
     const skip = data.skip ?? 0;
+    
     return this.postService.getAll(limit, skip);
   }
 
