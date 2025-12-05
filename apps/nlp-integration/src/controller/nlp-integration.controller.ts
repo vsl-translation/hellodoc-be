@@ -31,4 +31,11 @@ export class NlpIntegrationController {
     }
     return this.nlpIntegrationService.buildKnowledgeGraph(texts);
   }
+
+  @MessagePattern('nlp-integration.find-word')
+  async findWord(@Payload() data : { word: string}) {
+    const { word } = data;
+    return this.nlpIntegrationService.findWord(word);
+  }
+
 }

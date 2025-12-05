@@ -72,15 +72,27 @@ export class Neo4jService {
 
   async getSuggestions(word: string) {
     const session = this.getSession();
+    console.log('Finding word:', word);
+
+    //Lowercase the word for case-insensitive matching
+    word = word.toLowerCase();
+
     try {
       const query = `
-        MATCH (a {name: $word})-[r:RELATES_TO]->(b)
-        RETURN b.name AS suggestion, r.weight AS score
+        MATCH (a {name: $word})-[r:RELATES_TO|Related_To]->(b)
+        RETURN b.name AS suggestion, r.weight AS score, labels(b) AS label
         ORDER BY r.weight DESC
-        LIMIT 10;
       `;
-      const result = await session.run(query, { word });
-      return result.records.map(r => r.get('suggestion'));
+
+    const result = await session.run(query, { word });
+      console.log('Suggestion query result:', result.records);
+
+      return result.records.map(r => ({
+        suggestion: r.get('suggestion'),
+        score: r.get('score'),
+        label: r.get('label'),     // labels(b) là 1 mảng
+      }));
+
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException('Lỗi khi truy vấn gợi ý');
@@ -88,6 +100,7 @@ export class Neo4jService {
       await session.close();
     }
   }
+
 
   async getSuggestionsByLabel(word: string, fromLabel: string, toLabel: string) {
     const session = this.getSession();
