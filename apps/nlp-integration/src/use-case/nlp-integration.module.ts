@@ -17,7 +17,6 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         name: 'UNDERTHESEA_CLIENT',
         transport: Transport.TCP,
         options: {
-          host: '0.0.0.0',
           port: 3020,
         },
       },
@@ -25,7 +24,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         name: 'NEO4J_CLIENT',
         transport: Transport.TCP,
         options: {
-          host: '0.0.0.0',  // host microservice Neo4j
+          host: 'localhost',  // host microservice Neo4j
           port: 3008,         // port microservice Neo4j
         },
       },
