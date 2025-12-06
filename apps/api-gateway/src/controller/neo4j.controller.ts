@@ -18,8 +18,8 @@ export class Neo4jController {
     }
 
     @Get('suggestions/:word')
-    getSuggestions(@Param('word') word: string) {
-        return this.neo4jService.getSuggestions(word);
+    getSuggestions(@Param('word') word: string, @Param('label') label: string) {
+        return this.neo4jService.getSuggestions(word, label);
     }
 
     @Get('get-all')

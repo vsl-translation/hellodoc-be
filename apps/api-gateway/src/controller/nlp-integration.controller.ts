@@ -51,4 +51,12 @@ export class NlpController {
         return await this.nlpService.buildKnowledgeGraph(texts);
     }
 
+    @Get('find-word')
+    async findWord(@Query('word') word: string, @Query('label') label: string) {
+        if (!word) {
+            return { error: 'Thiếu tham số word' };
+        }
+        return await this.nlpService.findWord(word, label);
+    }
+
 }

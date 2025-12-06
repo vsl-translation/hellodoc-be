@@ -553,4 +553,21 @@ export class NlpIntegrationService {
       throw new InternalServerErrorException('Không thể thống kê POS');
     }
   }
+
+  // Tìm từ trong graph và lấy thông tin liên quan
+  async findWord(word: string) {
+    try {
+      const nodes = await firstValueFrom(
+        this.neo4jClient.send('neo4j.get-suggestions', { word: word })
+      );
+      return {
+        success: true,
+        word,
+        nodes,
+      };
+    } catch (error) {
+      console.error('Lỗi khi tìm từ trong graph:', error);
+      throw new InternalServerErrorException('Không thể tìm từ trong graph');
+    }
+  }
 }

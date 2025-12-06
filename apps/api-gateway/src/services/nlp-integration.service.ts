@@ -25,4 +25,10 @@ export class NlpIntegrationService {
             this.nlpClient.send('nlp-integration.build-knowledge-graph', texts)
         );
     }
+
+    async findWord(word: string, label: string) {
+        return firstValueFrom(
+            this.nlpClient.send('nlp-integration.find-word',{ word, label})
+        );
+    }
 }

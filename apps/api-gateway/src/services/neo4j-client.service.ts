@@ -15,7 +15,7 @@ export class Neo4jService {
         return this.neo4jClient.send('neo4j.create-relation', dto);
     }
 
-    async getSuggestions(word: string) {
+    async getSuggestions(word: string, label: string) {
         return this.neo4jClient.send('neo4j.get-suggestions', { word });
     }
 
