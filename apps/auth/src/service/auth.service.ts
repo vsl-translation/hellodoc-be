@@ -1,12 +1,12 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { SignupDto } from '../dto/signup.dto';
+import { SignupDto } from '../core/dto/signup.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import * as bcrypt from 'bcrypt';
-import { loginDto } from '../dto/login.dto';
+import { loginDto } from '../core/dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { CacheService } from 'libs/cache.service';
-import { LoginGoogleDto } from '../dto/loginGoogle.dto';
+import { LoginGoogleDto } from '../core/dto/loginGoogle.dto';
 import { OAuth2Client } from 'google-auth-library';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
@@ -18,6 +18,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 export class AuthService {
   constructor(
     @Inject('USERS_CLIENT') private usersClient: ClientProxy,
+    @Inject('ADMIN_CLIENT') private adminClient: ClientProxy,
     private jwtService: JwtService,
     private cacheService: CacheService,
     private configService: ConfigService,
@@ -45,6 +46,10 @@ export class AuthService {
 
     }
     return await firstValueFrom(this.usersClient.send('user.signup', data));
+  }
+
+  async signupAdmin(signUpData: SignupDto) {
+    return await firstValueFrom(this.adminClient.send('admin.createAdmin', signUpData));
   }
 
   async login(loginData: loginDto) {

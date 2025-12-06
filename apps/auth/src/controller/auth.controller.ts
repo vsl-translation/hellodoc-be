@@ -1,9 +1,9 @@
 import { BadRequestException, Body, Controller, Get } from '@nestjs/common';
 import { AuthService } from '../service/auth.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { SignupDto } from '../dto/signup.dto';
-import { LoginGoogleDto } from '../dto/loginGoogle.dto';
-import { loginDto } from '../dto/login.dto';
+import { SignupDto } from '../core/dto/signup.dto';
+import { LoginGoogleDto } from '../core/dto/loginGoogle.dto';
+import { loginDto } from '../core/dto/login.dto';
 
 @Controller()
 export class AuthController {
@@ -14,10 +14,11 @@ export class AuthController {
     return this.authService.signup(signUpData);
   }
 
-  // @MessagePattern('auth.signup-admin')
-  // async signupAdmin(@Body() signUpData: SignupDto) {
-  //   return this.authService.signupAdmin(signUpData);
-  // }
+  @MessagePattern('auth.createAdmin')
+  async signupAdmin(@Payload() signUpData: SignupDto) {
+    console.log("dữ liệu đăng ký", signUpData);
+    return this.authService.signupAdmin(signUpData);
+  }
 
   @MessagePattern('auth.login')
   async login(@Payload() loginData: loginDto) {

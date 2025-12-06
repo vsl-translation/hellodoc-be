@@ -59,6 +59,14 @@ import { redisStore } from 'cache-manager-redis-store';
           port: 3001,
         },
       },
+      {
+        name: 'ADMIN_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',
+          port: 3010
+        }
+      }
     ]),
   ],
   controllers: [AuthController],

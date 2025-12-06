@@ -9,12 +9,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Model, isValidObjectId, Types } from 'mongoose';
 // import { JwtService } from '@nestjs/jwt';
-import { CloudinaryService } from 'libs/cloudinary/src/service/cloudinary.service';
+
 import { Admin } from '../core/schema/admin.schema';
 import { ClientProxy } from '@nestjs/microservices';
 import { SignupDto } from '../core/dto/signup.dto';
 import { updateUserDto } from '../core/dto/updateUser.dto';
-import { lastValueFrom, timeout,catchError } from 'rxjs';
+import { lastValueFrom, timeout, catchError } from 'rxjs';
 
 @Injectable()
 export class AdminService {
@@ -22,7 +22,6 @@ export class AdminService {
         @InjectModel(Admin.name, 'adminConnection') private AdminModel: Model<Admin>,
         @Inject('USERS_CLIENT') private usersClient: ClientProxy,
         @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
-        private cloudinaryService: CloudinaryService,
         @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
         // private jwtService: JwtService,
     ) { }
@@ -78,7 +77,15 @@ export class AdminService {
         const updateFields: Partial<updateUserDto> = {};
         if (updateData.avatarURL) {
             try {
-                const uploadResult = await this.cloudinaryService.uploadFile(updateData.avatarURL, `Doctors/${id}/License`);
+                //const uploadResult = await this.cloudinaryService.uploadFile(updateData.avatarURL, `Doctors/${id}/License`);
+                const uploadResult = await this.cloudinaryClient
+                    .send('cloudinary.upload', {
+                        buffer: updateData.avatarURL.buffer, // Base64 string
+                        filename: updateData.avatarURL.originalname,
+                        mimetype: updateData.avatarURL.mimetype,
+                        folder: `Doctors/${id}/License`,
+                    })
+                    .toPromise();
                 updateFields.avatarURL = uploadResult.secure_url;
                 console.log('Avatar da tai len:', updateData.avatarURL);
             } catch (error) {
@@ -121,8 +128,8 @@ export class AdminService {
                 this.usersClient.send('user.update', { id, data: updateFields }).pipe(
                     timeout(3000),
                     catchError((err) => {
-                    console.error("🔥 Lỗi thật từ user.update:", err);
-                    throw err;
+                        console.error("🔥 Lỗi thật từ user.update:", err);
+                        throw err;
                     })
                 )
             );

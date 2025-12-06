@@ -16,7 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Types } from 'mongoose';
 import { Express } from 'express';
-import { MessagePattern,Payload } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AdminService } from '../service/admin.service';
 import { SignupDto } from '../core/dto/signup.dto';
 import { JwtAuthGuard } from 'libs/Guard/jwt-auth.guard';
@@ -29,6 +29,11 @@ export class AdminController {
         // private jwtService: JwtService,
     ) { }
 
+    @MessagePattern("admin.createAdmin")
+    async createAdmin(@Payload() signUpData: SignupDto) {
+        return this.adminService.postAdmin(signUpData);
+    }
+
     @MessagePattern('admin.getUsers')
     async getUsers() {
         return this.adminService.getUsers();
@@ -39,17 +44,11 @@ export class AdminController {
         return this.adminService.getDoctors();
     }
 
-    @MessagePattern('admin.postadmin')
-    async postAdmin(@Body() signUpData: SignupDto) {
-        return this.adminService.postAdmin(signUpData);
-    }
-
     @MessagePattern('admin.updateUser')
     async updateUser(@Payload() payload: any) {
         const { id, data } = payload;
         return this.adminService.updateUser(id, data);
     }
-
 
     // @MessagePattern('admin.deleteUser')
     // @UseGuards(JwtAuthGuard, AdminGuard)

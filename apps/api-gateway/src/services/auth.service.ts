@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, UnauthorizedException } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
-import { SignupDto } from "apps/auth/src/dto/signup.dto";
+import { SignupDto } from "apps/auth/src/core/dto/signup.dto";
 import { LoginGoogleDto } from "../core/dto/loginGoogle.dto";
 import { loginDto } from "../core/dto/login.dto";
 import { firstValueFrom } from "rxjs";
@@ -62,5 +62,8 @@ export class AuthService {
         return this.authClient.send('auth.generate-token', email);
     }
 
+    async signUpAdmin(signUpData: SignupDto) {
+        return this.authClient.send('auth.createAdmin', signUpData);
+    }
 
 }

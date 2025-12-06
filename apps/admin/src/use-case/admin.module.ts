@@ -24,7 +24,7 @@ import { JWT } from 'google-auth-library';
         const isDev = configService.get<string>('isDev') === 'true';
         const uri = isDev
           ? configService.get<string>('MONGO_URI_DEV')
-          : configService.get<string>('MONGO_URI_PROD');
+          : configService.get<string>('MONGO_URI_ADMIN');
 
         return { uri };
       },
