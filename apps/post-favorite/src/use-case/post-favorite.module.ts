@@ -23,7 +23,7 @@ import config from 'apps/config/config';
         const isDev = configService.get<string>('isDev') === 'true';
         const uri = isDev
           ? configService.get<string>('MONGO_URI_DEV')
-          : configService.get<string>('MONGO_URI_PROD'); // Using Post DB for favorites as they are related
+          : configService.get<string>('MONGO_URI_POSTSFAVOURITE');
         return { uri };
       },
       inject: [ConfigService],

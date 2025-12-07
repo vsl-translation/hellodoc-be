@@ -16,7 +16,6 @@ export class AuthController {
 
   @MessagePattern('auth.createAdmin')
   async signupAdmin(@Payload() signUpData: SignupDto) {
-    console.log("dữ liệu đăng ký", signUpData);
     return this.authService.signupAdmin(signUpData);
   }
 

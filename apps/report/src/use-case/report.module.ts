@@ -20,7 +20,7 @@ import config from 'apps/config/config';
         const isDev = configService.get<string>('isDev') === 'true';
         const uri = isDev
           ? configService.get<string>('MONGO_URI_DEV')
-          : configService.get<string>('MONGO_URI_PROD');
+          : configService.get<string>('MONGO_URI_REPORTS');
         return { uri };
       },
       inject: [ConfigService],
@@ -52,4 +52,4 @@ import config from 'apps/config/config';
   controllers: [ReportController],
   providers: [ReportService],
 })
-export class ReportModule {}
+export class ReportModule { }
