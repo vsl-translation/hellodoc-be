@@ -30,14 +30,14 @@ export class DoctorService {
 
     const objectId = new Types.ObjectId(id);
 
-    // const cacheKey = `doctor_${id}`;
-    // console.log('Trying to get doctor by id from cache...');
+    const cacheKey = `doctor_${id}`;
+    console.log('Trying to get doctor by id from cache...');
 
-    // const cached = await this.cacheService.getCache(cacheKey);
-    // if (cached) {
-    //   console.log('Cache HIT');
-    //   return cached;
-    // }
+    const cached = await this.cacheService.getCache(cacheKey);
+    if (cached) {
+      console.log('Cache HIT');
+      return cached;
+    }
 
     console.log('Cache MISS - querying DB');
     const doctor = await this.DoctorModel.findById(objectId);
@@ -68,9 +68,9 @@ export class DoctorService {
       specialty: specialtyData || doctorObj.specialty
     };
 
-    //console.log('Setting cache...');
-    // await this.cacheService.setCache(cacheKey, result, 30 * 1000);
-    //console.log('Ket qua tra ve: ' + result);
+    console.log('Setting cache...');
+    await this.cacheService.setCache(cacheKey, result, 30 * 1000);
+    console.log('Ket qua tra ve: ' + result);
 
     return result;
   }

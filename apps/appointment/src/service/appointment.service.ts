@@ -267,7 +267,7 @@ export class AppointmentService {
     // --- cache ---
     const cacheKey = 'all_patient_appointments_' + patientID;
     const cached = await this.cacheService.getCache(cacheKey);
-    //if (cached) return cached;
+    if (cached) return cached;
 
     const appointmentsRaw = await this.appointmentModel.find({
       patient: new Types.ObjectId(patientID),
@@ -312,7 +312,7 @@ export class AppointmentService {
             : null,
         });
 
-        console.log("APPOINTMENT:", appointments[appointments.length - 1]);
+        //console.log("APPOINTMENT:", appointments[appointments.length - 1]);
       } catch (err) {
         console.error('Populate error:', err);
         appointments.push(appt.toObject());
