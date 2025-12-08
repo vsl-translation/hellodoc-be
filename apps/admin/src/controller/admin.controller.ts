@@ -12,21 +12,21 @@ import {
     UploadedFile,
     BadRequestException,
 } from '@nestjs/common';
-// import { JwtService } from '@nestjs/jwt';
+import { JwtService } from '@nestjs/jwt';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Types } from 'mongoose';
 import { Express } from 'express';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AdminService } from '../service/admin.service';
 import { SignupDto } from '../core/dto/signup.dto';
-import { JwtAuthGuard } from 'libs/Guard/jwt-auth.guard';
+import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
 import { AdminGuard } from 'libs/Guard/AdminGuard.guard';
 
 @Controller()
 export class AdminController {
     constructor(
         private readonly adminService: AdminService,
-        // private jwtService: JwtService,
+        private jwtService: JwtService,
     ) { }
 
     @MessagePattern("admin.createAdmin")
@@ -55,18 +55,16 @@ export class AdminController {
         return this.adminService.updateUser(id, data);
     }
 
-    // @MessagePattern('admin.deleteUser')
-    // @UseGuards(JwtAuthGuard, AdminGuard)
-    // async deleteUser(@Param('id') id: string) {
-    //     return this.adminService.deleteUser(id);
-    // }
+    @MessagePattern('admin.deleteUser')
+    async deleteUser(id: string) {
+        return this.adminService.deleteUser(id);
+    }
 
 
-    // @MessagePattern('admin.deleteDoctor')
-    // @UseGuards(JwtAuthGuard, AdminGuard)
-    // async deleteDoctor(@Param('id') id: string) {
-    //     return this.adminService.deleteDoctor(id);
-    // }
+    @MessagePattern('admin.deleteDoctor')
+    async deleteDoctor(id: string) {
+        return this.adminService.deleteDoctor(id);
+    }
 
 
 }

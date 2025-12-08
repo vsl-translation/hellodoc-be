@@ -7,6 +7,7 @@ import { Admin, AdminSchema } from '../core/schema/admin.schema';
 import { AdminController } from '../controller/admin.controller';
 import { AdminService } from '../service/admin.service';
 import { JWT } from 'google-auth-library';
+import { JwtModule } from '@nestjs/jwt';
 // import { JwtService } from '@nestjs/jwt';
 
 @Module({
@@ -30,6 +31,12 @@ import { JWT } from 'google-auth-library';
       },
       inject: [ConfigService],
       connectionName: 'adminConnection',
+    }),
+    // JWT cấu hình global
+    JwtModule.register({
+      global: true,
+      secret: 'secretKey',
+      signOptions: { expiresIn: '24h' },
     }),
 
     //khai bao model cho USER

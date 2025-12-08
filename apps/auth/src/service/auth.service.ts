@@ -92,6 +92,8 @@ export class AuthService {
         user.role,
       );
 
+      console.log('DỮ LIỆU truyền với token', user.role);
+
       const cacheKey = `user_${user._id}`;
       await this.cacheService.setCache(
         cacheKey,
@@ -286,27 +288,6 @@ export class AuthService {
 
   async resetPassword(email: string, newPassword: string): Promise<any> {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // // Tìm và cập nhật trong UserModel
-    // const user = await this.UserModel.findOne({ email });
-    // if (user) {
-    //   await this.UserModel.updateOne({ email }, { password: hashedPassword });
-    //   return { message: 'Đặt lại mật khẩu thành công (user)' };
-    // }
-
-    // // Tìm và cập nhật trong AdminModel
-    // const admin = await this.AdminModel.findOne({ email });
-    // if (admin) {
-    //   await this.AdminModel.updateOne({ email }, { password: hashedPassword });
-    //   return { message: 'Đặt lại mật khẩu thành công (admin)' };
-    // }
-
-    // // Tìm và cập nhật trong DoctorModel
-    // const doctor = await this.DoctorModel.findOne({ email });
-    // if (doctor) {
-    //   await this.DoctorModel.updateOne({ email }, { password: hashedPassword });
-    //   return { message: 'Đặt lại mật khẩu thành công (doctor)' };
-    // }
 
     const user = await firstValueFrom(this.usersClient.send('user.getallusers', {}));
     const existingUser = Array.isArray(user) ? user.find((u) => u.email === email && u.isDeleted === false) : null;
