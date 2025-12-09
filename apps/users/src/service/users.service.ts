@@ -72,7 +72,7 @@ export class UsersService {
 
 
   async getUserByID(id: string) {
-    console.log('Received user ID:', id, typeof id);
+    //console.log('Received user ID:', id, typeof id);
 
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid ID format');

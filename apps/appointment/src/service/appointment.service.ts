@@ -175,15 +175,15 @@ export class AppointmentService {
   // 📌 Lấy danh sách tất cả lịch hẹn
   async getAllAppointments() {
     const cacheKey = 'appointments_cache';
-    console.log('Trying to get all appointments from cache...');
+    //console.log('Trying to get all appointments from cache...');
 
     const cached = await this.cacheService.getCache(cacheKey);
     if (cached) {
-      console.log('Cache HIT');
+      //console.log('Cache HIT');
       return cached;
     }
 
-    console.log('Cache MISS - querying DB');
+    //console.log('Cache MISS - querying DB');
 
     const appointmentsRaw = await this.appointmentModel.find()
       .populate({
@@ -215,15 +215,15 @@ export class AppointmentService {
     }
 
     const cacheKey = 'all_doctor_appointments_' + doctorID;
-    console.log('Trying to get doctor appointments from cache...');
+    //console.log('Trying to get doctor appointments from cache...');
 
     const cached = await this.cacheService.getCache(cacheKey);
     if (cached) {
-      console.log('Cache doctor appointments HIT');
+      //console.log('Cache doctor appointments HIT');
       return cached;
     }
 
-    console.log('Cache MISS - querying DB');
+    //console.log('Cache MISS - querying DB');
     const appointmentsRaw = await this.appointmentModel.find({ doctor: doctorID })
       .populate({
         path: 'doctor',
@@ -249,7 +249,7 @@ export class AppointmentService {
       throw new NotFoundException('No appointments found for this doctor');
     }
 
-    console.log('Setting cache...');
+    //console.log('Setting cache...');
     await this.cacheService.setCache(cacheKey, appointments, 30 * 1000); // Cache for 1 hour
 
     return appointments;

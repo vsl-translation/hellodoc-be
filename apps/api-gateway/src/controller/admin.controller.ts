@@ -26,7 +26,6 @@ import { AdminService } from "../services/admin.service";
 export class AdminController {
     constructor(
         private readonly adminService: AdminService,
-        // private jwtService: JwtService,
     ) { }
 
     @Get('users')

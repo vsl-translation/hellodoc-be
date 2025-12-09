@@ -20,18 +20,18 @@ export class ReviewController {
   @Get('doctor/:doctorId')
   async getReviewsByDoctor(@Param('doctorId') doctorId: string) {
     const cacheKey = `reviews_by_doctor_${doctorId}`;
-    console.log('Trying to get reviews from cache...');
+    //console.log('Trying to get reviews from cache...');
 
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) {
-      console.log('Cache HIT');
+      //console.log('Cache HIT');
       return cached;
     }
 
-    console.log('Cache MISS - querying Service');
+    //console.log('Cache MISS - querying Service');
     const data = await this.reviewService.getReviewsByDoctor(doctorId);
 
-    console.log('Setting cache...');
+    //console.log('Setting cache...');
     await this.cacheManager.set(cacheKey, data, 3600 * 1000);
     return data;
   }
