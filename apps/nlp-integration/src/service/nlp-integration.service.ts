@@ -81,13 +81,42 @@ export class NlpIntegrationService {
         throw new InternalServerErrorException('POS result không có dữ liệu');
       }
 
-      // Trích xuất chỉ POS tag từ mảng 2 chiều
-      // pos_tags = [["tôi", "P"], ["ăn", "V"]] => ["P", "V"]
-      const extractedPosTags = pos_tags.map(item => {
+      // ✅ Danh sách đầy đủ các đại từ nhân xưng và xưng hô trong tiếng Việt
+      const PRONOUNS = new Set([
+        // Đại từ ngôi thứ nhất
+        'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta', 'chúng mình',
+        
+        // Đại từ ngôi thứ hai
+        'bạn', 'mày', 'cậu', 'các bạn', 'quý vị',
+        
+        // Đại từ ngôi thứ ba
+        'họ', 'nó', 'hắn', 'y', 'chúng nó',
+        
+        // Đại từ xưng hô gia đình/thân tộc
+        'anh', 'chị', 'em', 'ông', 'bà', 'cháu',
+        'bố', 'ba', 'tía', 'con', 'mẹ', 'má',
+        'chú', 'bác', 'cô', 'dì'
+      ]);
+
+      // Trích xuất POS tag và override cho đại từ nhân xưng
+      const extractedPosTags = pos_tags.map((item, index) => {
+        let posTag;
+        
+        // Lấy POS tag từ mảng 2 chiều hoặc string
         if (Array.isArray(item)) {
-          return item[1]; // Lấy phần tử thứ 2 (POS tag)
+          posTag = item[1]; // Lấy phần tử thứ 2 (POS tag)
+        } else {
+          posTag = item; // Nếu đã là string thì giữ nguyên
         }
-        return item; // Nếu đã là string thì giữ nguyên
+        
+        // ✅ Kiểm tra nếu token là đại từ nhân xưng → gán label "P"
+        const currentToken = tokens[index].toLowerCase();
+        if (PRONOUNS.has(currentToken)) {
+          console.log(`Token "${tokens[index]}" được nhận dạng là đại từ nhân xưng → Label: P`);
+          return 'P';
+        }
+        
+        return posTag;
       });
 
       console.log('Extracted POS Tags:', extractedPosTags);
@@ -279,104 +308,159 @@ export class NlpIntegrationService {
     // Mặc định
     return 'Related_To';
   }
+  // Phân tích văn bản và tạo graph với các mối quan hệ ngữ nghĩa
+  async analyzeAndCreateSemanticGraph(text: string) {
+    try {
+      const posResult = await firstValueFrom(
+        this.undertheseaClient.send('underthesea.pos', { text: text })
+      );
 
-  //Phân tích văn bản và tạo graph với các mối quan hệ ngữ nghĩa
-async analyzeAndCreateSemanticGraph(text: string) {
-  try {
-    const posResult = await firstValueFrom(
-      this.undertheseaClient.send('underthesea.pos', { text: text })
-    );
+      if (!posResult.success) {
+        throw new InternalServerErrorException('Không thể phân tích POS');
+      }
 
-    if (!posResult.success) {
-      throw new InternalServerErrorException('Không thể phân tích POS');
-    }
+      const { tokens, pos_tags } = posResult;
 
-    const { tokens, pos_tags } = posResult;
+      // ✅ Danh sách đầy đủ các đại từ nhân xưng và xưng hô trong tiếng Việt
+      const PRONOUNS = new Set([
+        // Đại từ ngôi thứ nhất
+        'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta', 'chúng mình',
+        
+        // Đại từ ngôi thứ hai
+        'bạn', 'mày', 'cậu', 'các bạn', 'quý vị',
+        
+        // Đại từ ngôi thứ ba
+        'họ', 'nó', 'hắn', 'y', 'chúng nó',
+        
+        // Đại từ xưng hô gia đình/thân tộc
+        'anh', 'chị', 'em', 'ông', 'bà', 'cháu',
+        'bố', 'ba', 'tía', 'con', 'mẹ', 'má',
+        'chú', 'bác', 'cô', 'dì'
+      ]);
 
-    //Trích xuất POS tags
-    const extractedPosTags = pos_tags.map(item =>
-      Array.isArray(item) ? item[1] : item
-    );
+      // ✅ Trích xuất POS tags và override cho đại từ nhân xưng
+      const extractedPosTags = pos_tags.map((item, index) => {
+        // Lấy POS tag từ mảng 2 chiều hoặc string
+        const posTag = Array.isArray(item) ? item[1] : item;
+        
+        // Kiểm tra nếu token là đại từ nhân xưng → gán label "P"
+        const currentToken = tokens[index].toLowerCase();
+        if (PRONOUNS.has(currentToken)) {
+          console.log(`Token "${tokens[index]}" được nhận dạng là đại từ nhân xưng → Label: P`);
+          return 'P';
+        }
+        
+        return posTag;
+      });
 
-    const createdNodes = [];
-    const createdRelations = [];
-    const pronounNodes = []; // ✅ Danh sách riêng cho các đại từ (label = "P")
+      const createdNodes = [];
+      const createdRelations = [];
+      const pronounNodes = []; // ✅ Danh sách riêng cho các đại từ (label = "P")
 
-    // Tạo nodes (TẤT CẢ các từ)
-    for (let i = 0; i < tokens.length; i++) {
-      try {
-        const node = await firstValueFrom(
-          this.neo4jClient.send('neo4j.create-node', {
+      // Tạo nodes (TẤT CẢ các từ)
+      console.log('=== BẮT ĐẦU TẠO NODES ===');
+      for (let i = 0; i < tokens.length; i++) {
+        try {
+          const nodePayload = {
             label: extractedPosTags[i],
             name: tokens[i],
-          })
-        );
-        
-        const nodeData = {
-          token: tokens[i],
-          posTag: extractedPosTags[i],
-          posInfo: this.getPosTagInfo(extractedPosTags[i]),
-          node,
-        };
-        
-        createdNodes.push(nodeData);
-        
-        // ✅ Nếu là đại từ (label = "P"), thêm vào danh sách riêng
-        if (extractedPosTags[i] === 'P') {
-          pronounNodes.push(nodeData);
+          };
+          
+          console.log(`Tạo node ${i + 1}/${tokens.length}: "${tokens[i]}" (${extractedPosTags[i]})`);
+          
+          const node = await firstValueFrom(
+            this.neo4jClient.send('neo4j.create-node', nodePayload)
+          );
+          
+          const nodeData = {
+            token: tokens[i],
+            posTag: extractedPosTags[i],
+            posInfo: this.getPosTagInfo(extractedPosTags[i]),
+            node,
+          };
+          
+          createdNodes.push(nodeData);
+          
+          // ✅ Nếu là đại từ (label = "P"), thêm vào danh sách riêng
+          if (extractedPosTags[i] === 'P') {
+            pronounNodes.push(nodeData);
+            console.log(`  → Đã thêm vào danh sách pronouns`);
+          }
+        } catch (error) {
+          console.error(`Lỗi khi tạo node cho token "${tokens[i]}":`, error.message);
+          console.error('Error stack:', error.stack);
         }
-      } catch (error) {
-        console.error(`Lỗi khi tạo node: ${error.message}`);
-      }
-    }
-
-    // Tạo relations dựa trên ngữ nghĩa (TẤT CẢ các quan hệ)
-    for (let i = 0; i < tokens.length - 1; i++) {
-      const currentTag = extractedPosTags[i];
-      const nextTag = extractedPosTags[i + 1];
-
-      // Bỏ qua dấu câu
-      if (currentTag === 'CH' || nextTag === 'CH') {
-        continue;
       }
 
-      const relationType = this.determineRelationType(currentTag, nextTag);
+      console.log(`Đã tạo ${createdNodes.length} nodes (trong đó có ${pronounNodes.length} đại từ)`);
 
-      try {
-        const relation = await firstValueFrom(
-          this.neo4jClient.send('neo4j.create-relation', {
+      // Tạo relations dựa trên ngữ nghĩa (TẤT CẢ các quan hệ)
+      console.log('=== BẮT ĐẦU TẠO RELATIONS ===');
+      for (let i = 0; i < tokens.length - 1; i++) {
+        const currentTag = extractedPosTags[i];
+        const nextTag = extractedPosTags[i + 1];
+
+        // Bỏ qua dấu câu
+        if (currentTag === 'CH' || nextTag === 'CH') {
+          console.log(`Bỏ qua relation có dấu câu: "${tokens[i]}" (${currentTag}) -> "${tokens[i + 1]}" (${nextTag})`);
+          continue;
+        }
+
+        const relationType = this.determineRelationType(currentTag, nextTag);
+
+        try {
+          const relationPayload = {
             fromLabel: currentTag,
             fromName: tokens[i],
             toLabel: nextTag,
             toName: tokens[i + 1],
             relationType,
             weight: 1,
-          })
-        );
-        createdRelations.push({
-          ...relation,
-          relationDescription: this.getRelationDescription(relationType),
-        });
-      } catch (error) {
-        console.error(`Lỗi khi tạo relation: ${error.message}`);
+          };
+          
+          console.log(`Tạo relation ${i + 1}: "${tokens[i]}" (${currentTag}) -[${relationType}]-> "${tokens[i + 1]}" (${nextTag})`);
+          
+          const relation = await firstValueFrom(
+            this.neo4jClient.send('neo4j.create-relation', relationPayload)
+          );
+          
+          createdRelations.push({
+            ...relation,
+            relationDescription: this.getRelationDescription(relationType),
+          });
+        } catch (error) {
+          console.error(`Lỗi khi tạo relation: "${tokens[i]}" -> "${tokens[i + 1]}"`, error.message);
+          console.error('Error stack:', error.stack);
+        }
       }
-    }
 
-    return {
-      success: true,
-      text,
-      totalNodes: createdNodes.length,
-      totalRelations: createdRelations.length,
-      totalPronouns: pronounNodes.length, // ✅ Số lượng đại từ
-      nodes: createdNodes,
-      relations: createdRelations,
-      pronouns: pronounNodes, // ✅ Danh sách các đại từ (label = "P")
-    };
-  } catch (error) {
-    console.error('Lỗi trong quá trình tạo semantic graph:', error);
-    throw new InternalServerErrorException('Không thể tạo semantic graph');
+      console.log(`Đã tạo ${createdRelations.length} relations`);
+
+      const result = {
+        success: true,
+        text,
+        totalNodes: createdNodes.length,
+        totalRelations: createdRelations.length,
+        totalPronouns: pronounNodes.length, // ✅ Số lượng đại từ
+        nodes: createdNodes,
+        relations: createdRelations,
+        pronouns: pronounNodes, // ✅ Danh sách các đại từ (label = "P")
+      };
+
+      console.log('=== KẾT QUẢ CUỐI CÙNG ===');
+      console.log(`- Tổng nodes: ${result.totalNodes}`);
+      console.log(`- Tổng relations: ${result.totalRelations}`);
+      console.log(`- Tổng đại từ: ${result.totalPronouns}`);
+      console.log(`- Danh sách đại từ:`, pronounNodes.map(p => p.token).join(', '));
+
+      return result;
+    } catch (error) {
+      console.error('Lỗi nghiêm trọng trong quá trình tạo semantic graph:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      throw new InternalServerErrorException(`Không thể tạo semantic graph: ${error.message}`);
+    }
   }
-}
 
   // Mô tả ý nghĩa của các loại quan hệ
   private getRelationDescription(relationType: string): string {
@@ -584,15 +668,14 @@ async analyzeAndCreateSemanticGraph(text: string) {
     }
   }
 
-  async findWordByLabel(word: string, fromLabel: string, toLabel: string) {
+  async findWordByLabel(word: string, toLabel: string) {
     try {
       const nodes = await firstValueFrom(
-        this.neo4jClient.send('neo4j.find-word-by-label', { word, fromLabel, toLabel })
+        this.neo4jClient.send('neo4j.find-word-by-label', { word, toLabel })
       );
       return {
         success: true,
         word,
-        fromLabel,
         toLabel,
         nodes,
       };

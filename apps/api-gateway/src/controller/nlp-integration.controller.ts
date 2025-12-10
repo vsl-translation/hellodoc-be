@@ -28,6 +28,7 @@ export class NlpController {
      */
     @Post('analyze-semantic')
     async analyzeSemanticText(@Body('text') text: string) {
+        console.log('Received text for semantic analysis:', text);
         if (!text) {
             return { error: 'Thiếu tham số text' };
         }
@@ -60,11 +61,11 @@ export class NlpController {
     }
 
     @Get('find-word-by-label')
-    async findWordByLabel(@Query('word') word: string, @Query('fromLabel') fromLabel: string, @Query('toLabel') toLabel: string) {
+    async findWordByLabel(@Query('word') word: string, @Query('toLabel') toLabel: string) {
         if (!word) {
             return { error: 'Thiếu tham số word' };
         }
-        return await this.nlpService.findWordByLabel(word, fromLabel, toLabel);
+        return await this.nlpService.findWordByLabel(word, toLabel);
     }
 
 

@@ -19,6 +19,10 @@ export class Neo4jService {
         return this.neo4jClient.send('neo4j.get-suggestions', { word });
     }
 
+    async getSuggestionsByLabel(word: string, toLabel: string) {
+        return this.neo4jClient.send('neo4j.find-word-by-label', { word, toLabel });
+    }
+
     async getAll() {
         return this.neo4jClient.send('neo4j.get-all', {});
     }

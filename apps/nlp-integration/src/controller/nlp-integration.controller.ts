@@ -10,6 +10,7 @@ export class NlpIntegrationController {
   @MessagePattern('nlp-integration.analyze')
   async analyzeText(@Payload() payload: any) {
     const { text, createRelations } = payload;
+    console.log('Received text for analysis:', text);
     return this.nlpIntegrationService.analyzeAndCreateGraph(text, createRelations);
   }
 
@@ -39,8 +40,8 @@ export class NlpIntegrationController {
   }
 
   @MessagePattern('nlp-integration.find-word-by-label')
-  async findWordByLabel(@Payload() payload: { word: string, fromLabel: string, toLabel: string}) {
-    return this.nlpIntegrationService.findWordByLabel(payload.word, payload.fromLabel, payload.toLabel);
+  async findWordByLabel(@Payload() payload: { word: string, toLabel: string}) {
+    return this.nlpIntegrationService.findWordByLabel(payload.word, payload.toLabel);
   }
 
 }

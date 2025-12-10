@@ -32,9 +32,9 @@ export class NlpIntegrationService {
         );
     }
 
-    async findWordByLabel(word: string, fromLabel: string, toLabel: string) {
+    async findWordByLabel(word: string, toLabel: string) {
         return firstValueFrom(
-            this.nlpClient.send('nlp-integration.find-word-by-label',{ word, fromLabel, toLabel})
+            this.nlpClient.send('nlp-integration.find-word-by-label',{ word, toLabel})
         );
     }
 }

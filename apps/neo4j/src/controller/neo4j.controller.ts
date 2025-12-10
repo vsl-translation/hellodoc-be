@@ -24,7 +24,7 @@ export class Neo4jController {
   }
 
   @MessagePattern('neo4j.find-word-by-label')
-  async getNodeByLabel(@Payload() payload: {word: string, fromLabel: string, toLabel: string}) {
+  async getNodeByLabel(@Payload() payload: {word: string, toLabel: string}) {
     return this.neo4jService.getSuggestionsByLabel(payload.word,  payload.toLabel);
   }
 

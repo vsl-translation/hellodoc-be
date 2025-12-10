@@ -80,22 +80,7 @@ export class Neo4jService {
     try {
       const query = `
         MATCH (a {name: $word})-
-        [r:
-          Noun_Verb |
-          Verb_Noun |
-          Adjective_Noun |
-          Adverb_Verb |
-          Adverb_Adjective |
-          Adposition_Noun |
-          Determiner_Noun |
-          Numeral_Noun |
-          Numeral_Unit |
-          Noun_Compound |
-          Verb_Serial |
-          Particle |
-          Conjuncts |
-          Related_To
-        ]->(b)
+        [r]->(b)
         RETURN b.name AS suggestion, r.weight AS score, labels(b) AS label
         ORDER BY r.weight DESC;
       `;
@@ -117,16 +102,43 @@ export class Neo4jService {
     }
   }
 
-  async getSuggestionsByLabel(
+ async getSuggestionsByLabel(
     word: string,
     toLabel: string
   ) {
     const session = this.getSession();
     try {
-      // ✅ Chuyển toLabel sang chữ IN HOA
       const upperToLabel = toLabel.toUpperCase();
       
-      const query = `
+      // Bước 1: Thử lấy 10 nút liền kề với word
+      const adjacentQuery = `
+        MATCH (a)--(b)
+        WHERE 
+          a.name = $word
+          AND $toLabel IN labels(b)
+        RETURN 
+          b.name AS suggestion, 
+          1.0 AS score,
+          labels(b) AS label
+        LIMIT 10
+      `;
+      
+      const adjacentResult = await session.run(adjacentQuery, {
+        word: word,
+        toLabel: upperToLabel
+      });
+      
+      // Nếu có kết quả từ nút liền kề, trả về luôn
+      if (adjacentResult.records.length > 0) {
+        return adjacentResult.records.map(r => ({
+          suggestion: r.get('suggestion'),
+          score: r.get('score'),
+          label: r.get('label')
+        }));
+      }
+      
+      // Bước 2: Nếu rỗng, lấy 10 nút bất kỳ có label
+      const fallbackQuery = `
         MATCH (b)
         WHERE 
           $toLabel IN labels(b)
@@ -134,18 +146,20 @@ export class Neo4jService {
           b.name AS suggestion, 
           1.0 AS score,
           labels(b) AS label
-        LIMIT 100
+        ORDER BY score DESC
+        LIMIT 10
       `;
-
-      const result = await session.run(query, {
-        toLabel: upperToLabel  // ✅ Truyền chữ HOA
+      
+      const fallbackResult = await session.run(fallbackQuery, {
+        toLabel: upperToLabel
       });
-
-      return result.records.map(r => ({
+      
+      return fallbackResult.records.map(r => ({
         suggestion: r.get('suggestion'),
         score: r.get('score'),
         label: r.get('label')
       }));
+      
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException(
