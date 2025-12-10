@@ -628,7 +628,7 @@ async analyzeAndCreateSemanticGraph(text: string) {
 
     const createdNodes = [];
     const updatedRelations = [];
-    const pronounNodes = [];
+    const pronounNodes = []; // Danh sách riêng cho các đại từ (label = "P")
 
     // ========== BƯỚC 1: Tạo hoặc lấy nodes (không tăng weight ở đây) ==========
     console.log('=== BƯỚC 1: XỬ LÝ NODES ===');
