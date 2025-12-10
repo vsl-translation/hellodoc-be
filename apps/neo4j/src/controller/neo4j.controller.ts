@@ -23,6 +23,11 @@ export class Neo4jController {
     return this.neo4jService.getSuggestions(word);
   }
 
+  @MessagePattern('neo4j.find-word-by-label')
+  async getNodeByLabel(@Payload() payload: {word: string, fromLabel: string, toLabel: string}) {
+    return this.neo4jService.getSuggestionsByLabel(payload.word,  payload.toLabel);
+  }
+
   @MessagePattern('neo4j.get-all')
   async getAll() {
     return this.neo4jService.getAll();

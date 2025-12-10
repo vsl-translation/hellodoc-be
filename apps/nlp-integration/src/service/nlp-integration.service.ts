@@ -281,91 +281,102 @@ export class NlpIntegrationService {
   }
 
   //Phân tích văn bản và tạo graph với các mối quan hệ ngữ nghĩa
-  async analyzeAndCreateSemanticGraph(text: string) {
-    try {
-      const posResult = await firstValueFrom(
-        this.undertheseaClient.send('underthesea.pos', { text: text })
-      );
+async analyzeAndCreateSemanticGraph(text: string) {
+  try {
+    const posResult = await firstValueFrom(
+      this.undertheseaClient.send('underthesea.pos', { text: text })
+    );
 
-      if (!posResult.success) {
-        throw new InternalServerErrorException('Không thể phân tích POS');
-      }
-
-      const { tokens, pos_tags } = posResult;
-
-      //Trích xuất POS tags
-      const extractedPosTags = pos_tags.map(item =>
-        Array.isArray(item) ? item[1] : item
-      );
-
-      const createdNodes = [];
-      const createdRelations = [];
-
-      // Tạo nodes
-      for (let i = 0; i < tokens.length; i++) {
-        try {
-          const node = await firstValueFrom(
-            this.neo4jClient.send('neo4j.create-node', {
-              label: extractedPosTags[i],
-              name: tokens[i],
-            })
-          );
-          createdNodes.push({
-            token: tokens[i],
-            posTag: extractedPosTags[i],
-            posInfo: this.getPosTagInfo(extractedPosTags[i]),
-            node,
-          });
-        } catch (error) {
-          console.error(`Lỗi khi tạo node: ${error.message}`);
-        }
-      }
-
-      // Tạo relations dựa trên ngữ nghĩa
-      for (let i = 0; i < tokens.length - 1; i++) {
-        const currentTag = extractedPosTags[i];
-        const nextTag = extractedPosTags[i + 1];
-
-        // Bỏ qua dấu câu
-        if (currentTag === 'CH' || nextTag === 'CH') {
-          continue;
-        }
-
-        const relationType = this.determineRelationType(currentTag, nextTag);
-
-        try {
-          const relation = await firstValueFrom(
-            this.neo4jClient.send('neo4j.create-relation', {
-              fromLabel: currentTag,
-              fromName: tokens[i],
-              toLabel: nextTag,
-              toName: tokens[i + 1],
-              relationType,
-              weight: 1,
-            })
-          );
-          createdRelations.push({
-            ...relation,
-            relationDescription: this.getRelationDescription(relationType),
-          });
-        } catch (error) {
-          console.error(`Lỗi khi tạo relation: ${error.message}`);
-        }
-      }
-
-      return {
-        success: true,
-        text,
-        totalNodes: createdNodes.length,
-        totalRelations: createdRelations.length,
-        nodes: createdNodes,
-        relations: createdRelations,
-      };
-    } catch (error) {
-      console.error('Lỗi trong quá trình tạo semantic graph:', error);
-      throw new InternalServerErrorException('Không thể tạo semantic graph');
+    if (!posResult.success) {
+      throw new InternalServerErrorException('Không thể phân tích POS');
     }
+
+    const { tokens, pos_tags } = posResult;
+
+    //Trích xuất POS tags
+    const extractedPosTags = pos_tags.map(item =>
+      Array.isArray(item) ? item[1] : item
+    );
+
+    const createdNodes = [];
+    const createdRelations = [];
+    const pronounNodes = []; // ✅ Danh sách riêng cho các đại từ (label = "P")
+
+    // Tạo nodes (TẤT CẢ các từ)
+    for (let i = 0; i < tokens.length; i++) {
+      try {
+        const node = await firstValueFrom(
+          this.neo4jClient.send('neo4j.create-node', {
+            label: extractedPosTags[i],
+            name: tokens[i],
+          })
+        );
+        
+        const nodeData = {
+          token: tokens[i],
+          posTag: extractedPosTags[i],
+          posInfo: this.getPosTagInfo(extractedPosTags[i]),
+          node,
+        };
+        
+        createdNodes.push(nodeData);
+        
+        // ✅ Nếu là đại từ (label = "P"), thêm vào danh sách riêng
+        if (extractedPosTags[i] === 'P') {
+          pronounNodes.push(nodeData);
+        }
+      } catch (error) {
+        console.error(`Lỗi khi tạo node: ${error.message}`);
+      }
+    }
+
+    // Tạo relations dựa trên ngữ nghĩa (TẤT CẢ các quan hệ)
+    for (let i = 0; i < tokens.length - 1; i++) {
+      const currentTag = extractedPosTags[i];
+      const nextTag = extractedPosTags[i + 1];
+
+      // Bỏ qua dấu câu
+      if (currentTag === 'CH' || nextTag === 'CH') {
+        continue;
+      }
+
+      const relationType = this.determineRelationType(currentTag, nextTag);
+
+      try {
+        const relation = await firstValueFrom(
+          this.neo4jClient.send('neo4j.create-relation', {
+            fromLabel: currentTag,
+            fromName: tokens[i],
+            toLabel: nextTag,
+            toName: tokens[i + 1],
+            relationType,
+            weight: 1,
+          })
+        );
+        createdRelations.push({
+          ...relation,
+          relationDescription: this.getRelationDescription(relationType),
+        });
+      } catch (error) {
+        console.error(`Lỗi khi tạo relation: ${error.message}`);
+      }
+    }
+
+    return {
+      success: true,
+      text,
+      totalNodes: createdNodes.length,
+      totalRelations: createdRelations.length,
+      totalPronouns: pronounNodes.length, // ✅ Số lượng đại từ
+      nodes: createdNodes,
+      relations: createdRelations,
+      pronouns: pronounNodes, // ✅ Danh sách các đại từ (label = "P")
+    };
+  } catch (error) {
+    console.error('Lỗi trong quá trình tạo semantic graph:', error);
+    throw new InternalServerErrorException('Không thể tạo semantic graph');
   }
+}
 
   // Mô tả ý nghĩa của các loại quan hệ
   private getRelationDescription(relationType: string): string {
@@ -570,6 +581,25 @@ export class NlpIntegrationService {
     } catch (error) {
       console.error('Lỗi khi tìm từ trong graph:', error);
       throw new InternalServerErrorException('Không thể tìm từ trong graph');
+    }
+  }
+
+  async findWordByLabel(word: string, fromLabel: string, toLabel: string) {
+    try {
+      const nodes = await firstValueFrom(
+        this.neo4jClient.send('neo4j.find-word-by-label', { word, fromLabel, toLabel })
+      );
+      return {
+        success: true,
+        word,
+        fromLabel,
+        toLabel,
+        nodes,
+      };
+    }
+    catch (error) {
+      console.error('Lỗi khi tìm từ theo label trong graph:', error);
+      throw new InternalServerErrorException('Không thể tìm từ theo label trong graph');
     }
   }
 }

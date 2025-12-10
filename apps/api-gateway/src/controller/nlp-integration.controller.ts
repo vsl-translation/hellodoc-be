@@ -59,4 +59,13 @@ export class NlpController {
         return await this.nlpService.findWord(word, label);
     }
 
+    @Get('find-word-by-label')
+    async findWordByLabel(@Query('word') word: string, @Query('fromLabel') fromLabel: string, @Query('toLabel') toLabel: string) {
+        if (!word) {
+            return { error: 'Thiếu tham số word' };
+        }
+        return await this.nlpService.findWordByLabel(word, fromLabel, toLabel);
+    }
+
+
 }
