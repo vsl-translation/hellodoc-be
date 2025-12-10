@@ -21,15 +21,15 @@ export class SpecialtyService {
 
   async getSpecialties() {
     const cacheKey = 'all_specialties';
-    console.log('Trying to get specialties from cache...');
+    //console.log('Trying to get specialties from cache...');
 
     const cached = await this.cacheService.getCache(cacheKey);
     if (cached) {
-      console.log('Cache specialty HIT');
+      //console.log('Cache specialty HIT');
       return cached;
     }
 
-    console.log('Cache MISS - querying DB');
+    //console.log('Cache MISS - querying DB');
     const data = await this.SpecialtyModel.find();
 
     // Lấy thông tin bác sĩ cho mỗi specialty
@@ -62,7 +62,7 @@ export class SpecialtyService {
       })
     );
 
-    console.log('Setting cache...');
+    //console.log('Setting cache...');
     await this.cacheService.setCache(cacheKey, specialtiesWithDoctors, 30 * 1000);
     return specialtiesWithDoctors;
   }
@@ -119,10 +119,10 @@ export class SpecialtyService {
         throw new BadRequestException('Tạo chuyên khoa không thành công');
       }
 
-      console.log('Specialty created with ID:', specialty._id);
+      //console.log('Specialty created with ID:', specialty._id);
       return specialty;
     } catch (error) {
-      console.error('Error in SpecialtyService.create:', error);
+      //console.error('Error in SpecialtyService.create:', error);
       throw new InternalServerErrorException(error.message);
     }
   }

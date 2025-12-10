@@ -1,12 +1,12 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { SignupDto } from '../dto/signup.dto';
+import { SignupDto } from '../core/dto/signup.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import * as bcrypt from 'bcrypt';
-import { loginDto } from '../dto/login.dto';
+import { loginDto } from '../core/dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { CacheService } from 'libs/cache.service';
-import { LoginGoogleDto } from '../dto/loginGoogle.dto';
+import { LoginGoogleDto } from '../core/dto/loginGoogle.dto';
 import { OAuth2Client } from 'google-auth-library';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
@@ -18,6 +18,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 export class AuthService {
   constructor(
     @Inject('USERS_CLIENT') private usersClient: ClientProxy,
+    @Inject('ADMIN_CLIENT') private adminClient: ClientProxy,
     private jwtService: JwtService,
     private cacheService: CacheService,
     private configService: ConfigService,
@@ -47,6 +48,10 @@ export class AuthService {
     return await firstValueFrom(this.usersClient.send('user.signup', data));
   }
 
+  async signupAdmin(signUpData: SignupDto) {
+    return await firstValueFrom(this.adminClient.send('admin.createAdmin', signUpData));
+  }
+
   async login(loginData: loginDto) {
     try {
       const { email, password } = loginData;
@@ -59,8 +64,6 @@ export class AuthService {
       const user = users.find((u) => u.email === email && u.isDeleted === false);
 
       if (!user) {
-        // ❌ Không throw
-        // throw new UnauthorizedException('Email không chính xác');
 
         // ✅ Trả về error object
         return {
@@ -88,6 +91,8 @@ export class AuthService {
         user.address,
         user.role,
       );
+
+      console.log('DỮ LIỆU truyền với token', user.role);
 
       const cacheKey = `user_${user._id}`;
       await this.cacheService.setCache(
@@ -283,27 +288,6 @@ export class AuthService {
 
   async resetPassword(email: string, newPassword: string): Promise<any> {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // // Tìm và cập nhật trong UserModel
-    // const user = await this.UserModel.findOne({ email });
-    // if (user) {
-    //   await this.UserModel.updateOne({ email }, { password: hashedPassword });
-    //   return { message: 'Đặt lại mật khẩu thành công (user)' };
-    // }
-
-    // // Tìm và cập nhật trong AdminModel
-    // const admin = await this.AdminModel.findOne({ email });
-    // if (admin) {
-    //   await this.AdminModel.updateOne({ email }, { password: hashedPassword });
-    //   return { message: 'Đặt lại mật khẩu thành công (admin)' };
-    // }
-
-    // // Tìm và cập nhật trong DoctorModel
-    // const doctor = await this.DoctorModel.findOne({ email });
-    // if (doctor) {
-    //   await this.DoctorModel.updateOne({ email }, { password: hashedPassword });
-    //   return { message: 'Đặt lại mật khẩu thành công (doctor)' };
-    // }
 
     const user = await firstValueFrom(this.usersClient.send('user.getallusers', {}));
     const existingUser = Array.isArray(user) ? user.find((u) => u.email === email && u.isDeleted === false) : null;

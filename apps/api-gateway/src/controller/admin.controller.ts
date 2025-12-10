@@ -18,7 +18,7 @@ import { Types } from 'mongoose';
 import { Express } from 'express';
 import { MessagePattern } from '@nestjs/microservices';
 import { SignupDto } from '../core/dto/signup.dto';
-import { JwtAuthGuard } from 'libs/Guard/jwt-auth.guard';
+import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
 import { AdminGuard } from 'libs/Guard/AdminGuard.guard';
 import { AdminService } from "../services/admin.service";
 
@@ -26,7 +26,6 @@ import { AdminService } from "../services/admin.service";
 export class AdminController {
     constructor(
         private readonly adminService: AdminService,
-        // private jwtService: JwtService,
     ) { }
 
     @Get('users')
@@ -34,16 +33,9 @@ export class AdminController {
         return this.adminService.getUsers();
     }
 
-
-
     @Get('doctors')
     async getDoctors() {
         return this.adminService.getDoctors();
-    }
-
-    @Post('postadmin')
-    async postAdmin(@Body() signUpData: SignupDto) {
-        return this.adminService.postAdmin(signUpData);
     }
 
     @UseInterceptors(FileInterceptor('avatarURL'))
@@ -73,13 +65,13 @@ export class AdminController {
     // }
 
     @Delete('delete-user/:id')
-    //@UseGuards(JwtAuthGuard, AdminGuard)
+    @UseGuards(JwtHybridAuthGuard, AdminGuard)
     async deleteUser(@Param('id') id: string) {
         return this.adminService.deleteUser(id);
     }
 
     @Delete('delete-doctor/:id')
-    @UseGuards(JwtAuthGuard, AdminGuard)
+    @UseGuards(JwtHybridAuthGuard, AdminGuard)
     async deleteDoctor(@Param('id') id: string) {
         return this.adminService.deleteDoctor(id);
     }

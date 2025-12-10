@@ -5,7 +5,7 @@ import { ClientProxy } from '@nestjs/microservices';
 export class AdminService {
     constructor(
         @Inject('ADMIN_CLIENT') private adminClient: ClientProxy,
-) { }
+    ) { }
 
     async getUsers() {
         return await this.adminClient.send('admin.getUsers', {});
@@ -17,11 +17,6 @@ export class AdminService {
 
     async getDoctors() {
         return await this.adminClient.send('admin.doctors', {});
-    }
-
-    async postAdmin(signUpData: any) {
-        return this.adminClient.send
-            ('admin.postadmin', signUpData);
     }
 
     async deleteUser(id: string) {

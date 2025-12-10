@@ -23,7 +23,7 @@ import config from 'apps/config/config';
         const isDev = configService.get<string>('isDev') === 'true';
         const uri = isDev
           ? configService.get<string>('MONGO_URI_DEV')
-          : configService.get<string>('MONGO_URI_NEWS');
+          : configService.get<string>('MONGO_URI_NEWSFAVOURITES');
         return { uri };
       },
       inject: [ConfigService],
@@ -43,4 +43,4 @@ import config from 'apps/config/config';
   controllers: [NewsFavoriteController],
   providers: [NewsFavoriteService],
 })
-export class NewsFavoriteModule {}
+export class NewsFavoriteModule { }

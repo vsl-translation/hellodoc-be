@@ -10,7 +10,7 @@ export class ReviewController {
   constructor(
     private readonly reviewService: ReviewService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
-  ) {}
+  ) { }
 
   @Post()
   async createReview(@Body() body: CreateReviewDto) {
@@ -19,20 +19,20 @@ export class ReviewController {
 
   @Get('doctor/:doctorId')
   async getReviewsByDoctor(@Param('doctorId') doctorId: string) {
-    // const cacheKey = `reviews_by_doctor_${doctorId}`;
-    // console.log('Trying to get reviews from cache...');
+    const cacheKey = `reviews_by_doctor_${doctorId}`;
+    //console.log('Trying to get reviews from cache...');
 
-    // const cached = await this.cacheManager.get(cacheKey);
-    // if (cached) {
-    //   console.log('Cache HIT');
-    //   return cached;
-    // }
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      //console.log('Cache HIT');
+      return cached;
+    }
 
-    // console.log('Cache MISS - querying Service');
+    //console.log('Cache MISS - querying Service');
     const data = await this.reviewService.getReviewsByDoctor(doctorId);
 
-    // console.log('Setting cache...');
-    // await this.cacheManager.set(cacheKey, data, 3600 * 1000); // Cache for 1 hour (TTL in ms for cache-manager v5+, or seconds depending on version. ApiGatewayModule uses 3600*1000 so likely ms)
+    //console.log('Setting cache...');
+    await this.cacheManager.set(cacheKey, data, 3600 * 1000);
     return data;
   }
 

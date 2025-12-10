@@ -22,7 +22,7 @@ export class DoctorService {
     private cacheService: CacheService,
   ) { }
   async getDoctorById(id: string) {
-    console.log('Received doctor ID:', id, typeof id);
+    //console.log('Received doctor ID:', id, typeof id);
 
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('ID không hợp lệ');
@@ -30,16 +30,16 @@ export class DoctorService {
 
     const objectId = new Types.ObjectId(id);
 
-    // const cacheKey = `doctor_${id}`;
-    // console.log('Trying to get doctor by id from cache...');
+    const cacheKey = `doctor_${id}`;
+    //console.log('Trying to get doctor by id from cache...');
 
-    // const cached = await this.cacheService.getCache(cacheKey);
-    // if (cached) {
-    //   console.log('Cache HIT');
-    //   return cached;
-    // }
+    const cached = await this.cacheService.getCache(cacheKey);
+    if (cached) {
+      //console.log('Cache HIT');
+      return cached;
+    }
 
-    console.log('Cache MISS - querying DB');
+    //console.log('Cache MISS - querying DB');
     const doctor = await this.DoctorModel.findById(objectId);
 
     if (!doctor) {
@@ -69,7 +69,7 @@ export class DoctorService {
     };
 
     //console.log('Setting cache...');
-    // await this.cacheService.setCache(cacheKey, result, 30 * 1000);
+    await this.cacheService.setCache(cacheKey, result, 30 * 1000);
     //console.log('Ket qua tra ve: ' + result);
 
     return result;
