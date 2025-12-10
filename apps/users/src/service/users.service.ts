@@ -65,7 +65,7 @@ export class UsersService {
       //Nối 3 danh sách lại với nhau
       return users.concat(doctors, admins);
     } catch (e) {
-      console.warn('Doctor service timeout hoặc lỗi, trả về rỗng');
+      console.warn('Doctor service timeout hoặc lỗi, trả về rỗng' + e.message);
       return { users, doctors: [] }; // fallback
     }
   }
