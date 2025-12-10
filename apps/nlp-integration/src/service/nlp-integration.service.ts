@@ -2,6 +2,13 @@ import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 
+  import * as fs from 'fs';
+import * as path from 'path';
+import { promisify } from 'util';
+
+const readdir = promisify(fs.readdir);
+const readFile = promisify(fs.readFile);
+const stat = promisify(fs.stat);
 // Mapping POS tags sang tên đầy đủ và loại quan hệ
 const POS_TAG_INFO = {
   // Danh từ
@@ -308,159 +315,635 @@ export class NlpIntegrationService {
     // Mặc định
     return 'Related_To';
   }
-  // Phân tích văn bản và tạo graph với các mối quan hệ ngữ nghĩa
-  async analyzeAndCreateSemanticGraph(text: string) {
-    try {
-      const posResult = await firstValueFrom(
-        this.undertheseaClient.send('underthesea.pos', { text: text })
-      );
+  
+  // // Phân tích văn bản và tạo graph với các mối quan hệ ngữ nghĩa
+  // async analyzeAndCreateSemanticGraph(text: string) {
+  //   try {
+  //     const posResult = await firstValueFrom(
+  //       this.undertheseaClient.send('underthesea.pos', { text: text })
+  //     );
 
-      if (!posResult.success) {
-        throw new InternalServerErrorException('Không thể phân tích POS');
-      }
+  //     if (!posResult.success) {
+  //       throw new InternalServerErrorException('Không thể phân tích POS');
+  //     }
 
-      const { tokens, pos_tags } = posResult;
+  //     const { tokens, pos_tags } = posResult;
 
-      // ✅ Danh sách đầy đủ các đại từ nhân xưng và xưng hô trong tiếng Việt
-      const PRONOUNS = new Set([
-        // Đại từ ngôi thứ nhất
-        'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta', 'chúng mình',
+  //     // ✅ Danh sách đầy đủ các đại từ nhân xưng và xưng hô trong tiếng Việt
+  //     const PRONOUNS = new Set([
+  //       // Đại từ ngôi thứ nhất
+  //       'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta', 'chúng mình',
         
-        // Đại từ ngôi thứ hai
-        'bạn', 'mày', 'cậu', 'các bạn', 'quý vị',
+  //       // Đại từ ngôi thứ hai
+  //       'bạn', 'mày', 'cậu', 'các bạn', 'quý vị',
         
-        // Đại từ ngôi thứ ba
-        'họ', 'nó', 'hắn', 'y', 'chúng nó',
+  //       // Đại từ ngôi thứ ba
+  //       'họ', 'nó', 'hắn', 'y', 'chúng nó',
         
-        // Đại từ xưng hô gia đình/thân tộc
-        'anh', 'chị', 'em', 'ông', 'bà', 'cháu',
-        'bố', 'ba', 'tía', 'con', 'mẹ', 'má',
-        'chú', 'bác', 'cô', 'dì'
-      ]);
+  //       // Đại từ xưng hô gia đình/thân tộc
+  //       'anh', 'chị', 'em', 'ông', 'bà', 'cháu',
+  //       'bố', 'ba', 'tía', 'con', 'mẹ', 'má',
+  //       'chú', 'bác', 'cô', 'dì'
+  //     ]);
 
-      // ✅ Trích xuất POS tags và override cho đại từ nhân xưng
-      const extractedPosTags = pos_tags.map((item, index) => {
-        // Lấy POS tag từ mảng 2 chiều hoặc string
-        const posTag = Array.isArray(item) ? item[1] : item;
+  //     // ✅ Trích xuất POS tags và override cho đại từ nhân xưng
+  //     const extractedPosTags = pos_tags.map((item, index) => {
+  //       // Lấy POS tag từ mảng 2 chiều hoặc string
+  //       const posTag = Array.isArray(item) ? item[1] : item;
         
-        // Kiểm tra nếu token là đại từ nhân xưng → gán label "P"
-        const currentToken = tokens[index].toLowerCase();
-        if (PRONOUNS.has(currentToken)) {
-          console.log(`Token "${tokens[index]}" được nhận dạng là đại từ nhân xưng → Label: P`);
-          return 'P';
-        }
+  //       // Kiểm tra nếu token là đại từ nhân xưng → gán label "P"
+  //       const currentToken = tokens[index].toLowerCase();
+  //       if (PRONOUNS.has(currentToken)) {
+  //         console.log(`Token "${tokens[index]}" được nhận dạng là đại từ nhân xưng → Label: P`);
+  //         return 'P';
+  //       }
         
-        return posTag;
+  //       return posTag;
+  //     });
+
+  //     const createdNodes = [];
+  //     const createdRelations = [];
+  //     const pronounNodes = []; // ✅ Danh sách riêng cho các đại từ (label = "P")
+
+  //     // Tạo nodes (TẤT CẢ các từ)
+  //     console.log('=== BẮT ĐẦU TẠO NODES ===');
+  //     for (let i = 0; i < tokens.length; i++) {
+  //       try {
+  //         const nodePayload = {
+  //           label: extractedPosTags[i],
+  //           name: tokens[i],
+  //         };
+          
+  //         console.log(`Tạo node ${i + 1}/${tokens.length}: "${tokens[i]}" (${extractedPosTags[i]})`);
+          
+  //         const node = await firstValueFrom(
+  //           this.neo4jClient.send('neo4j.create-node', nodePayload)
+  //         );
+          
+  //         const nodeData = {
+  //           token: tokens[i],
+  //           posTag: extractedPosTags[i],
+  //           posInfo: this.getPosTagInfo(extractedPosTags[i]),
+  //           node,
+  //         };
+          
+  //         createdNodes.push(nodeData);
+          
+  //         // ✅ Nếu là đại từ (label = "P"), thêm vào danh sách riêng
+  //         if (extractedPosTags[i] === 'P') {
+  //           pronounNodes.push(nodeData);
+  //           console.log(`  → Đã thêm vào danh sách pronouns`);
+  //         }
+  //       } catch (error) {
+  //         console.error(`Lỗi khi tạo node cho token "${tokens[i]}":`, error.message);
+  //         console.error('Error stack:', error.stack);
+  //       }
+  //     }
+
+  //     console.log(`Đã tạo ${createdNodes.length} nodes (trong đó có ${pronounNodes.length} đại từ)`);
+
+  //     // Tạo relations dựa trên ngữ nghĩa (TẤT CẢ các quan hệ)
+  //     console.log('=== BẮT ĐẦU TẠO RELATIONS ===');
+  //     for (let i = 0; i < tokens.length - 1; i++) {
+  //       const currentTag = extractedPosTags[i];
+  //       const nextTag = extractedPosTags[i + 1];
+
+  //       // Bỏ qua dấu câu
+  //       if (currentTag === 'CH' || nextTag === 'CH') {
+  //         console.log(`Bỏ qua relation có dấu câu: "${tokens[i]}" (${currentTag}) -> "${tokens[i + 1]}" (${nextTag})`);
+  //         continue;
+  //       }
+
+  //       const relationType = this.determineRelationType(currentTag, nextTag);
+
+  //       try {
+  //         const relationPayload = {
+  //           fromLabel: currentTag,
+  //           fromName: tokens[i],
+  //           toLabel: nextTag,
+  //           toName: tokens[i + 1],
+  //           relationType,
+  //           weight: 1,
+  //         };
+          
+  //         console.log(`Tạo relation ${i + 1}: "${tokens[i]}" (${currentTag}) -[${relationType}]-> "${tokens[i + 1]}" (${nextTag})`);
+          
+  //         const relation = await firstValueFrom(
+  //           this.neo4jClient.send('neo4j.create-relation', relationPayload)
+  //         );
+          
+  //         createdRelations.push({
+  //           ...relation,
+  //           relationDescription: this.getRelationDescription(relationType),
+  //         });
+  //       } catch (error) {
+  //         console.error(`Lỗi khi tạo relation: "${tokens[i]}" -> "${tokens[i + 1]}"`, error.message);
+  //         console.error('Error stack:', error.stack);
+  //       }
+  //     }
+
+  //     console.log(`Đã tạo ${createdRelations.length} relations`);
+
+  //     const result = {
+  //       success: true,
+  //       text,
+  //       totalNodes: createdNodes.length,
+  //       totalRelations: createdRelations.length,
+  //       totalPronouns: pronounNodes.length, // ✅ Số lượng đại từ
+  //       nodes: createdNodes,
+  //       relations: createdRelations,
+  //       pronouns: pronounNodes, // ✅ Danh sách các đại từ (label = "P")
+  //     };
+
+  //     console.log('=== KẾT QUẢ CUỐI CÙNG ===');
+  //     console.log(`- Tổng nodes: ${result.totalNodes}`);
+  //     console.log(`- Tổng relations: ${result.totalRelations}`);
+  //     console.log(`- Tổng đại từ: ${result.totalPronouns}`);
+  //     console.log(`- Danh sách đại từ:`, pronounNodes.map(p => p.token).join(', '));
+
+  //     return result;
+  //   } catch (error) {
+  //     console.error('Lỗi nghiêm trọng trong quá trình tạo semantic graph:', error);
+  //     console.error('Error message:', error.message);
+  //     console.error('Error stack:', error.stack);
+  //     throw new InternalServerErrorException(`Không thể tạo semantic graph: ${error.message}`);
+  //   }
+  // }
+
+
+
+// Hàm đọc tất cả file txt trong folder
+async getTextFiles(folderPath: string): Promise<string[]> {
+  try {
+    const files = await readdir(folderPath);
+    const txtFiles = files
+      .filter(file => file.endsWith('.txt'))
+      .map(file => path.join(folderPath, file))
+      .sort((a, b) => {
+        // Sắp xếp theo số trong tên file (1.txt, 2.txt, ...)
+        const numA = parseInt(path.basename(a, '.txt'));
+        const numB = parseInt(path.basename(b, '.txt'));
+        return numA - numB;
       });
+    
+    return txtFiles;
+  } catch (error) {
+    console.error(`Lỗi khi đọc folder ${folderPath}:`, error.message);
+    throw error;
+  }
+}
 
-      const createdNodes = [];
-      const createdRelations = [];
-      const pronounNodes = []; // ✅ Danh sách riêng cho các đại từ (label = "P")
+// Hàm xử lý batch tất cả các file
+async processBatchFiles(folderPath: string = 'data_test/test/pos') {
+  console.log('='.repeat(80));
+  console.log('🚀 BẮT ĐẦU XỬ LÝ BATCH FILES');
+  console.log('='.repeat(80));
+  
+  const startTime = Date.now();
+  const results = {
+    total: 0,
+    success: 0,
+    failed: 0,
+    details: [],
+    errors: []
+  };
 
-      // Tạo nodes (TẤT CẢ các từ)
-      console.log('=== BẮT ĐẦU TẠO NODES ===');
-      for (let i = 0; i < tokens.length; i++) {
-        try {
-          const nodePayload = {
-            label: extractedPosTags[i],
-            name: tokens[i],
-          };
-          
-          console.log(`Tạo node ${i + 1}/${tokens.length}: "${tokens[i]}" (${extractedPosTags[i]})`);
-          
-          const node = await firstValueFrom(
-            this.neo4jClient.send('neo4j.create-node', nodePayload)
-          );
-          
-          const nodeData = {
-            token: tokens[i],
-            posTag: extractedPosTags[i],
-            posInfo: this.getPosTagInfo(extractedPosTags[i]),
-            node,
-          };
-          
-          createdNodes.push(nodeData);
-          
-          // ✅ Nếu là đại từ (label = "P"), thêm vào danh sách riêng
-          if (extractedPosTags[i] === 'P') {
-            pronounNodes.push(nodeData);
-            console.log(`  → Đã thêm vào danh sách pronouns`);
-          }
-        } catch (error) {
-          console.error(`Lỗi khi tạo node cho token "${tokens[i]}":`, error.message);
-          console.error('Error stack:', error.stack);
-        }
-      }
+  try {
+    // Lấy danh sách file
+    const txtFiles = await this.getTextFiles(folderPath);
+    results.total = txtFiles.length;
+    
+    console.log(`📁 Tìm thấy ${txtFiles.length} file txt trong folder: ${folderPath}`);
+    console.log('');
 
-      console.log(`Đã tạo ${createdNodes.length} nodes (trong đó có ${pronounNodes.length} đại từ)`);
-
-      // Tạo relations dựa trên ngữ nghĩa (TẤT CẢ các quan hệ)
-      console.log('=== BẮT ĐẦU TẠO RELATIONS ===');
-      for (let i = 0; i < tokens.length - 1; i++) {
-        const currentTag = extractedPosTags[i];
-        const nextTag = extractedPosTags[i + 1];
-
-        // Bỏ qua dấu câu
-        if (currentTag === 'CH' || nextTag === 'CH') {
-          console.log(`Bỏ qua relation có dấu câu: "${tokens[i]}" (${currentTag}) -> "${tokens[i + 1]}" (${nextTag})`);
+    // Xử lý từng file
+    for (let i = 0; i < txtFiles.length; i++) {
+      const filePath = txtFiles[i];
+      const fileName = path.basename(filePath);
+      
+      console.log(`\n[${ i + 1}/${txtFiles.length}] 📄 Đang xử lý: ${fileName}`);
+      console.log('-'.repeat(60));
+      
+      try {
+        // Đọc nội dung file
+        const text = await readFile(filePath, 'utf-8');
+        
+        if (!text || text.trim().length === 0) {
+          console.log(`⚠️  File rỗng, bỏ qua...`);
+          results.details.push({
+            file: fileName,
+            status: 'skipped',
+            reason: 'empty_file'
+          });
           continue;
         }
 
-        const relationType = this.determineRelationType(currentTag, nextTag);
+        console.log(`📝 Nội dung: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`);
+        console.log(`📏 Độ dài: ${text.length} ký tự`);
+        
+        // Gọi hàm phân tích semantic graph
+        const result = await this.analyzeAndCreateSemanticGraph(text);
+        
+        results.success++;
+        results.details.push({
+          file: fileName,
+          status: 'success',
+          nodes: result.totalNodes,
+          relations: result.totalRelations,
+          pronouns: result.totalPronouns,
+          text: text.substring(0, 100)
+        });
+        
+        console.log(`✅ Thành công: ${result.totalNodes} nodes, ${result.totalRelations} relations, ${result.totalPronouns} pronouns`);
+        
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          file: fileName,
+          error: error.message,
+          stack: error.stack
+        });
+        
+        console.error(`❌ Lỗi khi xử lý file ${fileName}:`, error.message);
+      }
+    }
 
-        try {
-          const relationPayload = {
+    const endTime = Date.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+    // Tổng kết
+    console.log('\n' + '='.repeat(80));
+    console.log('📊 TỔNG KẾT');
+    console.log('='.repeat(80));
+    console.log(`✅ Thành công: ${results.success}/${results.total} files`);
+    console.log(`❌ Thất bại: ${results.failed}/${results.total} files`);
+    console.log(`⏱️  Thời gian: ${duration}s`);
+    console.log(`⚡ Tốc độ: ${(results.total / parseFloat(duration)).toFixed(2)} files/s`);
+    
+    if (results.errors.length > 0) {
+      console.log('\n⚠️  DANH SÁCH LỖI:');
+      results.errors.forEach((err, idx) => {
+        console.log(`  ${idx + 1}. ${err.file}: ${err.error}`);
+      });
+    }
+
+    return results;
+
+  } catch (error) {
+    console.error('❌ Lỗi nghiêm trọng trong quá trình xử lý batch:', error);
+    throw new InternalServerErrorException(`Không thể xử lý batch files: ${error.message}`);
+  }
+}
+
+// Phân tích văn bản và cập nhật weight tích lũy
+async analyzeAndCreateSemanticGraph(text: string) {
+  try {
+    const posResult = await firstValueFrom(
+      this.undertheseaClient.send('underthesea.pos', { text: text })
+    );
+
+    if (!posResult.success) {
+      throw new InternalServerErrorException('Không thể phân tích POS');
+    }
+
+    const { tokens, pos_tags } = posResult;
+
+    const PRONOUNS = new Set([
+      'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta', 'chúng mình',
+      'bạn', 'mày', 'cậu', 'các bạn', 'quý vị',
+      'họ', 'nó', 'hắn', 'y', 'chúng nó',
+      'anh', 'chị', 'em', 'ông', 'bà', 'cháu',
+      'bố', 'ba', 'tía', 'con', 'mẹ', 'má',
+      'chú', 'bác', 'cô', 'dì'
+    ]);
+
+    const extractedPosTags = pos_tags.map((item, index) => {
+      const posTag = Array.isArray(item) ? item[1] : item;
+      const currentToken = tokens[index].toLowerCase();
+      if (PRONOUNS.has(currentToken)) {
+        return 'P';
+      }
+      return posTag;
+    });
+
+    const createdNodes = [];
+    const updatedRelations = [];
+    const pronounNodes = [];
+
+    // ========== BƯỚC 1: Tạo hoặc lấy nodes (không tăng weight ở đây) ==========
+    console.log('=== BƯỚC 1: XỬ LÝ NODES ===');
+    for (let i = 0; i < tokens.length; i++) {
+      try {
+        const nodePayload = {
+          label: extractedPosTags[i],
+          name: tokens[i],
+        };
+        
+        // Tạo node hoặc lấy node đã tồn tại
+        const node = await firstValueFrom(
+          this.neo4jClient.send('neo4j.create-node', nodePayload)
+        );
+        
+        const nodeData = {
+          token: tokens[i],
+          posTag: extractedPosTags[i],
+          posInfo: this.getPosTagInfo(extractedPosTags[i]),
+          node,
+        };
+        
+        createdNodes.push(nodeData);
+        
+        if (extractedPosTags[i] === 'P') {
+          pronounNodes.push(nodeData);
+        }
+      } catch (error) {
+        console.error(`Lỗi khi tạo node cho token "${tokens[i]}":`, error.message);
+      }
+    }
+
+    // ========== BƯỚC 2: Xử lý relations và cập nhật weight ==========
+    console.log('=== BƯỚC 2: XỬ LÝ RELATIONS VÀ TĂNG WEIGHT ===');
+    
+    for (let i = 0; i < tokens.length - 1; i++) {
+      const currentTag = extractedPosTags[i];
+      const nextTag = extractedPosTags[i + 1];
+
+      // Bỏ qua dấu câu
+      if (currentTag === 'CH' || nextTag === 'CH') {
+        continue;
+      }
+
+      const relationType = this.determineRelationType(currentTag, nextTag);
+
+      try {
+        // 🔍 Kiểm tra xem relation đã tồn tại chưa
+        const existingRelation = await firstValueFrom(
+          this.neo4jClient.send('neo4j.get-relation', {
             fromLabel: currentTag,
             fromName: tokens[i],
             toLabel: nextTag,
             toName: tokens[i + 1],
             relationType,
-            weight: 1,
-          };
+          })
+        );
+
+        let newWeight = 0;
+        let operation = '';
+
+        if (existingRelation && existingRelation.weight !== undefined) {
+          // ✅ Relation đã tồn tại → TĂNG weight
+          const oldWeight = existingRelation.weight;
           
-          console.log(`Tạo relation ${i + 1}: "${tokens[i]}" (${currentTag}) -[${relationType}]-> "${tokens[i + 1]}" (${nextTag})`);
-          
-          const relation = await firstValueFrom(
-            this.neo4jClient.send('neo4j.create-relation', relationPayload)
-          );
-          
-          createdRelations.push({
-            ...relation,
-            relationDescription: this.getRelationDescription(relationType),
+          // Tăng weight theo công thức tích lũy
+          const increment = await this.calculateWeightIncrement({
+            fromLabel: currentTag,
+            fromName: tokens[i],
+            toLabel: nextTag,
+            toName: tokens[i + 1],
+            currentWeight: oldWeight,
           });
-        } catch (error) {
-          console.error(`Lỗi khi tạo relation: "${tokens[i]}" -> "${tokens[i + 1]}"`, error.message);
-          console.error('Error stack:', error.stack);
+          
+          newWeight = oldWeight + increment;
+          operation = 'UPDATE';
+          
+          console.log(`📈 "${tokens[i]}" -> "${tokens[i + 1]}": ${oldWeight.toFixed(4)} → ${newWeight.toFixed(4)} (+${increment.toFixed(4)})`);
+        } else {
+          // 🆕 Relation mới → Khởi tạo weight = 0
+          newWeight = 0;
+          operation = 'CREATE';
+          
+          console.log(`🆕 "${tokens[i]}" -> "${tokens[i + 1]}": CREATED with weight = 0`);
         }
+
+        // Cập nhật hoặc tạo relation trong Neo4j
+        const relationPayload = {
+          fromLabel: currentTag,
+          fromName: tokens[i],
+          toLabel: nextTag,
+          toName: tokens[i + 1],
+          relationType,
+          weight: newWeight,
+        };
+        
+        const relation = await firstValueFrom(
+          this.neo4jClient.send('neo4j.create-relation', relationPayload)
+        );
+        
+        updatedRelations.push({
+          ...relation,
+          operation,
+          relationDescription: this.getRelationDescription(relationType),
+        });
+        
+      } catch (error) {
+        console.error(`Lỗi khi xử lý relation: "${tokens[i]}" -> "${tokens[i + 1]}"`, error.message);
       }
+    }
 
-      console.log(`Đã tạo ${createdRelations.length} relations`);
+    // ========== BƯỚC 3: Chuẩn hóa tất cả weight về [0,1] ==========
+    console.log('=== BƯỚC 3: CHUẨN HÓA WEIGHT ===');
+    await this.normalizeAllWeights();
 
-      const result = {
-        success: true,
-        text,
-        totalNodes: createdNodes.length,
-        totalRelations: createdRelations.length,
-        totalPronouns: pronounNodes.length, // ✅ Số lượng đại từ
-        nodes: createdNodes,
-        relations: createdRelations,
-        pronouns: pronounNodes, // ✅ Danh sách các đại từ (label = "P")
-      };
+    // ========== BƯỚC 4: Lấy lại relations sau khi chuẩn hóa ==========
+    const normalizedRelations = await this.getUpdatedRelations(updatedRelations);
 
-      console.log('=== KẾT QUẢ CUỐI CÙNG ===');
-      console.log(`- Tổng nodes: ${result.totalNodes}`);
-      console.log(`- Tổng relations: ${result.totalRelations}`);
-      console.log(`- Tổng đại từ: ${result.totalPronouns}`);
-      console.log(`- Danh sách đại từ:`, pronounNodes.map(p => p.token).join(', '));
+    return {
+      success: true,
+      text,
+      totalNodes: createdNodes.length,
+      totalRelations: updatedRelations.length,
+      totalPronouns: pronounNodes.length,
+      nodes: createdNodes,
+      relations: normalizedRelations,
+      pronouns: pronounNodes,
+    };
+  } catch (error) {
+    console.error('Lỗi trong quá trình tạo semantic graph:', error.message);
+    throw new InternalServerErrorException(`Không thể tạo semantic graph: ${error.message}`);
+  }
+}
 
-      return result;
-    } catch (error) {
-      console.error('Lỗi nghiêm trọng trong quá trình tạo semantic graph:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      throw new InternalServerErrorException(`Không thể tạo semantic graph: ${error.message}`);
+
+// ========== TÍNH TOÁN INCREMENT WEIGHT ==========
+private async calculateWeightIncrement(params: {
+  fromLabel: string;
+  fromName: string;
+  toLabel: string;
+  toName: string;
+  currentWeight: number;
+}): Promise<number> {
+  const { fromLabel, fromName, toLabel, toName, currentWeight } = params;
+ 
+  // 1️⃣ Base increment (cơ bản mỗi lần xuất hiện)
+  let increment = 1.0;
+
+  // 2️⃣ Lấy tất cả relations từ cùng node gốc (fromName)
+  const siblingRelations = await firstValueFrom(
+    this.neo4jClient.send('neo4j.get-relations-from-node', {
+      label: fromLabel,
+      name: fromName,
+    })
+  );
+
+  if (siblingRelations && siblingRelations.length > 0) {
+    // Tính trung bình weight của các relations anh em
+    const siblingWeights = siblingRelations
+      .filter(r => r.weight !== undefined)
+      .map(r => r.weight);
+    
+    if (siblingWeights.length > 0) {
+      const avgSiblingWeight = siblingWeights.reduce((sum, w) => sum + w, 0) / siblingWeights.length;
+      
+      // 3️⃣ Điều chỉnh increment dựa trên context
+      // Nếu relation này có weight thấp hơn trung bình → tăng nhanh hơn
+      // Nếu đã cao hơn trung bình → tăng chậm lại
+      const ratio = currentWeight / (avgSiblingWeight + 0.01); // +0.01 để tránh chia cho 0
+      
+      if (ratio < 1) {
+        // Weight thấp hơn TB → boost
+        increment *= (1.5 - ratio * 0.5); // boost 1.5x → 1x
+      } else {
+        // Weight cao hơn TB → giảm tốc
+        increment *= (1 / (1 + ratio * 0.2)); // giảm dần
+      }
+      
+      console.log(`  🔗 Sibling context: avg=${avgSiblingWeight.toFixed(4)}, ratio=${ratio.toFixed(2)}, increment=${increment.toFixed(4)}`);
     }
   }
+
+  // 4️⃣ Lấy relations đến cùng node đích (toName) - Incoming relations
+  const incomingRelations = await firstValueFrom(
+    this.neo4jClient.send('neo4j.get-relations-to-node', {
+      label: toLabel,
+      name: toName,
+    })
+  );
+
+  if (incomingRelations && incomingRelations.length > 1) {
+    // Node đích được nhiều node khác trỏ đến → đây là node quan trọng
+    // → Tăng weight nhanh hơn
+    const popularityBoost = Math.log(incomingRelations.length + 1) * 0.2;
+    increment *= (1 + popularityBoost);
+    
+    console.log(`  ⭐ Target popularity: ${incomingRelations.length} incoming, boost=${popularityBoost.toFixed(4)}`);
+  }
+
+  return increment;
+}
+
+// ========== CHUẨN HÓA TẤT CẢ WEIGHT VỀ [0,1] ==========
+private async normalizeAllWeights(): Promise<void> {
+  try {
+    // Lấy tất cả relations trong database
+    const allRelations = await firstValueFrom(
+      this.neo4jClient.send('neo4j.get-all-relations', {})
+    );
+
+    if (!allRelations || allRelations.length === 0) {
+      console.log('⚠️  Không có relation nào để chuẩn hóa');
+      return;
+    }
+
+    // Tìm min và max weight
+    const weights = allRelations
+      .filter(r => r.weight !== undefined && r.weight !== null)
+      .map(r => r.weight);
+
+    if (weights.length === 0) {
+      console.log('⚠️  Không có weight nào để chuẩn hóa');
+      return;
+    }
+
+    const minWeight = Math.min(...weights);
+    const maxWeight = Math.max(...weights);
+
+    console.log(`📊 Weight range: [${minWeight.toFixed(4)}, ${maxWeight.toFixed(4)}]`);
+
+    if (maxWeight === minWeight) {
+      console.log('⚠️  Tất cả weight bằng nhau, không cần chuẩn hóa');
+      return;
+    }
+
+    // Chuẩn hóa từng relation
+    const updates = [];
+    for (const relation of allRelations) {
+      if (relation.weight !== undefined && relation.weight !== null) {
+        const normalizedWeight = (relation.weight - minWeight) / (maxWeight - minWeight);
+        
+        updates.push({
+          id: relation.id,
+          fromLabel: relation.fromLabel,
+          fromName: relation.fromName,
+          toLabel: relation.toLabel,
+          toName: relation.toName,
+          relationType: relation.relationType,
+          normalizedWeight: Number(normalizedWeight.toFixed(4)),
+        });
+      }
+    }
+
+    // Batch update
+    await firstValueFrom(
+      this.neo4jClient.send('neo4j.batch-update-weights', { updates })
+    );
+
+    console.log(`✅ Đã chuẩn hóa ${updates.length} relations`);
+
+  } catch (error) {
+    console.error('Lỗi khi chuẩn hóa weight:', error.message);
+    throw error;
+  }
+}
+
+// ========== LẤY RELATIONS SAU KHI CHUẨN HÓA ==========
+private async getUpdatedRelations(relations: any[]): Promise<any[]> {
+  const updated = [];
+  
+  for (const rel of relations) {
+    try {
+      const refreshed = await firstValueFrom(
+        this.neo4jClient.send('neo4j.get-relation', {
+          fromLabel: rel.fromLabel,
+          fromName: rel.fromName,
+          toLabel: rel.toLabel,
+          toName: rel.toName,
+          relationType: rel.relationType,
+        })
+      );
+      
+      updated.push({
+        ...rel,
+        weight: refreshed.weight,
+        normalizedWeight: refreshed.normalizedWeight || refreshed.weight,
+      });
+    } catch (error) {
+      console.error('Lỗi khi lấy relation đã cập nhật:', error.message);
+      updated.push(rel);
+    }
+  }
+  
+  return updated;
+}
+
+
+
+
+
+// ===== CÁCH SỬ DỤNG =====
+
+// 1. Xử lý tất cả file trong folder mặc định
+async runBatchProcessing() {
+  const results = await this.processBatchFiles();
+  return results;
+}
+
+// 2. Xử lý với đường dẫn tùy chỉnh
+async runBatchProcessingCustomPath() {
+  const results = await this.processBatchFiles('data_test/test/pos');
+  return results;
+}
+
+
 
   // Mô tả ý nghĩa của các loại quan hệ
   private getRelationDescription(relationType: string): string {

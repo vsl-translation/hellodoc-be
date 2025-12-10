@@ -44,4 +44,9 @@ export class NlpIntegrationController {
     return this.nlpIntegrationService.findWordByLabel(payload.word, payload.toLabel);
   }
 
+  @MessagePattern('nlp-integration.batch-process')
+  async batchProcess(@Payload() folderPath: string) {
+    return this.nlpIntegrationService.processBatchFiles(folderPath);
+  }
+
 }

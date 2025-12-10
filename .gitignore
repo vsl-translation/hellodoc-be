@@ -3,6 +3,7 @@
 /node_modules
 /build
 /data
+/data_test
 # Logs
 logs
 *.log

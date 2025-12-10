@@ -41,4 +41,8 @@ export class Neo4jService {
     async deleteRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
         return this.neo4jClient.send('neo4j.delete-relation', { fromLabel, fromName, toLabel, toName, relationType });
     }
+
+    async getRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
+        return this.neo4jClient.send('neo4j.get-relation', { fromLabel, fromName, toLabel, toName, relationType });
+    }
 }

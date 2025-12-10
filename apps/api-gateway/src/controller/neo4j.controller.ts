@@ -16,6 +16,7 @@ export class Neo4jController {
     createRelation(@Body() dto: CreateRelationDto) {
         return this.neo4jService.createRelation(dto);
     }
+    
 
     @Get('suggestions/:word')
     getSuggestions(@Param('word') word: string, @Param('label') label: string) {

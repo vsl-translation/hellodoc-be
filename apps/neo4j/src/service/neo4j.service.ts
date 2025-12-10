@@ -70,6 +70,33 @@ export class Neo4jService {
     }
   }
 
+  async getRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
+    const session = this.getSession();
+    try {
+      console.log('Getting relation:', { fromLabel, fromName, toLabel, toName, relationType });
+      const query = `
+        MATCH (a:${fromLabel} {name: $fromName})-[r:${relationType}]->(b:${toLabel} {name: $toName})
+        RETURN r
+      `;
+      const result = await session.run(query, { fromName, toName });
+      if (result.records.length === 0) {
+        return null;
+      }
+      const record = result.records[0];
+      return {
+        relation: record.get('r').type,
+        weight: record.get('r').properties.weight,
+      };
+    }
+    catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Lỗi khi truy vấn quan hệ');
+    }
+    finally {
+      await session.close();
+    }
+  }
+
   async getSuggestions(word: string) {
     const session = this.getSession();
     console.log('Finding word:', word);
@@ -316,6 +343,104 @@ export class Neo4jService {
       console.error(error);
       throw new InternalServerErrorException('Lỗi khi xóa quan hệ');
     } finally {
+      await session.close();
+    }
+  }
+
+  async getRelationsFromNode(label: string, name: string) {
+    const session = this.getSession();
+    try {
+      const query = `
+        MATCH (a:${label} {name: $name})-[r]->(b)
+        RETURN type(r) AS relationType, b.name AS toName, labels(b) AS toLabels, r.weight AS weight
+      `;
+      const result = await session.run(query, { name });
+      return result.records.map(record => ({
+        relationType: record.get('relationType'),
+        toName: record.get('toName'),
+        toLabels: record.get('toLabels'),
+        weight: record.get('weight'),
+      }));
+    }
+    catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Lỗi khi truy vấn quan hệ từ node');
+    }
+    finally {
+      await session.close();
+    }
+  }
+
+  async batchUpdateWeights(relations: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string; weight: number }[]) {
+    const session = this.getSession();
+    const tx = session.beginTransaction();
+    try {
+      for (const rel of relations) {
+        const query = `
+          MATCH (a:${rel.fromLabel} {name: $fromName})-[r:${rel.relationType}]->(b:${rel.toLabel} {name: $toName})
+          SET r.weight = $weight
+        `;
+        await tx.run(query, {
+          fromName: rel.fromName,
+          toName: rel.toName,
+          weight: rel.weight,
+        });
+      }
+      await tx.commit();
+      return { message: 'Cập nhật weight thành công' };
+    } catch (error) {
+      await tx.rollback();
+      console.error(error);
+      throw new InternalServerErrorException('Lỗi khi cập nhật weight');
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getAllRelations() {
+    const session = this.getSession();
+    try {
+      const query = `
+        MATCH (a)-[r]->(b)
+        RETURN a.name AS fromName, b.name AS toName, type(r) AS relationType, r.weight AS weight
+      `;
+      const result = await session.run(query);
+      return result.records.map(record => ({
+        fromName: record.get('fromName'),
+        toName: record.get('toName'),
+        relationType: record.get('relationType'),
+        weight: record.get('weight'),
+      }));
+    }
+    catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Lỗi khi lấy tất cả quan hệ');
+    }
+    finally {
+      await session.close();
+    }
+  }
+
+  async getRelationsToNode(label: string, name: string) {
+    const session = this.getSession();
+    try {
+      const query = `
+        MATCH (a)-[r]->(b:${label} {name: $name})
+        RETURN type(r) AS relationType, a.name AS fromName, labels(a) AS fromLabels, r.weight AS weight
+      `;
+      const result = await session.run(query, { name });
+      return result.records.map(record => ({
+        relationType: record.get('relationType'),
+        fromName: record.get('fromName'),
+        fromLabels: record.get('fromLabels'),
+        weight: record.get('weight'),
+      }));
+    }
+    catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Lỗi khi truy vấn quan hệ đến node');
+    }
+    finally {
       await session.close();
     }
   }
