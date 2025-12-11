@@ -764,7 +764,9 @@ async analyzeAndCreateSemanticGraph(text: string) {
 }
 
 
-// ========== TÍNH TOÁN INCREMENT WEIGHT ==========
+
+
+// ========== THÊM VALIDATION VÀO calculateWeightIncrement() ==========
 private async calculateWeightIncrement(params: {
   fromLabel: string;
   fromName: string;
@@ -772,10 +774,15 @@ private async calculateWeightIncrement(params: {
   toName: string;
   currentWeight: number;
 }): Promise<number> {
-  const { fromLabel, fromName, toLabel, toName, currentWeight } = params;
- 
-  // 1️⃣ Base increment (cơ bản mỗi lần xuất hiện)
-  let increment = 1.0;
+  let { fromLabel, fromName, toLabel, toName, currentWeight } = params;
+  // ✅ VALIDATION: Đảm bảo currentWeight hợp lệ
+  if (currentWeight === undefined || currentWeight === null || isNaN(currentWeight) || !isFinite(currentWeight)) {
+    console.warn(`⚠️  Invalid currentWeight for ${fromName}->${toName}, using 0`);
+    currentWeight = 0;
+  }
+  
+  // 1️⃣ Base increment (giảm từ 1.0 xuống 0.1 để tránh tăng quá nhanh)
+  let increment = 0.5; // ✅ GIẢM từ 1.0 → 0.5
 
   // 2️⃣ Lấy tất cả relations từ cùng node gốc (fromName)
   const siblingRelations = await firstValueFrom(
@@ -786,32 +793,25 @@ private async calculateWeightIncrement(params: {
   );
 
   if (siblingRelations && siblingRelations.length > 0) {
-    // Tính trung bình weight của các relations anh em
     const siblingWeights = siblingRelations
-      .filter(r => r.weight !== undefined)
+      .filter(r => r.weight !== undefined && !isNaN(r.weight) && isFinite(r.weight))
       .map(r => r.weight);
     
     if (siblingWeights.length > 0) {
       const avgSiblingWeight = siblingWeights.reduce((sum, w) => sum + w, 0) / siblingWeights.length;
-      
-      // 3️⃣ Điều chỉnh increment dựa trên context
-      // Nếu relation này có weight thấp hơn trung bình → tăng nhanh hơn
-      // Nếu đã cao hơn trung bình → tăng chậm lại
-      const ratio = currentWeight / (avgSiblingWeight + 0.01); // +0.01 để tránh chia cho 0
+      const ratio = currentWeight / (avgSiblingWeight + 0.01);
       
       if (ratio < 1) {
-        // Weight thấp hơn TB → boost
-        increment *= (1.5 - ratio * 0.5); // boost 1.5x → 1x
+        increment *= (1.5 - ratio * 0.5);
       } else {
-        // Weight cao hơn TB → giảm tốc
-        increment *= (1 / (1 + ratio * 0.2)); // giảm dần
+        increment *= (1 / (1 + ratio * 0.2));
       }
       
       console.log(`  🔗 Sibling context: avg=${avgSiblingWeight.toFixed(4)}, ratio=${ratio.toFixed(2)}, increment=${increment.toFixed(4)}`);
     }
   }
 
-  // 4️⃣ Lấy relations đến cùng node đích (toName) - Incoming relations
+  // 3️⃣ Incoming relations
   const incomingRelations = await firstValueFrom(
     this.neo4jClient.send('neo4j.get-relations-to-node', {
       label: toLabel,
@@ -820,13 +820,13 @@ private async calculateWeightIncrement(params: {
   );
 
   if (incomingRelations && incomingRelations.length > 1) {
-    // Node đích được nhiều node khác trỏ đến → đây là node quan trọng
-    // → Tăng weight nhanh hơn
     const popularityBoost = Math.log(incomingRelations.length + 1) * 0.2;
     increment *= (1 + popularityBoost);
-    
     console.log(`  ⭐ Target popularity: ${incomingRelations.length} incoming, boost=${popularityBoost.toFixed(4)}`);
   }
+
+  // ✅ LIMIT INCREMENT: Không cho phép increment > 2.0
+  increment = Math.min(increment, 2.0);
 
   return increment;
 }
@@ -838,59 +838,111 @@ private async normalizeAllWeights(): Promise<void> {
     const allRelations = await firstValueFrom(
       this.neo4jClient.send('neo4j.get-all-relations', {})
     );
-
+    console.log(`🔍 Tìm thấy tổng cộng ${allRelations.length} relations để chuẩn hóa`);
+    
     if (!allRelations || allRelations.length === 0) {
       console.log('⚠️  Không có relation nào để chuẩn hóa');
       return;
     }
 
-    // Tìm min và max weight
-    const weights = allRelations
-      .filter(r => r.weight !== undefined && r.weight !== null)
-      .map(r => r.weight);
+    // Lấy weights hợp lệ
+    const validRelations = allRelations.filter(r => 
+      r.weight !== undefined && 
+      r.weight !== null && 
+      !isNaN(r.weight) &&
+      isFinite(r.weight)
+    );
 
-    if (weights.length === 0) {
-      console.log('⚠️  Không có weight nào để chuẩn hóa');
+    console.log(`🔍 Tìm thấy ${validRelations.length} relations với weight hợp lệ`);
+    
+    if (validRelations.length === 0) {
+      console.log('⚠️  Không có weight hợp lệ nào để chuẩn hóa');
       return;
     }
 
+    // Lấy mảng weights
+    const weights = validRelations.map(r => r.weight);
     const minWeight = Math.min(...weights);
     const maxWeight = Math.max(...weights);
 
-    console.log(`📊 Weight range: [${minWeight.toFixed(4)}, ${maxWeight.toFixed(4)}]`);
+    console.log(`📊 Weight range: [${minWeight}, ${maxWeight}]`);
+    console.log(`📊 Sample weights:`, weights.slice(0, 10));
 
+    // Kiểm tra nếu tất cả weight bằng nhau
     if (maxWeight === minWeight) {
-      console.log('⚠️  Tất cả weight bằng nhau, không cần chuẩn hóa');
+      console.log('⚠️  Tất cả weight bằng nhau, set tất cả về 0.5');
+      const updates = validRelations.map(relation => ({
+        fromLabel: relation.fromLabel,
+        fromName: relation.fromName,
+        toLabel: relation.toLabel,
+        toName: relation.toName,
+        relationType: relation.relationType,
+        weight: 0.5, // Giá trị trung bình khi không có sự khác biệt
+      }));
+
+      await firstValueFrom(
+        this.neo4jClient.send('neo4j.batch-update-weights', { updates })
+      );
+      console.log(`✅ Đã set ${updates.length} relations về weight = 0.5`);
       return;
     }
 
-    // Chuẩn hóa từng relation
+    // Chuẩn hóa Min-Max về [0, 1]
+    const range = maxWeight - minWeight;
     const updates = [];
-    for (const relation of allRelations) {
-      if (relation.weight !== undefined && relation.weight !== null) {
-        const normalizedWeight = (relation.weight - minWeight) / (maxWeight - minWeight);
-        
-        updates.push({
-          id: relation.id,
-          fromLabel: relation.fromLabel,
-          fromName: relation.fromName,
-          toLabel: relation.toLabel,
-          toName: relation.toName,
-          relationType: relation.relationType,
-          normalizedWeight: Number(normalizedWeight.toFixed(4)),
-        });
-      }
+
+    for (const relation of validRelations) {
+      // Công thức chuẩn hóa Min-Max: (x - min) / (max - min)
+      const normalizedWeight = (relation.weight - minWeight) / range;
+      
+      // ✅ Clamp giá trị để đảm bảo nằm trong [0, 1]
+      const clampedWeight = Math.max(0, Math.min(1, normalizedWeight));
+      
+      updates.push({
+        fromLabel: relation.fromLabel,
+        fromName: relation.fromName,
+        toLabel: relation.toLabel,
+        toName: relation.toName,
+        relationType: relation.relationType,
+        weight: Number(clampedWeight.toFixed(6)), // Làm tròn 6 chữ số
+      });
     }
+
+    // ✅ Validation: kiểm tra kết quả trước khi update
+    const invalidWeights = updates.filter(u => u.weight < 0 || u.weight > 1);
+    if (invalidWeights.length > 0) {
+      console.error('❌ Phát hiện weight không hợp lệ:', invalidWeights.slice(0, 5));
+      throw new Error(`Có ${invalidWeights.length} weight nằm ngoài [0,1]`);
+    }
+
+    console.log(`🔄 Chuẩn bị cập nhật ${updates.length} relations`);
+    console.log(`📊 Sample normalized weights:`, updates.slice(0, 10).map(u => u.weight));
 
     // Batch update
     await firstValueFrom(
       this.neo4jClient.send('neo4j.batch-update-weights', { updates })
     );
 
+    // ✅ Verify sau khi update
+    const verifyRelations = await firstValueFrom(
+      this.neo4jClient.send('neo4j.get-all-relations', {})
+    );
+    const verifyWeights = verifyRelations
+      .filter(r => r.weight !== undefined && r.weight !== null)
+      .map(r => r.weight);
+    
+    const verifyMin = Math.min(...verifyWeights);
+    const verifyMax = Math.max(...verifyWeights);
+    
     console.log(`✅ Đã chuẩn hóa ${updates.length} relations`);
+    console.log(`✅ Verify - New range: [${verifyMin}, ${verifyMax}]`);
+    
+    if (verifyMax > 1 || verifyMin < 0) {
+      console.error('⚠️  WARNING: Vẫn còn weight nằm ngoài [0,1] sau khi chuẩn hóa!');
+    }
 
   } catch (error) {
-    console.error('Lỗi khi chuẩn hóa weight:', error.message);
+    console.error('❌ Lỗi khi chuẩn hóa weight:', error.message);
     throw error;
   }
 }

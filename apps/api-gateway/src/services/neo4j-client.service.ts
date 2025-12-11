@@ -22,6 +22,9 @@ export class Neo4jService {
     async getSuggestionsByLabel(word: string, toLabel: string) {
         return this.neo4jClient.send('neo4j.find-word-by-label', { word, toLabel });
     }
+    async getRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
+        return this.neo4jClient.send('neo4j.get-relation', { fromLabel, fromName, toLabel, toName, relationType });
+    }
 
     async getAll() {
         return this.neo4jClient.send('neo4j.get-all', {});
@@ -42,7 +45,5 @@ export class Neo4jService {
         return this.neo4jClient.send('neo4j.delete-relation', { fromLabel, fromName, toLabel, toName, relationType });
     }
 
-    async getRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
-        return this.neo4jClient.send('neo4j.get-relation', { fromLabel, fromName, toLabel, toName, relationType });
-    }
+ 
 }

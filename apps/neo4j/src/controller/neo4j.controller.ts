@@ -23,21 +23,6 @@ export class Neo4jController {
     return this.neo4jService.getSuggestions(word);
   }
 
-  @MessagePattern('neo4j.get-relation')
-  async getRelation(@Payload() payload: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string }) {
-    return this.neo4jService.getRelation(
-      payload.fromLabel,
-      payload.fromName,
-      payload.toLabel,
-      payload.toName,
-      payload.relationType,
-    );
-  }
-
-  @MessagePattern('neo4j.find-word-by-label')
-  async getNodeByLabel(@Payload() payload: {word: string, toLabel: string}) {
-    return this.neo4jService.getSuggestionsByLabel(payload.word,  payload.toLabel);
-  }
 
   @MessagePattern('neo4j.get-all')
   async getAll() {
@@ -76,8 +61,9 @@ export class Neo4jController {
   }
 
   @MessagePattern('neo4j.batch-update-weights')
-  async batchUpdateWeights(@Payload() relations: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string; weight: number }[]) {
-    return this.neo4jService.batchUpdateWeights(relations);
+  async batchUpdateWeights(@Payload() payload: { updates: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string; weight: number }[] }) {
+    console.log(`🚀 Bắt đầu cập nhật trọng số cho ${payload.updates.length} quan hệ`);
+    return this.neo4jService.batchUpdateWeights(payload.updates); // ✅ Truyền payload.updates
   }
 
   @MessagePattern('neo4j.get-all-relations')
@@ -89,5 +75,21 @@ export class Neo4jController {
   async getRelationsToNode(@Payload() payload: { label: string; name: string }) {
     return this.neo4jService.getRelationsToNode(payload.label, payload.name);
   }
+    @MessagePattern('neo4j.get-relation')
+  async getRelation(@Payload() payload: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string }) {
+    return this.neo4jService.getRelation(
+      payload.fromLabel,
+      payload.fromName,
+      payload.toLabel,
+      payload.toName,
+      payload.relationType,
+    );
+  }
+
+  @MessagePattern('neo4j.find-word-by-label')
+  async getNodeByLabel(@Payload() payload: {word: string, toLabel: string}) {
+    return this.neo4jService.getSuggestionsByLabel(payload.word,  payload.toLabel);
+  }
+
 
 }

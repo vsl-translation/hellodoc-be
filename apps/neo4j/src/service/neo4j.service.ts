@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import neo4j, { Driver, Session } from 'neo4j-driver';
 import { CreateNodeDto } from '../core/dto/createNode.dto';
 import { CreateRelationDto } from '../core/dto/createRelation.dto';
-
 @Injectable()
 export class Neo4jService {
   private driver: Driver;
@@ -70,32 +69,6 @@ export class Neo4jService {
     }
   }
 
-  async getRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
-    const session = this.getSession();
-    try {
-      console.log('Getting relation:', { fromLabel, fromName, toLabel, toName, relationType });
-      const query = `
-        MATCH (a:${fromLabel} {name: $fromName})-[r:${relationType}]->(b:${toLabel} {name: $toName})
-        RETURN r
-      `;
-      const result = await session.run(query, { fromName, toName });
-      if (result.records.length === 0) {
-        return null;
-      }
-      const record = result.records[0];
-      return {
-        relation: record.get('r').type,
-        weight: record.get('r').properties.weight,
-      };
-    }
-    catch (error) {
-      console.error(error);
-      throw new InternalServerErrorException('Lỗi khi truy vấn quan hệ');
-    }
-    finally {
-      await session.close();
-    }
-  }
 
   async getSuggestions(word: string) {
     const session = this.getSession();
@@ -371,46 +344,89 @@ export class Neo4jService {
     }
   }
 
-  async batchUpdateWeights(relations: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string; weight: number }[]) {
-    const session = this.getSession();
-    const tx = session.beginTransaction();
-    try {
-      for (const rel of relations) {
-        const query = `
-          MATCH (a:${rel.fromLabel} {name: $fromName})-[r:${rel.relationType}]->(b:${rel.toLabel} {name: $toName})
-          SET r.weight = $weight
-        `;
-        await tx.run(query, {
-          fromName: rel.fromName,
-          toName: rel.toName,
-          weight: rel.weight,
-        });
-      }
-      await tx.commit();
-      return { message: 'Cập nhật weight thành công' };
-    } catch (error) {
-      await tx.rollback();
-      console.error(error);
-      throw new InternalServerErrorException('Lỗi khi cập nhật weight');
-    } finally {
-      await session.close();
+  // ========== SỬA batchUpdateWeights() - CHUẨN HÓA WEIGHT TYPE ==========
+async batchUpdateWeights(relations: { 
+  fromLabel: string; 
+  fromName: string; 
+  toLabel: string; 
+  toName: string; 
+  relationType: string; 
+  weight: number 
+}[]) {
+  const session = this.getSession();
+  const tx = session.beginTransaction();
+  try {
+    console.log(`🔄 Batch updating ${relations.length} relations...`);
+    
+    // ✅ Đơn giản hóa - Neo4j tự convert number sang float
+    const normalizedRelations = relations.map(rel => ({
+      ...rel,
+      weight: Number(rel.weight.toFixed(6)) // Đảm bảo là number thuần túy
+    }));
+    
+    const query = `
+      UNWIND $relations AS rel
+      MATCH (a {name: rel.fromName})-[r]->(b {name: rel.toName})
+      WHERE rel.fromLabel IN labels(a) 
+        AND rel.toLabel IN labels(b)
+        AND type(r) = rel.relationType
+      SET r.weight = toFloat(rel.weight)
+      RETURN count(r) as updated
+    `;
+    
+    const result = await tx.run(query, { relations: normalizedRelations });
+    await tx.commit();
+    
+    const updatedCount = result.records[0]?.get('updated')?.toNumber() || 0;
+    
+    console.log(`✅ Successfully updated ${updatedCount} relations`);
+    
+    // ⚠️ WARNING nếu số lượng không khớp
+    if (updatedCount !== relations.length) {
+      console.warn(`⚠️  Expected ${relations.length} updates, but only ${updatedCount} were successful`);
     }
+    
+    return { 
+      message: 'Cập nhật weight thành công',
+      requested: relations.length,
+      updated: updatedCount
+    };
+  } catch (error) {
+    await tx.rollback();
+    console.error('❌ Lỗi khi cập nhật weight:', error);
+    throw new InternalServerErrorException('Lỗi khi cập nhật weight');
+  } finally {
+    await session.close();
   }
-
+}
+  // ========== SỬA getAllRelations() - THÊM LABELS ==========
   async getAllRelations() {
     const session = this.getSession();
     try {
       const query = `
         MATCH (a)-[r]->(b)
-        RETURN a.name AS fromName, b.name AS toName, type(r) AS relationType, r.weight AS weight
+        RETURN 
+          a.name AS fromName, 
+          labels(a) AS fromLabels,  // ✅ THÊM labels của node nguồn
+          b.name AS toName, 
+          labels(b) AS toLabels,    // ✅ THÊM labels của node đích
+          type(r) AS relationType, 
+          r.weight AS weight
       `;
       const result = await session.run(query);
-      return result.records.map(record => ({
-        fromName: record.get('fromName'),
-        toName: record.get('toName'),
-        relationType: record.get('relationType'),
-        weight: record.get('weight'),
-      }));
+      return result.records.map(record => {
+        const fromLabels = record.get('fromLabels');
+        const toLabels = record.get('toLabels');
+        
+        return {
+          fromName: record.get('fromName'),
+          fromLabel: fromLabels[0], // ✅ Lấy label đầu tiên
+          toName: record.get('toName'),
+          toLabel: toLabels[0],     // ✅ Lấy label đầu tiên
+          relationType: record.get('relationType'),
+          weight: record.get('weight'),
+        };
+      });
     }
     catch (error) {
       console.error(error);
@@ -420,6 +436,7 @@ export class Neo4jService {
       await session.close();
     }
   }
+
 
   async getRelationsToNode(label: string, name: string) {
     const session = this.getSession();
@@ -444,4 +461,32 @@ export class Neo4jService {
       await session.close();
     }
   }
+
+    async getRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
+    const session = this.getSession();
+    try {
+      console.log('Getting relation:', { fromLabel, fromName, toLabel, toName, relationType });
+      const query = `
+        MATCH (a:${fromLabel} {name: $fromName})-[r:${relationType}]->(b:${toLabel} {name: $toName})
+        RETURN r
+      `;
+      const result = await session.run(query, { fromName, toName });
+      if (result.records.length === 0) {
+        return null;
+      }
+      const record = result.records[0];
+      return {
+        relation: record.get('r').type,
+        weight: record.get('r').properties.weight,
+      };
+    }
+    catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Lỗi khi truy vấn quan hệ');
+    }
+    finally {
+      await session.close();
+    }
+  }
+
 }
