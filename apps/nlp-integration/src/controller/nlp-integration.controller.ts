@@ -38,4 +38,9 @@ export class NlpIntegrationController {
     return this.nlpIntegrationService.findWord(word);
   }
 
+  @MessagePattern('nlp-integration.find-word-by-label')
+  async findWordByLabel(@Payload() payload: { word: string, fromLabel: string, toLabel: string}) {
+    return this.nlpIntegrationService.findWordByLabel(payload.word, payload.fromLabel, payload.toLabel);
+  }
+
 }

@@ -22,48 +22,51 @@ import { SignupDto } from '../core/dto/signup.dto';
 import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
 import { AdminGuard } from 'libs/Guard/AdminGuard.guard';
 
-@Controller()
+@Controller('admin')
 export class AdminController {
     constructor(
         private readonly adminService: AdminService,
-        private jwtService: JwtService,
     ) { }
 
-    @MessagePattern("admin.createAdmin")
-    async createAdmin(@Payload() signUpData: SignupDto) {
+    @Post()
+    async createAdmin(@Body() signUpData: SignupDto) {
         return this.adminService.postAdmin(signUpData);
     }
 
-    @MessagePattern('admin.getUsers')
+    @Get('users')
     async getUsers() {
         return this.adminService.getUsers();
     }
 
-    @MessagePattern('admin.doctors')
+    @Get('doctors')
     async getDoctors() {
         return this.adminService.getDoctors();
     }
 
-    @MessagePattern('admin.get-all')
+    @Get('admins')
     async getAllUsers() {
         return this.adminService.getAdmins();
     }
 
-    @MessagePattern('admin.updateUser')
-    async updateUser(@Payload() payload: any) {
-        const { id, data } = payload;
+    @Put('users/:id')
+    async updateUser(@Param('id') id: string, @Body() data: any) {
         return this.adminService.updateUser(id, data);
     }
 
-    @MessagePattern('admin.deleteUser')
-    async deleteUser(id: string) {
+    @Delete('users/:id')
+    async deleteUser(@Param('id') id: string) {
         return this.adminService.deleteUser(id);
     }
 
 
-    @MessagePattern('admin.deleteDoctor')
-    async deleteDoctor(id: string) {
+    @Delete('doctors/:id')
+    async deleteDoctor(@Param('id') id: string) {
         return this.adminService.deleteDoctor(id);
+    }
+
+    @Post('createAdmin')
+    async postAdmin(@Body() signUpData: SignupDto) {
+        return this.adminService.postAdmin(signUpData);
     }
 
 

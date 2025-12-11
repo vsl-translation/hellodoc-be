@@ -1,77 +1,71 @@
-import { Body, Controller, Param, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Delete, Param } from '@nestjs/common';
 import { UsersService } from '../service/users.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UpdateFcmDto } from '../core/dto/update-fcm.dto';
 import { CreateUserDto } from '../core/dto/createUser.dto';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
-@Controller()
+@Controller('users') // Thêm prefix route
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
-  @MessagePattern(':id/fcm-token')
+  @Put(':id/fcm-token')
   async updateFcmToken(@Param('id') id: string, @Body() updateFcmDto: UpdateFcmDto) {
     return this.usersService.updateFcmToken(id, updateFcmDto);
   }
 
-  @MessagePattern('user.users')
+  @Get()
   async getUser() {
     return this.usersService.getUser();
   }
 
-  @MessagePattern('user.getallusers')
+  @Get('all')
   async getAllUsers() {
     return this.usersService.getAllUsers();
   }
 
-  @MessagePattern('user.getuserbyid')
-  async getUserByID(id: string) {
+  @Get(':id')
+  async getUserByID(@Param('id') id: string) {
     return this.usersService.getUserByID(id);
   }
 
-  @MessagePattern('user.get-soft-deleted-users')
+  @Get('soft-deleted')
   async getSoftDeletedUsers() {
     return this.usersService.getSoftDeletedUsers();
   }
 
-  @MessagePattern('user.signup')
+  @Post('signup')
   async createUser(@Body() userData: CreateUserDto) {
     return this.usersService.signup(userData);
   }
 
-  @MessagePattern('user.updatePassword')
-  async updatePassword(@Body() email: string, newPassword: string) {
-    return this.usersService.updatePassword(email, newPassword);
+  @Put('update-password')
+  async updatePassword(@Body() body: { email: string, newPassword: string }) {
+    return this.usersService.updatePassword(body.email, body.newPassword);
   }
 
-  @MessagePattern('user.notify')
-  async notify(userId: string, message: string) {
-    return this.usersService.notify(userId, message);
+  @Post('notify')
+  async notify(@Body() body: { userId: string, message: string }) {
+    return this.usersService.notify(body.userId, body.message);
   }
 
-  @MessagePattern('user.apply-for-doctor')
-  async applyForDoctor(@Payload() data: { userId: string, applyData: any }) {
+  @Post('apply-for-doctor')
+  async applyForDoctor(@Body() data: { userId: string, applyData: any }) {
     const { userId, applyData } = data;
-
     const doctorData = { ...applyData };
-
     return this.usersService.applyForDoctor(userId, doctorData);
   }
 
-  @MessagePattern('user.delete')
-  async delete(id: string) {
+  @Delete(':id')
+  async delete(@Param('id') id: string) {
     return this.usersService.delete(id);
   }
 
-  @MessagePattern('user.create')
-  async create(@Payload() data: any) {
+  @Post()
+  async create(@Body() data: any) {
     return this.usersService.create(data);
   }
 
-  @MessagePattern('user.update')
-  async update(@Payload() updateData: { id: string, data: any }) {
-    const { id, data } = updateData;
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() data: any) {
     return this.usersService.updateUser(id, data);
   }
-
 }

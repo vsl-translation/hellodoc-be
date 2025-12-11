@@ -11,21 +11,84 @@ import { OAuth2Client } from 'google-auth-library';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { UserSchema } from 'apps/users/src/core/schema/user.schema';
+import { HttpService } from '@nestjs/axios';
+import { AxiosError } from 'axios';
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 @Injectable()
 export class AuthService {
+  private readonly usersServiceUrl: string;
+  private readonly adminServiceUrl: string;
+
   constructor(
-    @Inject('USERS_CLIENT') private usersClient: ClientProxy,
-    @Inject('ADMIN_CLIENT') private adminClient: ClientProxy,
+    private readonly httpService: HttpService,
     private jwtService: JwtService,
     private cacheService: CacheService,
     private configService: ConfigService,
-  ) { }
+  ) {
+    this.usersServiceUrl = this.configService.get('USERS_SERVICE_URL') || 'http://localhost:3001';
+    this.adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL') || 'http://localhost:3010';
+  }
+
+  // Helper method để xử lý lỗi HTTP
+  private handleHttpError(error: AxiosError) {
+    if (error.response) {
+      throw new InternalServerErrorException(
+        error.response.data || 'Service error',
+      );
+    }
+    throw new InternalServerErrorException('Service unavailable');
+  }
+
+  // Helper method để gọi Users Service
+  private async callUsersService(endpoint: string, method: 'GET' | 'POST' | 'PUT' = 'GET', data?: any) {
+    try {
+      const url = `${this.usersServiceUrl}${endpoint}`;
+      let response;
+
+      switch (method) {
+        case 'POST':
+          response = await firstValueFrom(this.httpService.post(url, data));
+          break;
+        case 'PUT':
+          response = await firstValueFrom(this.httpService.put(url, data));
+          break;
+        default:
+          response = await firstValueFrom(this.httpService.get(url));
+      }
+
+      return response.data;
+    } catch (error) {
+      this.handleHttpError(error as AxiosError);
+    }
+  }
+
+  private async callAdminService(endpoint: string, method: 'GET' | 'POST' | 'PUT' = 'GET', data?: any) {
+    try {
+      const url = `${this.adminServiceUrl}${endpoint}`;
+      let response;
+
+      switch (method) {
+        case 'POST':
+          response = await firstValueFrom(this.httpService.post(url, data));
+          break;
+        case 'PUT':
+          response = await firstValueFrom(this.httpService.put(url, data));
+          break;
+        default:
+          response = await firstValueFrom(this.httpService.get(url));
+      }
+
+      return response.data;
+    } catch (error) {
+      this.handleHttpError(error as AxiosError);
+    }
+  }
+
   async signup(signUpData: SignupDto) {
     const { email, password, name, phone } = signUpData;
-    const users = await firstValueFrom(this.usersClient.send('user.getallusers', {}));
+    const users = await this.callUsersService('/users/all');
     const existingUser = Array.isArray(users) ? users.find((u) => u.email === email && u.isDeleted === false) : null;
     if (existingUser) {
       throw new Error('Email đã được sử dụng');
@@ -45,27 +108,22 @@ export class AuthService {
       address: 'Chưa có địa chỉ',
 
     }
-    return await firstValueFrom(this.usersClient.send('user.signup', data));
+    return await this.callUsersService('/users/signup', 'POST', data);
   }
 
   async signupAdmin(signUpData: SignupDto) {
-    return await firstValueFrom(this.adminClient.send('admin.createAdmin', signUpData));
+    return await this.callAdminService('/admin/createAdmin', 'POST', signUpData);
   }
 
   async login(loginData: loginDto) {
     try {
       const { email, password } = loginData;
 
-      const response = await firstValueFrom(
-        this.usersClient.send('user.getallusers', {})
-      );
+      const users = await this.callUsersService('/users/all') || [];
 
-      const users = response || [];
       const user = users.find((u) => u.email === email && u.isDeleted === false);
 
       if (!user) {
-
-        // ✅ Trả về error object
         return {
           success: false,
           statusCode: 401,
@@ -159,7 +217,7 @@ export class AuthService {
       const avatarURL = payload.picture || 'default_avatar_url';
       const phone = loginData.phone?.trim() || '';
 
-      let user = await firstValueFrom(this.usersClient.send('user.getallusers', {}));
+      let user = await this.callUsersService('/users/all');
       user = Array.isArray(user) ? user.find((u) => u.email === email && u.isDeleted === false) : null;
       if (!user) {
         if (phone) {
@@ -177,7 +235,7 @@ export class AuthService {
           avatarURL,
           address: 'Chưa có địa chi',
         };
-        user = await firstValueFrom(this.usersClient.send('user.signup', data));
+        user = await this.callUsersService('/users/signup', 'POST', data);
       }
       const tokens = await this.generateUserTokens(
         user._id,
@@ -225,7 +283,7 @@ export class AuthService {
 
 
   async requestOtpSignup(email: string): Promise<string> {
-    const user = await firstValueFrom(this.usersClient.send('user.getallusers', {}));
+    const user = await this.callUsersService('/users/all');
     const existingUser = Array.isArray(user) ? user.find((u) => u.email === email && u.isDeleted === false) : null;
 
     if (existingUser) {
@@ -244,7 +302,7 @@ export class AuthService {
   }
 
   async requestOtp(email: string) {
-    const user = await firstValueFrom(this.usersClient.send('user.getallusers', {}));
+    const user = await this.callUsersService('/users/all');
     const existingUser = Array.isArray(user) ? user.find((u) => u.email === email && u.isDeleted === false) : null;
     if (!existingUser) {
       throw new BadRequestException('Không tìm thấy người dùng');
@@ -289,10 +347,13 @@ export class AuthService {
   async resetPassword(email: string, newPassword: string): Promise<any> {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    const user = await firstValueFrom(this.usersClient.send('user.getallusers', {}));
+    const user = await this.callUsersService('/users/all');
     const existingUser = Array.isArray(user) ? user.find((u) => u.email === email && u.isDeleted === false) : null;
     if (existingUser) {
-      await this.usersClient.send('user.updatePassword', { email, password: hashedPassword });
+      await this.callUsersService('/users/update-password', 'PUT', {
+        email,
+        password: hashedPassword
+      });
       return { message: 'Đặt lại mật khẩu thành công' };
     }
 
@@ -307,7 +368,7 @@ export class AuthService {
         throw new BadRequestException('Email không hợp lệ');
       }
 
-      const user = await this.usersClient.send('user.getallusers', {});
+      const user = await this.callUsersService('/users/all');
 
       const existingUser = Array.isArray(user) ? user.find((u) => u.email === email && u.isDeleted === false) : null;
       if (!existingUser) {

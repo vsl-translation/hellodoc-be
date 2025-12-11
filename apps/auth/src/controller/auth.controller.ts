@@ -1,35 +1,35 @@
-import { BadRequestException, Body, Controller, Get } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post } from '@nestjs/common';
 import { AuthService } from '../service/auth.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { SignupDto } from '../core/dto/signup.dto';
 import { LoginGoogleDto } from '../core/dto/loginGoogle.dto';
 import { loginDto } from '../core/dto/login.dto';
 
-@Controller()
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
-  @MessagePattern('auth.signUp')
-  async signup(@Payload() signUpData: SignupDto) {
+  @Post('signUp')
+  async signup(@Body() signUpData: SignupDto) {
     return this.authService.signup(signUpData);
   }
 
-  @MessagePattern('auth.createAdmin')
-  async signupAdmin(@Payload() signUpData: SignupDto) {
+  @Post('createAdmin')
+  async signupAdmin(@Body() signUpData: SignupDto) {
     return this.authService.signupAdmin(signUpData);
   }
 
-  @MessagePattern('auth.login')
-  async login(@Payload() loginData: loginDto) {
+  @Post('login')
+  async login(@Body() loginData: loginDto) {
     return this.authService.login(loginData);
   }
 
-  @MessagePattern('auth.login-google')
+  @Post('login-google')
   async loginAdmin(@Body() loginData: LoginGoogleDto) {
     return this.authService.loginGoogle(loginData);
   }
 
-  @MessagePattern('auth.request-otp')
+  @Post('request-otp')
   async requestOtp(@Body('email') email: string) {
     if (!email) {
       throw new BadRequestException('Emil không được để trống')
@@ -39,7 +39,7 @@ export class AuthController {
     return { message: 'OTP đã được gửi tới email', otp };
   }
 
-  @MessagePattern('auth.request-otp-signup')
+  @Post('request-otp-signup')
   async requestOtpSignup(@Body('email') email: string) {
     if (!email) {
       throw new BadRequestException('Email không được để trống');
@@ -49,7 +49,7 @@ export class AuthController {
     return { message: 'OTP đã được gửi đến email', otp };
   }
 
-  @MessagePattern('auth.verify-otp')
+  @Post('verify-otp')
   async verifyOtp(@Body('email') email: string, @Body('otp') otp: string) {
     if (!email || !otp) {
       throw new BadRequestException('Email và OTP là bắt buộc');
@@ -64,7 +64,7 @@ export class AuthController {
     return { message: 'Xác minh OTP thành công' };
   }
 
-  @MessagePattern('auth.reset-password')
+  @Post('reset-password')
   async resetPassword(@Body('email') email: string, @Body('newPassword') password: string) {
     // Cập nhật mật khẩu mới (hash trước khi lưu)
     await this.authService.resetPassword(email, password);
@@ -72,7 +72,7 @@ export class AuthController {
     return { message: 'Mật khẩu đã được cập nhật thành công' };
   }
 
-  @MessagePattern('auth.generate-token')
+  @Post('generate-token')
   async generateToken(@Body('email') email: string) {
     return this.authService.generateGoogleTokens(email);
   }

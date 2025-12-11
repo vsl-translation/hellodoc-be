@@ -1,23 +1,44 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { Injectable } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject('USERS_CLIENT') private usersClient: ClientProxy) { }
+  private readonly baseUrl: string;
 
-  findAll() {
-    return this.usersClient.send('user.users', {});
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+  ) {
+    this.baseUrl = this.configService.get('USERS_SERVICE_URL') || 'http://localhost:3001';
   }
 
-  getAllUsers() {
-    return this.usersClient.send('user.getallusers', {});
+  async findAll() {
+    const response = await firstValueFrom(
+      this.httpService.get(`${this.baseUrl}/users`)
+    );
+    return response.data;
   }
 
-  getUserById(id: string) {
-    return this.usersClient.send('user.getuserbyid', id);
+  async getAllUsers() {
+    const response = await firstValueFrom(
+      this.httpService.get(`${this.baseUrl}/users/all`)
+    );
+    return response.data;
   }
 
-  updateUser(id: string, data: any) {
-    return this.usersClient.send('user.update', { id, data });
+  async getUserById(id: string) {
+    const response = await firstValueFrom(
+      this.httpService.get(`${this.baseUrl}/users/${id}`)
+    );
+    return response.data;
+  }
+
+  async updateUser(id: string, data: any) {
+    const response = await firstValueFrom(
+      this.httpService.put(`${this.baseUrl}/users/${id}`, data)
+    );
+    return response.data;
   }
 }

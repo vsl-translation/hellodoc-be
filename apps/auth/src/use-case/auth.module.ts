@@ -9,6 +9,7 @@ import { CacheService } from 'libs/cache.service';
 import { JwtModule } from '@nestjs/jwt';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-store';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -18,7 +19,14 @@ import { redisStore } from 'cache-manager-redis-store';
       load: [config],
     }),
 
-    // JWT cấu hình global
+    HttpModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        timeout: 10000,
+        maxRedirects: 5,
+      }),
+      inject: [ConfigService],
+    }),
     JwtModule.register({
       global: true,
       secret: 'secretKey',

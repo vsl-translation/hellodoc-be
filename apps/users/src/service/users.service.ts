@@ -1,25 +1,92 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { UserDto } from '../core/dto/users.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import { User } from '../core/schema/user.schema';
 import { ClientProxy } from '@nestjs/microservices';
-import { catchError, last, lastValueFrom, of, timeout } from 'rxjs';
+import { catchError, firstValueFrom, last, lastValueFrom, of, timeout } from 'rxjs';
 import { UpdateFcmDto } from '../core/dto/update-fcm.dto';
 import { CreateUserDto } from '../core/dto/createUser.dto';
 import * as bcrypt from 'bcrypt';
 import { updateUserDto } from '../core/dto/updateUser.dto';
 import * as admin from 'firebase-admin';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { AxiosError } from 'axios';
 
 @Injectable()
 export class UsersService {
+  private readonly doctorsServiceUrl: string;
+  private readonly adminServiceUrl: string;
+
   constructor(
     @InjectModel(User.name, 'userConnection') private UserModel: Model<User>,
     @Inject('DOCTOR_CLIENT') private readonly doctorClient: ClientProxy,
     @Inject('SPECIALTY_CLIENT') private readonly specialtyClient: ClientProxy,
     @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
-    @Inject('ADMIN_CLIENT') private readonly adminClient: ClientProxy
-  ) { }
+    @Inject('ADMIN_CLIENT') private readonly adminClient: ClientProxy,
+    private readonly httpService: HttpService,
+    private configService: ConfigService,
+
+  ) {
+    this.doctorsServiceUrl = this.configService.get('DOCTORS_SERVICE_URL') || 'http://localhost:3003';
+    this.adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL') || 'http://localhost:3010';
+
+  }
+  private handleHttpError(error: AxiosError) {
+    if (error.response) {
+      throw new InternalServerErrorException(
+        error.response.data || 'Service error',
+      );
+    }
+    throw new InternalServerErrorException('Service unavailable');
+  }
+
+  async callDoctorService(endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', data?: any) {
+    const url = `${this.doctorsServiceUrl}${endpoint}`;
+    try {
+      let response;
+      switch (method) {
+        case 'POST':
+          response = await firstValueFrom(this.httpService.post(url, data));
+          break;
+        case 'PUT':
+          response = await firstValueFrom(this.httpService.put(url, data));
+          break;
+        case 'DELETE':
+          response = await firstValueFrom(this.httpService.delete(url));
+          break;
+        default:
+          response = await firstValueFrom(this.httpService.get(url));
+      }
+      return response.data;
+    } catch (error) {
+      this.handleHttpError(error as AxiosError);
+    }
+  }
+
+  async callAdminService(endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', data?: any) {
+    const url = `${this.adminServiceUrl}${endpoint}`;
+    try {
+      let response;
+      switch (method) {
+        case 'POST':
+          response = await firstValueFrom(this.httpService.post(url, data));
+          break;
+        case 'PUT':
+          response = await firstValueFrom(this.httpService.put(url, data));
+          break;
+        case 'DELETE':
+          response = await firstValueFrom(this.httpService.delete(url));
+          break;
+        default:
+          response = await firstValueFrom(this.httpService.get(url));
+      }
+      return response.data;
+    } catch (error) {
+      this.handleHttpError(error as AxiosError);
+    }
+  }
 
   async updateFcmToken(userId: string, updateFcmDto: UpdateFcmDto) {
     console.log(updateFcmDto.token);
@@ -56,12 +123,8 @@ export class UsersService {
     const users = await this.UserModel.find({ isDeleted: false });
 
     try {
-      const doctors = await lastValueFrom(
-        this.doctorClient.send('doctor.get-all', {}).pipe(timeout(3000))
-      );
-      const admins = await lastValueFrom(
-        this.adminClient.send('admin.get-all', {}).pipe(timeout(3000))
-      )
+      const doctors = await this.callDoctorService('/doctor', 'GET');
+      const admins = await this.callAdminService('/admin/admins', 'GET');
       //Nối 3 danh sách lại với nhau
       return users.concat(doctors, admins);
     } catch (e) {

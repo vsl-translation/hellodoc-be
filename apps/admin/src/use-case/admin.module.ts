@@ -8,6 +8,7 @@ import { AdminController } from '../controller/admin.controller';
 import { AdminService } from '../service/admin.service';
 import { JWT } from 'google-auth-library';
 import { JwtModule } from '@nestjs/jwt';
+import { HttpModule } from '@nestjs/axios';
 // import { JwtService } from '@nestjs/jwt';
 
 @Module({
@@ -17,7 +18,14 @@ import { JwtModule } from '@nestjs/jwt';
       cache: true,
       load: [config],
     }),
-
+    HttpModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        timeout: 10000,
+        maxRedirects: 5,
+      }),
+      inject: [ConfigService],
+    }),
     //khai bao ket noi voi mongodb
     MongooseModule.forRootAsync({
       imports: [ConfigModule],

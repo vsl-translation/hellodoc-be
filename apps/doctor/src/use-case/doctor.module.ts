@@ -9,6 +9,7 @@ import { CacheService } from 'libs/cache.service';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { PendingDoctor, PendingDoctorSchema } from '../core/schema/PendingDoctor.schema';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -16,6 +17,14 @@ import { PendingDoctor, PendingDoctorSchema } from '../core/schema/PendingDoctor
       isGlobal: true,
       cache: true,
       load: [config],
+    }),
+    HttpModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        timeout: 10000,
+        maxRedirects: 5,
+      }),
+      inject: [ConfigService],
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],

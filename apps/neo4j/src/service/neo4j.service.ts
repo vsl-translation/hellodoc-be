@@ -117,24 +117,40 @@ export class Neo4jService {
     }
   }
 
-
-  async getSuggestionsByLabel(word: string, fromLabel: string, toLabel: string) {
+  async getSuggestionsByLabel(
+    word: string,
+    toLabel: string
+  ) {
     const session = this.getSession();
     try {
+      // ✅ Chuyển toLabel sang chữ IN HOA
+      const upperToLabel = toLabel.toUpperCase();
+      
       const query = `
-        MATCH (a:${fromLabel} {name: $word})-[r:RELATES_TO]->(b:${toLabel})
-        RETURN b.name AS suggestion, r.weight AS score
-        ORDER BY r.weight DESC
-        LIMIT 10
+        MATCH (b)
+        WHERE 
+          $toLabel IN labels(b)
+        RETURN 
+          b.name AS suggestion, 
+          1.0 AS score,
+          labels(b) AS label
+        LIMIT 100
       `;
-      const result = await session.run(query, { word });
+
+      const result = await session.run(query, {
+        toLabel: upperToLabel  // ✅ Truyền chữ HOA
+      });
+
       return result.records.map(r => ({
         suggestion: r.get('suggestion'),
         score: r.get('score'),
+        label: r.get('label')
       }));
     } catch (error) {
       console.error(error);
-      throw new InternalServerErrorException('Lỗi khi truy vấn gợi ý theo label');
+      throw new InternalServerErrorException(
+        'Lỗi khi truy vấn gợi ý theo label'
+      );
     } finally {
       await session.close();
     }

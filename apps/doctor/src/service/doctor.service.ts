@@ -88,6 +88,7 @@ export class DoctorService {
       return doctors;
     }
 
+    console.log(`Laying specialties by ids: ${specialtyIds}`);
     // Gửi đúng format
     const specialties = await this.specialtyClient
       .send('specialty.get-by-ids', { specialtyIds })

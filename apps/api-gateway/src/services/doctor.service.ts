@@ -1,38 +1,107 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { ClientProxy } from "@nestjs/microservices";
+import { HttpService } from "@nestjs/axios";
+import { Inject, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { AxiosError } from "axios";
+import { firstValueFrom } from "rxjs";
 
 @Injectable()
 export class DoctorService {
-    constructor(
-        @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
+    private readonly baseUrl: string;
 
-    ) { }
+    constructor(
+        private readonly httpService: HttpService,
+        private readonly configService: ConfigService,
+    ) {
+        this.baseUrl = this.configService.get('DOCTORS_SERVICE_URL') || 'http://localhost:3003';
+    }
+    // Helper method để xử lý lỗi HTTP
+    private handleHttpError(error: AxiosError) {
+        if (error.response) {
+            throw new InternalServerErrorException(
+                error.response.data || 'Service error',
+            );
+        }
+        throw new InternalServerErrorException('Service unavailable');
+    }
+
     async getAllDoctor() {
-        return this.doctorClient.send('doctor.get-all', {})
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(`${this.baseUrl}/doctor`)
+            );
+            return response.data;
+        } catch (error) {
+            this.handleHttpError(error as AxiosError);
+        }
     }
 
     async getDoctorById(id: string) {
-        return this.doctorClient.send('doctor.get-by-id', id)
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(`${this.baseUrl}/doctor/get-by-id/${id}`)
+            );
+            return response.data;
+        } catch (error) {
+            this.handleHttpError(error as AxiosError);
+        }
     }
 
     async applyForDoctor(userId: string, applyData: any) {
-        return this.doctorClient.send('doctor.apply-for-doctor', { userId, applyData })
+        try {
+            const response = await firstValueFrom(
+                this.httpService.post(`${this.baseUrl}/doctor/apply-for-doctor`, {
+                    userId,
+                    applyData
+                })
+            );
+            return response.data;
+        } catch (error) {
+            this.handleHttpError(error as AxiosError);
+        }
     }
 
     async getPendingDoctor() {
-        return this.doctorClient.send('doctor.get-pedingDoctor', {})
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(`${this.baseUrl}/doctor/get-pedingDoctor`)
+            );
+            return response.data;
+        } catch (error) {
+            this.handleHttpError(error as AxiosError);
+        }
     }
 
     async getPendingDoctorById(id: string) {
-        return this.doctorClient.send('doctor.get-pedingDoctor-by-id', id)
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(`${this.baseUrl}/doctor/get-pedingDoctor-by-id/${id}`)
+            );
+            return response.data;
+        } catch (error) {
+            this.handleHttpError(error as AxiosError);
+        }
     }
 
     async getAvailableWorkingTime(id: string) {
-        return this.doctorClient.send('doctor.getAvailableWorkingTime', id)
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(`${this.baseUrl}/doctor/getAvailableWorkingTime/${id}`)
+            );
+            return response.data;
+        } catch (error) {
+            this.handleHttpError(error as AxiosError);
+        }
     }
 
     async updateDoctorProfile(id: string, profileData: any) {
-        return this.doctorClient.send('doctor.update', { id, profileData })
+        try {
+            const response = await firstValueFrom(
+                this.httpService.put(`${this.baseUrl}/doctor/update/${id}`, profileData)
+            );
+            return response.data;
+        } catch (error) {
+            this.handleHttpError(error as AxiosError);
+        }
     }
 
 }

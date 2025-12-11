@@ -1,82 +1,99 @@
-import { Body, Controller, Get, Param, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { DoctorService } from '../service/doctor.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
-@Controller()
+@Controller('doctor')
 export class DoctorController {
   constructor(
     private readonly doctorService: DoctorService
   ) { }
 
-  @MessagePattern('doctor.get-by-id')
-  async getDoctorById(id: string) {
+  @Get('get-by-id/:id')
+  async getDoctorById(@Param('id') id: string) {
     return this.doctorService.getDoctorById(id);
   }
 
-  @MessagePattern('doctor.get-all')
+  @Get()
   async getAllDoctor() {
     return this.doctorService.getAllDoctor();
   }
 
-  @MessagePattern('doctor.get-by-specialtyID')
-  async getDoctorBySpecialtyID(specialtyID: string) {
-    return this.doctorService.getDoctorBySpecialtyID(specialtyID);
-  }
+  // @MessagePattern('doctor.get-by-specialtyID')
+  // async getDoctorBySpecialtyID(specialtyID: string) {
+  //   return this.doctorService.getDoctorBySpecialtyID(specialtyID);
+  // }
 
-  @MessagePattern('doctor.update-fcm-token')
-  async updateFcmToken(id: string, token: string) {
-    return this.doctorService.updateFcmToken(id, token);
-  }
+  // @MessagePattern('doctor.update-fcm-token')
+  // async updateFcmToken(id: string, token: string) {
+  //   return this.doctorService.updateFcmToken(id, token);
+  // }
 
-  @MessagePattern('doctor.updatePassword')
+  @Put('updatePassword')
   async updatePassword(@Body() email: string, newPassword: string) {
     return this.doctorService.updatePassword(email, newPassword);
   }
 
-  @MessagePattern('doctor.notify')
+  @Post('notify')
   async notify(doctorId: string, message: string) {
     return this.doctorService.notify(doctorId, message);
   }
 
-  @MessagePattern('doctor.get-pedingDoctor')
+  @Get('get-pedingDoctor')
   async getPendingDoctor() {
     return this.doctorService.getPendingDoctors();
   }
 
-  @MessagePattern('doctor.get-pedingDoctor-by-id')
-  async getPendingDoctorById(id: string) {
+  @Get('get-pedingDoctor-by-id/:id')
+  async getPendingDoctorById(@Param('id') id: string) {
     return this.doctorService.getPendingDoctorById(id);
   }
 
-  @MessagePattern('doctor.create-pending-doctor')
-  async createPendingDoctor(@Payload() data: any) {
+  @Post('create-pending-doctor')
+  async createPendingDoctor(@Body() data: any) {
     return this.doctorService.createPendingDoctor(data);
   }
 
-  @MessagePattern('doctor.apply-for-doctor')
-  async applyForDoctor(@Payload() payload: { userId: string, applyData: any }) {
+  @Patch('apply-for-doctor')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'licenseUrl', maxCount: 1 },
+      { name: 'faceUrl', maxCount: 1 },
+      { name: 'avatarURL', maxCount: 1 },
+      { name: 'frontCccdUrl', maxCount: 1 },
+      { name: 'backCccdUrl', maxCount: 1 },
+    ])
+  )
+  async applyForDoctor(@Body() payload: { userId: string, applyData: any }) {
     const { userId, applyData } = payload;
     return this.doctorService.applyForDoctor(userId, applyData);
   }
 
-  @MessagePattern('doctor.delete')
+  @Delete('delete')
   async delete(id: string) {
     return this.doctorService.delete(id);
   }
 
-  @MessagePattern('doctor.create')
-  async create(@Payload() data: any) {
-    return this.doctorService.create(data);
-  }
+  // @Post('doctor.create')
+  // async create(@Payload() data: any) {
+  //   return this.doctorService.create(data);
+  // }
 
-  @MessagePattern('doctor.update')
-  async update(@Payload() id: string, @Payload() data: any) {
+  @Put('update/:id')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'license', maxCount: 1 },
+      { name: 'image', maxCount: 1 },
+      { name: 'frontCccd', maxCount: 1 },
+      { name: 'backCccd', maxCount: 1 },
+    ])
+  )
+  async update(@Param('id') id: string, @Body() data: any) {
     return this.doctorService.updateDoctor(id, data);
   }
 
-  @MessagePattern('doctor.getAvailableWorkingTime')
-  async getAvailableWorkingTime(doctorID: string) {
+  @Get('getAvailableWorkingTime/:id')
+  async getAvailableWorkingTime(@Param('id') doctorID: string) {
     return await this.doctorService.getAvailableWorkingHours(doctorID);
   }
 }
