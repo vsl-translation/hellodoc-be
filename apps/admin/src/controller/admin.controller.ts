@@ -60,6 +60,10 @@ export class AdminController {
         return this.adminService.deleteUser(id);
     }
 
+    @MessagePattern('admin.reactivate-user-account')
+    async reactivateUser(id: string) {
+        return this.adminService.reactivateUser(id);
+    }
 
     @MessagePattern('admin.deleteDoctor')
     async deleteDoctor(id: string) {

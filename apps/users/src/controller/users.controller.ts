@@ -63,6 +63,11 @@ export class UsersController {
     return this.usersService.delete(id);
   }
 
+  @MessagePattern('user.reactivate-user-account')
+  async reactivateUser(id: string) {
+    return this.usersService.reactivateUser(id);
+  }
+
   @MessagePattern('user.create')
   async create(@Payload() data: any) {
     return this.usersService.create(data);

@@ -20,14 +20,14 @@ export class SpecialtyService {
   ) { }
 
   async getSpecialties() {
-    const cacheKey = 'all_specialties';
-    //console.log('Trying to get specialties from cache...');
+    // const cacheKey = 'all_specialties';
+    // console.log('Trying to get specialties from cache...');
 
-    const cached = await this.cacheService.getCache(cacheKey);
-    if (cached) {
-      //console.log('Cache specialty HIT');
-      return cached;
-    }
+    // const cached = await this.cacheService.getCache(cacheKey);
+    // if (cached) {
+    //   console.log('Cache specialty HIT');
+    //   return cached;
+    // }
 
     //console.log('Cache MISS - querying DB');
     const data = await this.SpecialtyModel.find();
@@ -62,8 +62,8 @@ export class SpecialtyService {
       })
     );
 
-    //console.log('Setting cache...');
-    await this.cacheService.setCache(cacheKey, specialtiesWithDoctors, 30 * 1000);
+    // console.log('Setting cache...');
+    // await this.cacheService.setCache(cacheKey, specialtiesWithDoctors, 30 * 1000);
     return specialtiesWithDoctors;
   }
 
