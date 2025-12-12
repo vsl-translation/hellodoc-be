@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Put, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Put, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { DoctorService } from '../services/doctor.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
@@ -64,7 +64,7 @@ export class DoctorController {
     }
 
     @Get('get-pending-doctor')
-    @UseGuards(JwtHybridAuthGuard, AdminGuard)
+    //@UseGuards(JwtHybridAuthGuard, AdminGuard)
     getPendingDoctor() {
         return this.doctorService.getPendingDoctor();
     }
@@ -74,9 +74,9 @@ export class DoctorController {
         return this.doctorService.getPendingDoctorById(id);
     }
 
+    //@UseGuards(JwtHybridAuthGuard)
     @Get('getAvailableWorkingTime/:id')
-    @UseGuards(JwtHybridAuthGuard, AdminGuard)
-    getAvailableWorkingTime(@Param('id') id: string) {
+    getAvailableWorkingTime(@Param('id') id: string, @Req() request: Request) {
         return this.doctorService.getAvailableWorkingTime(id);
     }
 

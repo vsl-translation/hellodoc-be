@@ -111,13 +111,26 @@ export class DoctorService {
     return this.DoctorModel.find({ specialty: specialtyId });
   }
 
-  async updateFcmToken(userId: string, token: string) {
-    return this.DoctorModel.findByIdAndUpdate(
-      userId,
-      { fcmToken: token },
-      { new: true }
-    );
+  async updateFcmToken(doctorId: string, token: string) {
+    try {
+      const doctor = await this.DoctorModel.findByIdAndUpdate(
+        doctorId,  // String, Mongoose tự convert sang ObjectId
+        { fcmToken: token },
+        { new: true }
+      );
+
+      if (!doctor) {
+        throw new Error('Doctor not found');
+      }
+
+      console.log('Doctor FCM token updated successfully');
+      return { success: true, fcmToken: token };
+    } catch (error) {
+      console.error('Error updating doctor FCM token:', error);
+      throw error;
+    }
   }
+
 
   async updatePassword(email: string, newPassword: string) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -133,6 +146,7 @@ export class DoctorService {
   async notify(doctorId: string, message: string) {
     try {
       const doctor = await this.DoctorModel.findById(doctorId);
+      console.log("bac si thong bao ", doctor);
       if (doctor?.fcmToken) {
         await admin.messaging().send({
           token: doctor.fcmToken,
@@ -485,7 +499,7 @@ export class DoctorService {
               .toString()
               .padStart(2, '0')}`;
 
-
+            // Kiểm tra xem có trong ngày hôm nay không
             if (dateString === new Date().toISOString().split('T')[0]) {
               const currentTime = new Date();
               const slotTime = new Date(currentDate);
@@ -499,7 +513,7 @@ export class DoctorService {
               }
             }
 
-            // kiểm tra xem thời gian này đã được đặt hay chưa
+            // Kiểm tra xem thời gian này đã được đặt hay chưa
             return !bookedTimesForDay.includes(timeString);
           })
           .map((wh) => ({

@@ -45,7 +45,7 @@ export class AdminController {
     }
 
     @MessagePattern('admin.get-all')
-    async getAllUsers() {
+    async getAdmins() {
         return this.adminService.getAdmins();
     }
 
