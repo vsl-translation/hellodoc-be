@@ -22,30 +22,27 @@ export class UsersService {
   ) { }
 
   async updateFcmToken(userId: string, updateFcmDto: UpdateFcmDto) {
-    console.log(updateFcmDto.token);
     if (updateFcmDto.userModel == 'User') {
+
       return this.UserModel.findByIdAndUpdate(
         userId,
         { fcmToken: updateFcmDto.token },
         { new: true }
       );
     } else if (updateFcmDto.userModel == 'Doctor') {
-      // return this.DoctorModel.findByIdAndUpdate(
-      //   userId,
-      //   { fcmToken: updateFcmDto.token },
-      //   { new: true }
-      // );
       try {
         const response = await lastValueFrom(
-          this.doctorClient.send('doctor.update-fcm-token', { id: userId, token: updateFcmDto.token }).pipe(timeout(3000))
+          this.doctorClient.send('doctor.update-fcm-token', {
+            id: userId,
+            token: updateFcmDto.token
+          }).pipe(timeout(3000))
         );
         return response;
       } catch (e) {
-        console.warn('Doctor service timeout hoặc lỗi, trả về rongyang');
+        console.warn('Doctor service timeout hoặc lỗi:', e.message);
         return { fcmToken: updateFcmDto.token };
       }
     }
-
   }
 
   async getUser() {

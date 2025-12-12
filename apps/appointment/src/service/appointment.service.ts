@@ -104,8 +104,25 @@ export class AppointmentService {
     }
 
     // Thông báo và xóa cache
-    await this.doctorClient.send('doctor.notify', { doctorID, message: 'Bệnh nhân đặt lịch hẹn!"' });
-    await this.usersClient.send('user.notify', { userID: patientID, message: 'Bệnh nhân đặt lịch hẹn!"' });
+
+    try {
+      // Gửi thông báo đến bác sĩ - QUAN TRỌNG: thêm .toPromise()
+      await this.doctorClient.send('doctor.notify', {
+        doctorID: doctorID,
+        message: "Bạn có lịch hẹn mới!"
+      }).toPromise();
+
+      // Gửi thông báo đến bệnh nhân
+      await this.usersClient.send('user.notify', {
+        userID: patientID,
+        message: "Bạn đã đặt lịch hẹn thành công!"
+      }).toPromise();
+
+      console.log('✅ Đã gửi thông báo thành công');
+    } catch (error) {
+      console.error('❌ Lỗi khi gửi thông báo:', error);
+      // Không throw error để appointment vẫn được lưu
+    }
     this.clearDoctorAppointmentCache(doctorID);
 
     return {
@@ -139,11 +156,28 @@ export class AppointmentService {
     appointment.status = AppointmentStatus.CANCELLED;
 
     // Xóa cache bệnh nhân & bác sĩ
-    await this.clearPatientAppointmentCache(patientID);
-    await this.clearDoctorAppointmentCache(doctorID);
+    //await this.clearPatientAppointmentCache(patientID);
+    //await this.clearDoctorAppointmentCache(doctorID);
 
-    await this.doctorClient.send('doctor.notify', { doctorID, message: "Bệnh nhân hủy lịch hẹn!" });
-    await this.usersClient.send('user.notify', { userID: patientID, message: "Bệnh nhân hủy lịch hẹn!" });
+
+    try {
+      // Gửi thông báo đến bác sĩ - QUAN TRỌNG: thêm .toPromise()
+      await this.doctorClient.send('doctor.notify', {
+        doctorID: doctorID,
+        message: "Bệnh nhân đã hủy lịch hẹn!"
+      }).toPromise();
+
+      // Gửi thông báo đến bệnh nhân
+      await this.usersClient.send('user.notify', {
+        userID: patientID,
+        message: "Bạn đã hủy lịch hẹn thành công!"
+      }).toPromise();
+
+      console.log('✅ Đã gửi thông báo thành công');
+    } catch (error) {
+      console.error('❌ Lỗi khi gửi thông báo:', error);
+      // Không throw error để appointment vẫn được lưu
+    }
     await appointment.save();
 
     return { message: 'Appointment cancelled successfully' };
@@ -174,14 +208,14 @@ export class AppointmentService {
 
   // 📌 Lấy danh sách tất cả lịch hẹn
   async getAllAppointments() {
-    const cacheKey = 'appointments_cache';
+    //const cacheKey = 'appointments_cache';
     //console.log('Trying to get all appointments from cache...');
 
-    const cached = await this.cacheService.getCache(cacheKey);
-    if (cached) {
-      //console.log('Cache HIT');
-      return cached;
-    }
+    // const cached = await this.cacheService.getCache(cacheKey);
+    // if (cached) {
+    //   //console.log('Cache HIT');
+    //   return cached;
+    // }
 
     //console.log('Cache MISS - querying DB');
 
@@ -202,7 +236,7 @@ export class AppointmentService {
       });
 
     const appointments = appointmentsRaw.filter(appt => appt.doctor && appt.patient);
-    await this.cacheService.setCache(cacheKey, appointments, 10000); //cache for 30 seconds
+    //await this.cacheService.setCache(cacheKey, appointments, 10000); //cache for 30 seconds
 
     return appointments;
   }
@@ -214,14 +248,14 @@ export class AppointmentService {
       throw new NotFoundException('Doctor not found');
     }
 
-    const cacheKey = 'all_doctor_appointments_' + doctorID;
+    //const cacheKey = 'all_doctor_appointments_' + doctorID;
     //console.log('Trying to get doctor appointments from cache...');
 
-    const cached = await this.cacheService.getCache(cacheKey);
-    if (cached) {
-      //console.log('Cache doctor appointments HIT');
-      return cached;
-    }
+    // const cached = await this.cacheService.getCache(cacheKey);
+    // if (cached) {
+    //   //console.log('Cache doctor appointments HIT');
+    //   return cached;
+    // }
 
     //console.log('Cache MISS - querying DB');
     const appointmentsRaw = await this.appointmentModel.find({ doctor: doctorID })
@@ -250,7 +284,7 @@ export class AppointmentService {
     }
 
     //console.log('Setting cache...');
-    await this.cacheService.setCache(cacheKey, appointments, 30 * 1000); // Cache for 1 hour
+    //await this.cacheService.setCache(cacheKey, appointments, 30 * 1000); // Cache for 1 hour
 
     return appointments;
   }
@@ -265,15 +299,15 @@ export class AppointmentService {
     }
 
     // --- cache ---
-    const cacheKey = 'all_patient_appointments_' + patientID;
-    const cached = await this.cacheService.getCache(cacheKey);
-    if (cached) return cached;
+    // const cacheKey = 'all_patient_appointments_' + patientID;
+    // const cached = await this.cacheService.getCache(cacheKey);
+    // if (cached) return cached;
 
     const appointmentsRaw = await this.appointmentModel.find({
       patient: new Types.ObjectId(patientID),
     });
 
-    console.log("RAW APPOINTMENTS:", appointmentsRaw);
+    //console.log("RAW APPOINTMENTS:", appointmentsRaw);
 
     // --- populate thủ công ---
     const appointments = [];
@@ -281,8 +315,8 @@ export class AppointmentService {
     for (const appt of appointmentsRaw) {
       try {
 
-        console.log("DOCTOR ID:", appt.doctor.toString());
-        console.log("PATIENT ID:", appt.patient.toString());
+        // console.log("DOCTOR ID:", appt.doctor.toString());
+        // console.log("PATIENT ID:", appt.patient.toString());
         const doctor = await firstValueFrom(
           this.doctorClient
             .send('doctor.get-by-id', appt.doctor.toString())
@@ -331,7 +365,7 @@ export class AppointmentService {
       throw new NotFoundException('No appointments found for this patient');
     }
     // cache 30s
-    await this.cacheService.setCache(cacheKey, filterAppointments, 30 * 1000);
+    //await this.cacheService.setCache(cacheKey, filterAppointments, 30 * 1000);
 
     return filterAppointments;
   }
@@ -359,22 +393,42 @@ export class AppointmentService {
   }
 
   async updateAppointment(id: string, updateData: Partial<BookAppointmentDto>) {
-    const appointment = await this.appointmentModel.findByIdAndUpdate(id, updateData, { new: true });
+    console.log('=== UPDATE DEBUG ===');
+    console.log('ID:', id);
+    console.log('Update Data:', JSON.stringify(updateData, null, 2));
+
+    const objectId = new Types.ObjectId(id);
+
+    // Kiểm tra document hiện tại
+    const currentDoc = await this.appointmentModel.findById(objectId);
+    console.log('Current time BEFORE update:', currentDoc?.time);
+
+    // Thử update trực tiếp bằng updateOne
+    const updateResult = await this.appointmentModel.updateOne(
+      { _id: objectId },
+      { $set: updateData }
+    );
+
+    console.log('Update result:', updateResult);
+
+    // Fetch lại document sau khi update
+    const appointment = await this.appointmentModel.findById(objectId);
+    console.log('Current time AFTER update:', appointment?.time);
+
     if (!appointment) {
       throw new NotFoundException('Appointment not found');
     }
 
     const patientID = appointment.patient.toString();
     const doctorID = appointment.doctor.toString();
-
     const patientCacheKey = 'all_patient_appointments_' + patientID;
     const doctorCacheKey = 'all_doctor_appointments_' + doctorID;
+
     await this.cacheService.deleteCache(patientCacheKey);
     await this.cacheService.deleteCache(doctorCacheKey);
 
     return { message: 'Appointment updated successfully', appointment };
   }
-
 
   async deleteAppointment(id: string) {
     const appointment = await this.appointmentModel.findById(id);

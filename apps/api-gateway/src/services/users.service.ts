@@ -20,4 +20,8 @@ export class UsersService {
   updateUser(id: string, data: any) {
     return this.usersClient.send('user.update', { id, data });
   }
+
+  updateFcmToken(id: string, updateFcmDto: any) {
+    return this.usersClient.send('user.updateFcmToken', { id, token: updateFcmDto.token, userModel: updateFcmDto.userModel });
+  }
 }
