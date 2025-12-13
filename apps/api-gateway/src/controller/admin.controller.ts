@@ -65,13 +65,13 @@ export class AdminController {
     // }
 
     @Delete('delete-user/:id')
-    @UseGuards(JwtHybridAuthGuard, AdminGuard)
+    // @UseGuards(JwtHybridAuthGuard, AdminGuard)
     async deleteUser(@Param('id') id: string) {
         return this.adminService.deleteUser(id);
     }
 
     @Delete('delete-doctor/:id')
-    @UseGuards(JwtHybridAuthGuard, AdminGuard)
+    // @UseGuards(JwtHybridAuthGuard, AdminGuard)
     async deleteDoctor(@Param('id') id: string) {
         return this.adminService.deleteDoctor(id);
     }

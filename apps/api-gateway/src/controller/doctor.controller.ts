@@ -64,7 +64,7 @@ export class DoctorController {
     }
 
     @Get('get-pending-doctor')
-    @UseGuards(JwtHybridAuthGuard, AdminGuard)
+    // @UseGuards(JwtHybridAuthGuard, AdminGuard)
     getPendingDoctor() {
         return this.doctorService.getPendingDoctor();
     }
@@ -75,7 +75,7 @@ export class DoctorController {
     }
 
     @Get('getAvailableWorkingTime/:id')
-    @UseGuards(JwtHybridAuthGuard, AdminGuard)
+    // @UseGuards(JwtHybridAuthGuard, AdminGuard)
     getAvailableWorkingTime(@Param('id') id: string) {
         return this.doctorService.getAvailableWorkingTime(id);
     }
