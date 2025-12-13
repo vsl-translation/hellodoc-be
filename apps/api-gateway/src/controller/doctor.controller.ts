@@ -19,6 +19,7 @@ export class DoctorController {
         return this.doctorService.getDoctorById(id);
     }
 
+    // Trong controller, truyền file data một cách rõ ràng:
     @Patch('apply-for-doctor/:id')
     @UseInterceptors(
         FileFieldsInterceptor([
@@ -29,7 +30,8 @@ export class DoctorController {
             { name: 'backCccdUrl', maxCount: 1 },
         ])
     )
-    applyForDoctor(@Param('id') userId: string,
+    applyForDoctor(
+        @Param('id') userId: string,
         @UploadedFiles() files: {
             licenseUrl?: Express.Multer.File[],
             faceUrl?: Express.Multer.File[],
@@ -37,27 +39,45 @@ export class DoctorController {
             frontCccdUrl?: Express.Multer.File[],
             backCccdUrl?: Express.Multer.File[]
         },
-        @Body() formData: any,) {
+        @Body() formData: any,
+    ) {
         const doctorData = { ...formData };
 
+        // Truyền đầy đủ thông tin file
         if (files?.licenseUrl?.[0]) {
-            doctorData.licenseUrl = files.licenseUrl[0];
+            doctorData.licenseUrl = {
+                buffer: files.licenseUrl[0].buffer,
+                originalname: files.licenseUrl[0].originalname,
+                mimetype: files.licenseUrl[0].mimetype,
+            };
         }
-
         if (files?.faceUrl?.[0]) {
-            doctorData.faceUrl = files.faceUrl[0];
+            doctorData.faceUrl = {
+                buffer: files.faceUrl[0].buffer,
+                originalname: files.faceUrl[0].originalname,
+                mimetype: files.faceUrl[0].mimetype,
+            };
         }
-
         if (files?.avatarURL?.[0]) {
-            doctorData.avatarURL = files.avatarURL[0];
+            doctorData.avatarURL = {
+                buffer: files.avatarURL[0].buffer,
+                originalname: files.avatarURL[0].originalname,
+                mimetype: files.avatarURL[0].mimetype,
+            };
         }
-
         if (files?.frontCccdUrl?.[0]) {
-            doctorData.frontCccdUrl = files.frontCccdUrl[0];
+            doctorData.frontCccdUrl = {
+                buffer: files.frontCccdUrl[0].buffer,
+                originalname: files.frontCccdUrl[0].originalname,
+                mimetype: files.frontCccdUrl[0].mimetype,
+            };
         }
-
         if (files?.backCccdUrl?.[0]) {
-            doctorData.backCccdUrl = files.backCccdUrl[0];
+            doctorData.backCccdUrl = {
+                buffer: files.backCccdUrl[0].buffer,
+                originalname: files.backCccdUrl[0].originalname,
+                mimetype: files.backCccdUrl[0].mimetype,
+            };
         }
 
         return this.doctorService.applyForDoctor(userId, doctorData);

@@ -590,4 +590,52 @@ export class DoctorService {
     });
   }
 
+  // // Xác thực tài khoản bác sĩ bởi admin
+  // async verifyDoctor(userId: string) {
+  //   const pendingDoctor = await this.pendingDoctorModel.findOne({ userId });
+  //   if (!pendingDoctor)
+  //     throw new NotFoundException(
+  //       'Người dùng không tồn tại trong bảng chờ phê duyệt.',
+  //     );
+
+  //   // Lấy thông tin user từ bảng User
+  //   const user = await lastValueFrom(this.usersClient.send('user.getuserbyid', userId));
+  //   if (!user) throw new NotFoundException('Người dùng không tồn tại.');
+
+
+  //   // Xóa khỏi bảng PendingDoctors và cập nhật bảng Doctors
+  //   await this.DoctorModel.create({
+  //     _id: userId,
+  //     name: user.name,
+  //     email: user.email,
+  //     phone: user.phone,
+  //     password: user.password,
+  //     verified: true,
+  //     cccd: pendingDoctor.CCCD,
+  //     avatarURL: pendingDoctor.avatarURL,
+  //     frontCccdUrl: pendingDoctor.frontCccdUrl,
+  //     backCccdUrl: pendingDoctor.backCccdUrl,
+  //     address: "chua co dia chi",
+  //     licenseUrl: pendingDoctor.licenseUrl,
+  //     certificates: pendingDoctor.certificates,
+  //     experience: pendingDoctor.experience,
+  //     specialty: pendingDoctor.specialty,
+  //     isDeleted: pendingDoctor.isDeleted,
+  //   });
+  //   await this.pendingDoctorModel.deleteOne({ userId });
+  //   await this.usersClient.send('user.delete', userId);
+  //   await this.SpecialtyModel.findByIdAndUpdate(
+  //     pendingDoctor.specialty,
+  //     { $push: { doctors: userId } },
+  //   );
+
+  //   //xoa cache
+  //   const cacheKey = 'pending_doctors';
+  //   await this.cacheService.deleteCache(cacheKey);
+
+  //   return {
+  //     message: 'Xác thực bác sĩ thành công!',
+  //   };
+  // }
+
 }

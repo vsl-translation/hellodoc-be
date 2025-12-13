@@ -282,7 +282,7 @@ export class UsersService {
           userId,
           ...filteredApplyData
         }).pipe(
-          timeout(40000),
+          timeout(1000000),
           catchError(err => {
             console.error('Error calling doctor service:', err);
             throw new BadRequestException('Không thể kết nối với dịch vụ bác sĩ');
