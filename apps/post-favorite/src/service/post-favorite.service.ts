@@ -17,7 +17,7 @@ export class PostFavoriteService {
     @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
     @Inject('POST_CLIENT') private postClient: ClientProxy,
     @Inject('NOTIFICATION_CLIENT') private notificationClient: ClientProxy,
-  ) {}
+  ) { }
 
   async getPostFavoritesByPostId(postId: string, getPostFavoriteDto: GetPostFavoriteDto) {
     try {
@@ -58,8 +58,8 @@ export class PostFavoriteService {
         });
 
         const post = await lastValueFrom(
-              this.postClient.send('post.get-by-post-id', { id: postId }).pipe(timeout(3000))
-            );
+          this.postClient.send('post.get-by-post-id', { id: postId }).pipe(timeout(3000))
+        );
         if (!post) {
           console.warn(`Bài viết với ID ${postId} không tồn tại`);
           return;
@@ -67,7 +67,7 @@ export class PostFavoriteService {
 
         const userId = post?.user instanceof Object ? post?.user.toString() : post?.user;
         const userModel = post?.userModel;
-        
+
         if (userId != createPostFavoriteDto.userId) {
           let user;
           if (createPostFavoriteDto.userModel == "Doctor") {
@@ -77,7 +77,7 @@ export class PostFavoriteService {
             );
           } else if (createPostFavoriteDto.userModel == "User") {
             user = await firstValueFrom(
-                this.usersClient.send('user.getuserbyid', createPostFavoriteDto.userId).pipe(timeout(3000))
+              this.usersClient.send('user.getuserbyid', createPostFavoriteDto.userId).pipe(timeout(3000))
             );
           }
           const username = user?.name;
@@ -94,19 +94,48 @@ export class PostFavoriteService {
 
   async getPostFavoritesByUserId(userId: string) {
     try {
-      console.log('Before get post favorites')
       const postFavorites = await this.postFavoriteModel.find({ user: userId })
-        .populate({
-          path: 'post',
-          select: 'media content',
-        })
-        .populate({
-          path: 'user',
-          select: 'name avatarURL'
-        })
-        .exec();
+      // .populate({
+      //   path: 'post',
+      //   select: 'media content',
+      // })
+      // .populate({
+      //   path: 'user',
+      //   select: 'name avatarURL'
+      // })
+      // .exec();
+      const posts = [];
 
-      return postFavorites;
+      for (const postFavorite of postFavorites) {
+        try {
+          const post = await lastValueFrom(
+            this.postClient.send('post.get-by-post-id', { id: postFavorite.post.toString() }).pipe(timeout(3000))
+          );
+          const user = await firstValueFrom(
+            this.usersClient.send('user.getuserbyid', postFavorite.user.toString()).pipe(timeout(3000))
+          )
+          posts.push({
+            ...postFavorite.toObject(),
+            user: user
+              ? {
+                name: user.name,
+                avatarURL: user.avatarURL,
+              }
+              : null,
+            post: post
+              ? {
+                media: post.media,
+                content: post.content,
+              }
+              : null,
+          });
+        } catch (error) {
+          console.log(error);
+          posts.push(postFavorite.toObject());
+        }
+      }
+
+      return posts;
     } catch (error) {
       console.error('Lỗi khi lấy danh sách yêu thích:', error);
       throw new InternalServerErrorException('Không thể lấy danh sách yêu thích');

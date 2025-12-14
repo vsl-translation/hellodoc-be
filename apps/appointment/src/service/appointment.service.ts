@@ -183,7 +183,7 @@ export class AppointmentService {
     return { message: 'Appointment cancelled successfully' };
   }
 
-  // 📌 Xác nhận lịch hẹn
+  // Xác nhận lịch hẹn
   async confirmAppointmentDone(id: string) {
     const objectId = new Types.ObjectId(id);
     const appointment = await this.appointmentModel.findById(objectId);
@@ -207,7 +207,7 @@ export class AppointmentService {
     return { message: 'Appointment confirmed done successfully', appointment };
   }
 
-  // 📌 Lấy danh sách tất cả lịch hẹn
+  // Lấy danh sách tất cả lịch hẹn
   async getAllAppointments() {
     //const cacheKey = 'appointments_cache';
     //console.log('Trying to get all appointments from cache...');
@@ -310,8 +310,7 @@ export class AppointmentService {
     return filteredAppointments;
   }
 
-  // 📌 Lấy danh sách lịch hẹn của bệnh nhân
-
+  // Lấy danh sách lịch hẹn của bệnh nhân
   async getPatientAppointments(patientID: string) {
     // --- tìm user ---
     var patient = await this.usersClient.send('user.getuserbyid', new Types.ObjectId(patientID));
@@ -392,7 +391,7 @@ export class AppointmentService {
   }
 
 
-  // 📌 Lấy danh sách lịch hẹn theo status
+  // Lấy danh sách lịch hẹn theo status
   async getAppointmentsByStatus(patientID: string, status: string): Promise<Appointment[]> {
     const rawAppointments = await this.appointmentModel.find({
       patient: patientID,

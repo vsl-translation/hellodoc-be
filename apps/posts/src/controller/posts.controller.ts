@@ -23,7 +23,7 @@ export class PostController {
   async getAll(@Payload() data: { limit?: number; skip?: number }) {
     const limit = data.limit ?? 10;
     const skip = data.skip ?? 0;
-    
+
     return this.postService.getAll(limit, skip);
   }
 
@@ -34,8 +34,8 @@ export class PostController {
   }
 
   @MessagePattern('post.get-by-post-id')
-  async getOne(@Payload() data: { id: string }) {
-    return this.postService.getOne(data.id);
+  async getOne(@Payload() id: string) {
+    return this.postService.getOne(id);
   }
 
   @MessagePattern('post.get-by-user-id')
