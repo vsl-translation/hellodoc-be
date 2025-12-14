@@ -484,15 +484,20 @@ export class AppointmentService {
       .find({
         doctor: doctorID,
         date: {
-          $gte: startDateObj.toISOString().split('T')[0],
-          $lt: endDateObj.toISOString().split('T')[0],
+          $gte: startDateObj,
+          $lt: endDateObj,
         },
+
         status: { $in: ['pending', 'confirmed', 'done'] },
       })
       .select('date time')
       .lean();
 
     console.log('Found appointments:', appointments);
-    return appointments;
+    return appointments.map(a => ({
+      date: new Date(a.date).toISOString().split('T')[0],
+      time: a.time,
+    }));
+
   }
 }

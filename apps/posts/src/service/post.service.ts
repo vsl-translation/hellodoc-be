@@ -105,7 +105,6 @@ export class PostService {
                 .find(filter)
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .select('-embedding')
                 .limit(limit);
 
             // Lấy thông tin user cho từng post
@@ -177,10 +176,7 @@ export class PostService {
 
     async getOne(id: string): Promise<Post> {
         try {
-            const post = await this.postModel
-                .findById(id)
-                .select('-embedding')
-                .exec();
+            const post = await this.postModel.findById(id)
 
             if (!post) {
                 throw new NotFoundException(`Không tìm thấy bài viết với id ${id}`);
@@ -275,7 +271,6 @@ export class PostService {
             const posts = await this.postModel
                 .find(filter)
                 .sort({ createdAt: -1 })
-                .select('-embedding')
                 .skip(skip)
                 .limit(limit)
                 .exec();
