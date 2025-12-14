@@ -23,6 +23,7 @@ export class Neo4jController {
     return this.neo4jService.getSuggestions(word);
   }
 
+
   @MessagePattern('neo4j.get-all')
   async getAll() {
     return this.neo4jService.getAll();
@@ -53,4 +54,42 @@ export class Neo4jController {
       payload.relationType,
     );
   }
+
+  @MessagePattern('neo4j.get-relations-from-node')
+  async getRelationsFromNode(@Payload() payload: { label: string; name: string }) {
+    return this.neo4jService.getRelationsFromNode(payload.label, payload.name);
+  }
+
+  @MessagePattern('neo4j.batch-update-weights')
+  async batchUpdateWeights(@Payload() payload: { updates: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string; weight: number }[] }) {
+    console.log(`🚀 Bắt đầu cập nhật trọng số cho ${payload.updates.length} quan hệ`);
+    return this.neo4jService.batchUpdateWeights(payload.updates); // ✅ Truyền payload.updates
+  }
+
+  @MessagePattern('neo4j.get-all-relations')
+  async getAllRelations() {
+    return this.neo4jService.getAllRelations();
+  }
+
+  @MessagePattern('neo4j.get-relations-to-node')
+  async getRelationsToNode(@Payload() payload: { label: string; name: string }) {
+    return this.neo4jService.getRelationsToNode(payload.label, payload.name);
+  }
+    @MessagePattern('neo4j.get-relation')
+  async getRelation(@Payload() payload: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string }) {
+    return this.neo4jService.getRelation(
+      payload.fromLabel,
+      payload.fromName,
+      payload.toLabel,
+      payload.toName,
+      payload.relationType,
+    );
+  }
+
+  @MessagePattern('neo4j.find-word-by-label')
+  async getNodeByLabel(@Payload() payload: {word: string, toLabel: string}) {
+    return this.neo4jService.getSuggestionsByLabel(payload.word,  payload.toLabel);
+  }
+
+
 }

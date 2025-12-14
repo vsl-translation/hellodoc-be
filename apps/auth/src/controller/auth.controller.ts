@@ -9,7 +9,7 @@ import { loginDto } from '../core/dto/login.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
-  @MessagePattern('auth.signup')
+  @MessagePattern('auth.signUp')
   async signup(@Payload() signUpData: SignupDto) {
     return this.authService.signup(signUpData);
   }

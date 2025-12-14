@@ -49,7 +49,7 @@ export class AppointmentController {
   }
 
   @MessagePattern('appointment.update')
-  async updateAppointment(id: string, updateData: Partial<BookAppointmentDto>) {
+  async updateAppointment(@Payload() { id, updateData }: any) {
     return await this.appointmentService.updateAppointment(id, updateData);
   }
 
@@ -70,5 +70,10 @@ export class AppointmentController {
   @MessagePattern('appointment.doctorStats')
   async getDoctorStats(doctorID: string) {
     return await this.appointmentService.getDoctorStats(doctorID);
+  }
+
+  @MessagePattern('appointment.cancel')
+  async cancelAppointment(id: string) {
+    return await this.appointmentService.cancelAppointment(id);
   }
 }

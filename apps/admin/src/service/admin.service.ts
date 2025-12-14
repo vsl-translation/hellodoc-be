@@ -239,6 +239,10 @@ export class AdminService {
         return this.usersClient.send('user.delete', id);
     }
 
+    async reactivateUser(id: string) {
+        return this.usersClient.send('user.reactivate-user-account', id);
+    }
+
 
     async deleteDoctor(id: string) {
         return this.doctorClient.send('doctor.delete', id);

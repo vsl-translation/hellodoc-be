@@ -10,6 +10,7 @@ export class NlpIntegrationController {
   @MessagePattern('nlp-integration.analyze')
   async analyzeText(@Payload() payload: any) {
     const { text, createRelations } = payload;
+    console.log('Received text for analysis:', text);
     return this.nlpIntegrationService.analyzeAndCreateGraph(text, createRelations);
   }
 
@@ -36,6 +37,16 @@ export class NlpIntegrationController {
   async findWord(@Payload() data : { word: string}) {
     const { word } = data;
     return this.nlpIntegrationService.findWord(word);
+  }
+
+  @MessagePattern('nlp-integration.find-word-by-label')
+  async findWordByLabel(@Payload() payload: { word: string, toLabel: string}) {
+    return this.nlpIntegrationService.findWordByLabel(payload.word, payload.toLabel);
+  }
+
+  @MessagePattern('nlp-integration.batch-process')
+  async batchProcess(@Payload() folderPath: string) {
+    return this.nlpIntegrationService.processBatchFiles(folderPath);
   }
 
 }

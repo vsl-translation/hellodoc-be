@@ -31,4 +31,18 @@ export class NlpIntegrationService {
             this.nlpClient.send('nlp-integration.find-word',{ word, label})
         );
     }
+
+    async findWordByLabel(word: string, toLabel: string) {
+        return firstValueFrom(
+            this.nlpClient.send('nlp-integration.find-word-by-label',{ word, toLabel})
+        );
+    }
+
+    async processBatchFiles(folderPath: string) {
+        return firstValueFrom(
+            this.nlpClient.send('nlp-integration.batch-process', folderPath)
+        );
+    }
+
+
 }

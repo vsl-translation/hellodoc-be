@@ -26,7 +26,8 @@ export class DoctorController {
   }
 
   @MessagePattern('doctor.update-fcm-token')
-  async updateFcmToken(id: string, token: string) {
+  async updateFcmToken(@Payload() data: any) {
+    const { id, token } = data;
     return this.doctorService.updateFcmToken(id, token);
   }
 
@@ -36,8 +37,10 @@ export class DoctorController {
   }
 
   @MessagePattern('doctor.notify')
-  async notify(doctorId: string, message: string) {
-    return this.doctorService.notify(doctorId, message);
+  async notify(@Payload() data: { doctorID: string, message: string }) {
+    console.log('📨 Nhận message doctor.notify:', data);
+
+    return this.doctorService.notify(data.doctorID, data.message);
   }
 
   @MessagePattern('doctor.get-pedingDoctor')

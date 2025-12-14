@@ -9,9 +9,14 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
-  @MessagePattern(':id/fcm-token')
-  async updateFcmToken(@Param('id') id: string, @Body() updateFcmDto: UpdateFcmDto) {
-    return this.usersService.updateFcmToken(id, updateFcmDto);
+  @MessagePattern('user.updateFcmToken')
+  async updateFcmToken(@Payload() data: any) {
+    console.log('Updating FCM Token for user ID:', data.id, 'with data:', data);
+
+    // Extract data properly
+    const { id, token, userModel } = data;
+
+    return this.usersService.updateFcmToken(id, { token, userModel });
   }
 
   @MessagePattern('user.users')
@@ -45,8 +50,10 @@ export class UsersController {
   }
 
   @MessagePattern('user.notify')
-  async notify(userId: string, message: string) {
-    return this.usersService.notify(userId, message);
+  async notify(@Payload() data: { doctorID: string, message: string }) {
+    console.log('📨 Nhận message doctor.notify:', data);
+
+    return this.usersService.notify(data.doctorID, data.message);
   }
 
   @MessagePattern('user.apply-for-doctor')
@@ -61,6 +68,11 @@ export class UsersController {
   @MessagePattern('user.delete')
   async delete(id: string) {
     return this.usersService.delete(id);
+  }
+
+  @MessagePattern('user.reactivate-user-account')
+  async reactivateUser(id: string) {
+    return this.usersService.reactivateUser(id);
   }
 
   @MessagePattern('user.create')

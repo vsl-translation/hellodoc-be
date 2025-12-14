@@ -27,4 +27,9 @@ export class UsersController {
     return this.usersService.updateUser(id, data);
   }
 
+  @Put(':id/fcm-token')
+  updateFcmToken(@Param('id') id: string, @Body() updateFcmDto: any) {
+    return this.usersService.updateFcmToken(id, updateFcmDto);
+  }
+
 }
