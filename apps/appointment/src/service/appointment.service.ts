@@ -185,7 +185,8 @@ export class AppointmentService {
 
   // 📌 Xác nhận lịch hẹn
   async confirmAppointmentDone(id: string) {
-    const appointment = await this.appointmentModel.findById(id);
+    const objectId = new Types.ObjectId(id);
+    const appointment = await this.appointmentModel.findById(objectId);
     if (!appointment) {
       throw new NotFoundException('Appointment not found');
     }
@@ -248,45 +249,65 @@ export class AppointmentService {
       throw new NotFoundException('Doctor not found');
     }
 
-    //const cacheKey = 'all_doctor_appointments_' + doctorID;
-    //console.log('Trying to get doctor appointments from cache...');
+    // Lấy raw appointments từ database
+    const appointmentsRaw = await this.appointmentModel.find({ doctor: doctorID });
 
-    // const cached = await this.cacheService.getCache(cacheKey);
-    // if (cached) {
-    //   //console.log('Cache doctor appointments HIT');
-    //   return cached;
-    // }
+    // Populate thủ công
+    const appointments = [];
 
-    //console.log('Cache MISS - querying DB');
-    const appointmentsRaw = await this.appointmentModel.find({ doctor: doctorID })
-      .populate({
-        path: 'doctor',
-        match: { isDeleted: false },
-        select: 'name avatarURL'
-      })
-      .populate({
-        path: 'patient',
-        match: { isDeleted: false },
-        select: 'name'
-      });
+    for (const appt of appointmentsRaw) {
+      try {
+        // Gọi microservice để lấy thông tin doctor
+        const doctorInfo = await firstValueFrom(
+          this.doctorClient
+            .send('doctor.get-by-id', appt.doctor.toString())
+            .pipe(timeout(10000))
+        );
 
-    const appointments = appointmentsRaw
+        // Gọi microservice để lấy thông tin patient
+        const patientInfo = await firstValueFrom(
+          this.usersClient
+            .send('user.getuserbyid', appt.patient.toString())
+            .pipe(timeout(10000))
+        );
+
+        appointments.push({
+          ...appt.toObject(),
+          doctor: doctorInfo
+            ? {
+              _id: doctorInfo._id,
+              name: doctorInfo.name,
+              avatarURL: doctorInfo.avatarURL,
+            }
+            : null,
+          patient: patientInfo
+            ? {
+              _id: patientInfo._id,
+              name: patientInfo.name,
+            }
+            : null,
+        });
+      } catch (err) {
+        console.error('Populate error for appointment:', appt._id, err);
+        // Nếu lỗi, vẫn thêm appointment nhưng không có thông tin populate
+        appointments.push(appt.toObject());
+      }
+    }
+
+    // Filter và sort appointments
+    const filteredAppointments = appointments
       .filter((appt) => appt.doctor !== null && appt.patient !== null)
       .sort((a, b) => {
         const dateA = new Date(`${a.date.toISOString().split('T')[0]}T${a.time}`);
         const dateB = new Date(`${b.date.toISOString().split('T')[0]}T${b.time}`);
-        return dateB.getTime() - dateA.getTime();
+        return dateB.getTime() - dateA.getTime(); // Mới nhất trước
       });
 
-
-    if (!appointments) {
+    if (filteredAppointments.length === 0) {
       throw new NotFoundException('No appointments found for this doctor');
     }
 
-    //console.log('Setting cache...');
-    //await this.cacheService.setCache(cacheKey, appointments, 30 * 1000); // Cache for 1 hour
-
-    return appointments;
+    return filteredAppointments;
   }
 
   // 📌 Lấy danh sách lịch hẹn của bệnh nhân
