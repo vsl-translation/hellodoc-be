@@ -14,6 +14,14 @@ import { DoctorService } from '../services/doctor.service';
                     port: 3003,
                 },
             },
+            {
+                name: 'CLOUDINARY_CLIENT',
+                transport: Transport.TCP,
+                options: {
+                    host: 'localhost',
+                    port: 3006
+                }
+            }
         ]),
     ],
     controllers: [DoctorController],

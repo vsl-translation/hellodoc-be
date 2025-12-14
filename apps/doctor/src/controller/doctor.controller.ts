@@ -1,3 +1,4 @@
+
 import { Body, Controller, Get, Param, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { DoctorService } from '../service/doctor.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
@@ -56,8 +57,7 @@ export class DoctorController {
 
   @MessagePattern('doctor.apply-for-doctor')
   async applyForDoctor(@Payload() payload: { userId: string, applyData: any }) {
-    const { userId, applyData } = payload;
-    return this.doctorService.applyForDoctor(userId, applyData);
+    return this.doctorService.applyForDoctor(payload.userId, payload.applyData);
   }
 
   @MessagePattern('doctor.delete')

@@ -1,6 +1,5 @@
 import { Body, Controller, Get, UseGuards } from '@nestjs/common';
 import { AppointmentService } from '../service/appointment.service';
-import { JwtAuthGuard } from 'libs/Guard/jwt-auth.guard';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { BookAppointmentDto } from '../core/dto/appointment.dto';
 
