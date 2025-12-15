@@ -30,4 +30,20 @@ export class AppointmentService {
     async getDoctorStats(doctorID: string) {
         return this.appointmentClient.send('appointment.doctorStats', doctorID);
     }
+
+    async cancelAppointment(id: string) {
+        return this.appointmentClient.send('appointment.cancel', id);
+    }
+
+    async deleteAppointment(id: string) {
+        return this.appointmentClient.send('appointment.delete', id);
+    }
+
+    async updateAppointment(id: string, updateData: Partial<BookAppointmentDto>) {
+        return this.appointmentClient.send('appointment.update', { id, updateData });
+    }
+
+    async confirmAppointmentDone(id: string) {
+        return this.appointmentClient.send('appointment.confirm', id);
+    }
 }

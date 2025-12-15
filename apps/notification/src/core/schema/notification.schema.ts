@@ -1,10 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import mongoose, { Document, Types } from 'mongoose';
+
 
 @Schema({ timestamps: true })
 export class Notification extends Document {
-  @Prop({ required: true })
-  userId: string;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, required: true })
+  userId: Types.ObjectId;
 
   @Prop({ type: String, required: true, enum: ['User', 'Doctor'] })
   userModel: string;

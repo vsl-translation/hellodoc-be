@@ -22,30 +22,27 @@ export class UsersService {
   ) { }
 
   async updateFcmToken(userId: string, updateFcmDto: UpdateFcmDto) {
-    console.log(updateFcmDto.token);
     if (updateFcmDto.userModel == 'User') {
+
       return this.UserModel.findByIdAndUpdate(
         userId,
         { fcmToken: updateFcmDto.token },
         { new: true }
       );
     } else if (updateFcmDto.userModel == 'Doctor') {
-      // return this.DoctorModel.findByIdAndUpdate(
-      //   userId,
-      //   { fcmToken: updateFcmDto.token },
-      //   { new: true }
-      // );
       try {
         const response = await lastValueFrom(
-          this.doctorClient.send('doctor.update-fcm-token', { id: userId, token: updateFcmDto.token }).pipe(timeout(3000))
+          this.doctorClient.send('doctor.update-fcm-token', {
+            id: userId,
+            token: updateFcmDto.token
+          }).pipe(timeout(3000))
         );
         return response;
       } catch (e) {
-        console.warn('Doctor service timeout hoặc lỗi, trả về rongyang');
+        console.warn('Doctor service timeout hoặc lỗi:', e.message);
         return { fcmToken: updateFcmDto.token };
       }
     }
-
   }
 
   async getUser() {
@@ -322,6 +319,27 @@ export class UsersService {
     await this.doctorClient.send('update', { id, isDeleted: true });
 
     return { message: 'User soft-deleted successfully' };
+  }
+
+  async reactivateUser(id: string) {
+    // Check if the user exists in either UserModel or DoctorModel
+    let user =
+      (await this.UserModel.findById(id)) ||
+      (await lastValueFrom(this.doctorClient.send('doctor.get-by-id', id).pipe(timeout(3000))));
+
+    if (!user) {
+      throw new UnauthorizedException('Không tìm thấy người dùng');
+    }
+
+    if (!user.isDeleted) {
+      return { message: 'Người dùng vẫn đang hoạt động' };
+    }
+
+    // Soft delete the user
+    await this.UserModel.findByIdAndUpdate(id, { isDeleted: false });
+    await this.doctorClient.send('update', { id, isDeleted: false });
+
+    return { message: 'User reactivated successfully' };
   }
 
   async create(userDto: any) {
