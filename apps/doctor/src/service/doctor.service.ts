@@ -389,15 +389,7 @@ export class DoctorService {
     numberOfDays: number = 14,
     specificDate?: string,
   ) {
-
-
-    // if (!Types.ObjectId.isValid(doctorID)) {
-    //   throw new BadRequestException('Invalid doctor ID');
-    // }
-
-    // const objectId = new Types.ObjectId(doctorID);
-
-    const doctor = await this.DoctorModel.findById(doctorID);
+    const doctor = await this.DoctorModel.findById(doctorID).lean();
     if (!doctor) {
       throw new NotFoundException('Doctor not found');
     }
@@ -411,6 +403,7 @@ export class DoctorService {
       };
     }
 
+    // XỬ LÝ NGÀY 
     const startDate = specificDate ? new Date(specificDate) : new Date();
     if (specificDate && isNaN(startDate.getTime())) {
       throw new BadRequestException('Invalid specific date format');
@@ -420,145 +413,120 @@ export class DoctorService {
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + (specificDate ? 1 : numberOfDays));
 
-    console.log('doctorID', doctorID, 'startDate', startDate, 'endDate', endDate, 'specificDate', specificDate, 'numberOfDays', numberOfDays);
+    // LẤY APPOINTMENT ĐÃ ĐẶT 
     const bookedAppointments = await lastValueFrom(
-      this.appointmentClient.send('appointment.getDoctorBookAppointment', {
-        doctorID: doctorID,
-        startDate: startDate.toISOString(), // Convert to string
-        endDate: endDate.toISOString()      // Convert to string
-      }).pipe(timeout(3000))
+      this.appointmentClient
+        .send('appointment.getDoctorBookAppointment', {
+          doctorID,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        })
+        .pipe(timeout(5000)),
     );
-    const availableSlots: any[] = [];
-    const currentDate = new Date(startDate);
 
+    const bookedMap = new Map<string, Set<string>>();
+    for (const apt of bookedAppointments) {
+      if (!bookedMap.has(apt.date)) {
+        bookedMap.set(apt.date, new Set());
+      }
+      bookedMap.get(apt.date)!.add(apt.time);
+    }
+
+    const availableSlots: any[] = [];
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const bufferTime = new Date(now.getTime() + 30 * 60 * 1000);
+
+    //DUYỆT TỪNG NGÀY 
+    const currentDate = new Date(startDate);
     while (currentDate < endDate) {
-      const jsDay = currentDate.getDay();
+      const jsDay = currentDate.getDay(); // 0–6
       const dateString = currentDate.toISOString().split('T')[0];
 
-      const now = new Date();
-      const todayStart = new Date(now);
-      todayStart.setHours(0, 0, 0, 0);
-      if (currentDate < todayStart && !specificDate) {
+      // Bỏ qua ngày quá khứ (trừ khi chọn specificDate)
+      if (!specificDate && dateString < today) {
         currentDate.setDate(currentDate.getDate() + 1);
         continue;
       }
 
-      let dbDay: number;
-      switch (jsDay) {
-        case 0: // Sunday
-          dbDay = 7;
-          break;
-        case 1: // Monday  
-          dbDay = 8; // Assuming 8 is Monday based on your data pattern
-          break;
-        case 2: // Tuesday
-          dbDay = 2;
-          break;
-        case 3: // Wednesday
-          dbDay = 3;
-          break;
-        case 4: // Thursday
-          dbDay = 4;
-          break;
-        case 5: // Friday
-          dbDay = 5;
-          break;
-        case 6: // Saturday
-          dbDay = 6;
-          break;
-        default:
-          dbDay = jsDay;
+      const dbDayMap = { 0: 7, 1: 8, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
+      const dbDay = dbDayMap[jsDay];
+
+      const workingHoursForDay = doctor.workingHours
+        .filter(wh => wh.dayOfWeek === dbDay)
+        .sort((a, b) =>
+          a.hour !== b.hour ? a.hour - b.hour : a.minute - b.minute,
+        );
+
+      if (workingHoursForDay.length === 0) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
       }
 
-      // Get working hours for this day
-      const workingHoursForDay = doctor.workingHours.filter(
-        (wh) => wh.dayOfWeek === dbDay,
-      );
+      const bookedTimes = bookedMap.get(dateString) ?? new Set();
 
-      if (workingHoursForDay.length > 0) {
-        // Sort working hours by time
-        const sortedWorkingHours = workingHoursForDay.sort((a, b) => {
-          if (a.hour !== b.hour) return a.hour - b.hour;
-          return a.minute - b.minute;
+      const slots = workingHoursForDay
+        .filter(wh => {
+          const time = `${wh.hour.toString().padStart(2, '0')}:${wh.minute
+            .toString()
+            .padStart(2, '0')}`;
+
+          // Đã có người đặt
+          if (bookedTimes.has(time)) return false;
+
+          // Quá gần hiện tại (chỉ áp dụng cho hôm nay)
+          if (dateString === today) {
+            const slotTime = new Date(currentDate);
+            slotTime.setHours(wh.hour, wh.minute, 0, 0);
+            if (slotTime <= bufferTime) return false;
+          }
+
+          return true;
+        })
+        .map(wh => ({
+          workingHourId: `${wh.dayOfWeek}-${wh.hour}-${wh.minute}`,
+          time: `${wh.hour.toString().padStart(2, '0')}:${wh.minute
+            .toString()
+            .padStart(2, '0')}`,
+          hour: wh.hour,
+          minute: wh.minute,
+          displayTime: this.formatDisplayTime(wh.hour, wh.minute),
+        }));
+
+      if (slots.length > 0) {
+        availableSlots.push({
+          date: dateString,
+          dayOfWeek: jsDay,
+          dayName: this.getDayName(jsDay),
+          displayDate: this.formatDisplayDate(currentDate),
+          slots,
+          totalSlots: slots.length,
         });
-
-        // Get booked times for this day
-        const bookedTimesForDay = bookedAppointments
-          .filter((apt) => {
-            const aptDateString = apt.date instanceof Date
-              ? apt.date.toISOString().split('T')[0]
-              : apt.date;
-            return aptDateString === dateString;
-          })
-          .map((apt) => apt.time);
-
-        // Filter out slots that are booked or in the past
-        const availableSlotsForDay = sortedWorkingHours
-          .filter((wh) => {
-            const timeString = `${wh.hour.toString().padStart(2, '0')}:${wh.minute
-              .toString()
-              .padStart(2, '0')}`;
-
-            // Kiểm tra xem có trong ngày hôm nay không
-            if (dateString === new Date().toISOString().split('T')[0]) {
-              const currentTime = new Date();
-              const slotTime = new Date(currentDate);
-              slotTime.setHours(wh.hour, wh.minute, 0, 0);
-
-              // Thêm 30 phút đệm
-              const bufferTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
-
-              if (slotTime <= bufferTime) {
-                return false;
-              }
-            }
-
-            // Kiểm tra xem thời gian này đã được đặt hay chưa
-            return !bookedTimesForDay.includes(timeString);
-          })
-          .map((wh) => ({
-            workingHourId: `${wh.dayOfWeek}-${wh.hour}-${wh.minute}`,
-            time: `${wh.hour.toString().padStart(2, '0')}:${wh.minute
-              .toString()
-              .padStart(2, '0')}`,
-            hour: wh.hour,
-            minute: wh.minute,
-            displayTime: this.formatDisplayTime(wh.hour, wh.minute),
-          }));
-
-        if (availableSlotsForDay.length > 0) {
-          availableSlots.push({
-            date: dateString,
-            dayOfWeek: jsDay,
-            dayName: this.getDayName(jsDay),
-            displayDate: this.formatDisplayDate(currentDate),
-            slots: availableSlotsForDay,
-            totalSlots: availableSlotsForDay.length,
-          });
-        }
       }
 
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    const result = {
+    // ====== RESULT ======
+    return {
       doctorID,
       doctorName: doctor.name,
       searchPeriod: {
         from: startDate.toISOString().split('T')[0],
-        to: new Date(endDate.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0], //trừ 1 ngày để không bao gồm ngày kết thúc
+        to: new Date(endDate.getTime() - 86400000)
+          .toISOString()
+          .split('T')[0],
         numberOfDays: specificDate ? 1 : numberOfDays,
       },
       availableSlots,
       totalAvailableDays: availableSlots.length,
       totalAvailableSlots: availableSlots.reduce(
-        (sum, day) => sum + day.totalSlots,
+        (sum, d) => sum + d.totalSlots,
         0,
       ),
     };
-
-    return result;
   }
+
 
   // Format giờ hiển thị
   private formatDisplayTime(hour: number, minute: number): string {

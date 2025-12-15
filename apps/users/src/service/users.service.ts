@@ -151,6 +151,10 @@ export class UsersService {
 
   // Đăng ký làm bác sĩ (Lưu vào bảng chờ phê duyệt)
   async applyForDoctor(id: string, applyData: any) {
+
+    console.log('applyData:', applyData);
+    console.log('faceUrl:', applyData.faceUrl);
+
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('User ID không hợp lệ.');
     }
@@ -218,71 +222,33 @@ export class UsersService {
       }
 
       if (applyData.faceUrl) {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
-            buffer: applyData.faceUrl.buffer, // Base64 string
-            filename: applyData.faceUrl.originalname,
-            mimetype: applyData.faceUrl.mimetype,
-            folder: `PendingDoctors/${userId}/Face`,
-          })
-          .toPromise();
-        filteredApplyData['faceUrl'] = uploadResult.secure_url;
+        filteredApplyData['faceUrl'] = applyData.faceUrl;
       }
 
       if (applyData.avatarURL) {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
-            buffer: applyData.avatarURL.buffer, // Base64 string
-            filename: applyData.avatarURL.originalname,
-            mimetype: applyData.avatarURL.mimetype,
-            folder: `PendingDoctors/${userId}/Avatar`,
-          })
-          .toPromise();
-        filteredApplyData['avatarURL'] = uploadResult.secure_url;
+        filteredApplyData['avatarURL'] = applyData.avatarURL;
       }
 
       if (applyData.licenseUrl) {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
-            buffer: applyData.licenseUrl.buffer, // Base64 string
-            filename: applyData.licenseUrl.originalname,
-            mimetype: applyData.licenseUrl.mimetype,
-            folder: `PendingDoctors/${userId}/License`,
-          })
-          .toPromise();
-        filteredApplyData['licenseUrl'] = uploadResult.secure_url;
+        filteredApplyData['licenseUrl'] = applyData.licenseUrl;
       }
 
       if (applyData.frontCccdUrl) {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
-            buffer: applyData.frontCccdUrl.buffer, // Base64 string
-            filename: applyData.frontCccdUrl.originalname,
-            mimetype: applyData.frontCccdUrl.mimetype,
-            folder: `PendingDoctors/${userId}/Info`,
-          })
-          .toPromise();
-        filteredApplyData['frontCccdUrl'] = uploadResult.secure_url;
+        filteredApplyData['frontCccdUrl'] = applyData.frontCccdUrl;
       }
 
       if (applyData.backCccdUrl) {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
-            buffer: applyData.backCccdUrl.buffer, // Base64 string
-            filename: applyData.backCccdUrl.originalname,
-            mimetype: applyData.backCccdUrl.mimetype,
-            folder: `PendingDoctors/${userId}/Info`,
-          })
-          .toPromise();
-        filteredApplyData['backCccdUrl'] = uploadResult.secure_url;
+        filteredApplyData['backCccdUrl'] = applyData.backCccdUrl;
       }
 
+      console.log('filteredApplyData:', filteredApplyData);
       const pendingDoctor = await lastValueFrom(
         this.doctorClient.send('doctor.create-pending-doctor', {
           userId,
           ...filteredApplyData
         }).pipe(
-          timeout(40000),
+          timeout(60000
+          ),
           catchError(err => {
             console.error('Error calling doctor service:', err);
             throw new BadRequestException('Không thể kết nối với dịch vụ bác sĩ');

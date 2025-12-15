@@ -176,7 +176,7 @@ export class PostService {
 
     async getOne(id: string): Promise<Post> {
         try {
-            const post = await this.postModel.findById(id);
+            const post = await this.postModel.findById(id)
 
             if (!post) {
                 throw new NotFoundException(`Không tìm thấy bài viết với id ${id}`);
