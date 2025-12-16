@@ -1,12 +1,16 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post, Put, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { DoctorService } from '../services/doctor.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
 import { AdminGuard } from 'libs/Guard/AdminGuard.guard';
+import { ClientProxy } from '@nestjs/microservices';
 
 @Controller('doctor')
 export class DoctorController {
-    constructor(private readonly doctorService: DoctorService) { }
+    constructor(
+        private readonly doctorService: DoctorService,
+        @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
+    ) { }
 
     //trong microservices sử dụng message và event
     @Get('get-all')
@@ -30,58 +34,74 @@ export class DoctorController {
             { name: 'backCccdUrl', maxCount: 1 },
         ])
     )
-    applyForDoctor(
+    async applyForDoctor(
         @Param('id') userId: string,
         @UploadedFiles() files: {
-            licenseUrl?: Express.Multer.File[],
-            faceUrl?: Express.Multer.File[],
-            avatarURL?: Express.Multer.File[],
-            frontCccdUrl?: Express.Multer.File[],
-            backCccdUrl?: Express.Multer.File[]
+            licenseUrl?: Express.Multer.File[];
+            faceUrl?: Express.Multer.File[];
+            avatarURL?: Express.Multer.File[];
+            frontCccdUrl?: Express.Multer.File[];
+            backCccdUrl?: Express.Multer.File[];
         },
         @Body() formData: any,
     ) {
         const doctorData = { ...formData };
 
-        // Truyền đầy đủ thông tin file
-        if (files?.licenseUrl?.[0]) {
-            doctorData.licenseUrl = {
-                buffer: files.licenseUrl[0].buffer,
-                originalname: files.licenseUrl[0].originalname,
-                mimetype: files.licenseUrl[0].mimetype,
-            };
-        }
+        // Upload helper
+        const upload = async (
+            file: Express.Multer.File,
+            folder: string,
+        ) => {
+            return await this.cloudinaryClient
+                .send('cloudinary.upload', {
+                    buffer: file.buffer,
+                    filename: file.originalname,
+                    mimetype: file.mimetype,
+                    folder,
+                })
+                .toPromise();
+        };
+
         if (files?.faceUrl?.[0]) {
-            doctorData.faceUrl = {
-                buffer: files.faceUrl[0].buffer,
-                originalname: files.faceUrl[0].originalname,
-                mimetype: files.faceUrl[0].mimetype,
-            };
+            const res = await upload(
+                files.faceUrl[0],
+                `PendingDoctors/${userId}/Face`,
+            );
+            doctorData.faceUrl = res.secure_url;
         }
         if (files?.avatarURL?.[0]) {
-            doctorData.avatarURL = {
-                buffer: files.avatarURL[0].buffer,
-                originalname: files.avatarURL[0].originalname,
-                mimetype: files.avatarURL[0].mimetype,
-            };
+            const res = await upload(
+                files.avatarURL[0],
+                `PendingDoctors/${userId}/Avatar`,
+            );
+            doctorData.avatarURL = res.secure_url;
+        }
+
+        if (files?.licenseUrl?.[0]) {
+            const res = await upload(
+                files.licenseUrl[0],
+                `PendingDoctors/${userId}/License`,
+            );
+            doctorData.licenseUrl = res.secure_url;
         }
         if (files?.frontCccdUrl?.[0]) {
-            doctorData.frontCccdUrl = {
-                buffer: files.frontCccdUrl[0].buffer,
-                originalname: files.frontCccdUrl[0].originalname,
-                mimetype: files.frontCccdUrl[0].mimetype,
-            };
+            const res = await upload(
+                files.frontCccdUrl[0],
+                `PendingDoctors/${userId}/Info`,
+            );
+            doctorData.frontCccdUrl = res.secure_url;
         }
         if (files?.backCccdUrl?.[0]) {
-            doctorData.backCccdUrl = {
-                buffer: files.backCccdUrl[0].buffer,
-                originalname: files.backCccdUrl[0].originalname,
-                mimetype: files.backCccdUrl[0].mimetype,
-            };
+            const res = await upload(
+                files.backCccdUrl[0],
+                `PendingDoctors/${userId}/Info`,
+            );
+            doctorData.backCccdUrl = res.secure_url;
         }
 
         return this.doctorService.applyForDoctor(userId, doctorData);
     }
+
 
     @Get('get-pending-doctor')
     //@UseGuards(JwtHybridAuthGuard, AdminGuard)
@@ -140,7 +160,7 @@ export class DoctorController {
             updateData.images = files.images[0];
         }
         return this.doctorService.updateClinicInfo(id, updateData);
-        }
+    }
 
 
 }

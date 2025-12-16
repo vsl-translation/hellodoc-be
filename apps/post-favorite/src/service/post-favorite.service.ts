@@ -96,17 +96,47 @@ export class PostFavoriteService {
     try {
       //console.log('Before get post favorites')
       const postFavorites = await this.postFavoriteModel.find({ user: userId })
-        .populate({
-          path: 'post',
-          select: 'media content',
-        })
-        .populate({
-          path: 'user',
-          select: 'name avatarURL'
-        })
-        .exec();
+      // .populate({
+      //   path: 'post',
+      //   select: 'media content',
+      // })
+      // .populate({
+      //   path: 'user',
+      //   select: 'name avatarURL'
+      // })
+      // .exec();
+      const posts = [];
 
-      return postFavorites;
+      for (const postFavorite of postFavorites) {
+        try {
+          const post = await lastValueFrom(
+            this.postClient.send('post.get-by-post-id', { id: postFavorite.post.toString() }).pipe(timeout(3000))
+          );
+          const user = await firstValueFrom(
+            this.usersClient.send('user.getuserbyid', postFavorite.user.toString()).pipe(timeout(3000))
+          )
+          posts.push({
+            ...postFavorite.toObject(),
+            user: user
+              ? {
+                name: user.name,
+                avatarURL: user.avatarURL,
+              }
+              : null,
+            post: post
+              ? {
+                media: post.media,
+                content: post.content,
+              }
+              : null,
+          });
+        } catch (error) {
+          console.log(error);
+          posts.push(postFavorite.toObject());
+        }
+      }
+
+      return posts;
     } catch (error) {
       console.error('Lỗi khi lấy danh sách yêu thích:', error);
       throw new InternalServerErrorException('Không thể lấy danh sách yêu thích');

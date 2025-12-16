@@ -14,7 +14,7 @@ export class PostCommentService {
     @Inject('USERS_CLIENT') private readonly usersClient: ClientProxy,
     @Inject('DOCTOR_CLIENT') private readonly doctorClient: ClientProxy,
     @Inject('POST_CLIENT') private readonly postClient: ClientProxy,
-  ) {}
+  ) { }
 
   async createCommentByPostId(postId: string, createPostCommentDto: CreatePostCommentDto) {
     try {
@@ -40,10 +40,10 @@ export class PostCommentService {
       });
 
       console.log("Noi dung cmt vao service la: "
-        +createPostCommentDto.userId
-        +" "+createPostCommentDto.userModel
-      +" "+postId
-      +" "+createPostCommentDto.content)
+        + createPostCommentDto.userId
+        + " " + createPostCommentDto.userModel
+        + " " + postId
+        + " " + createPostCommentDto.content)
 
       const postUserId = post?.user instanceof Object ? post?.user.toString() : post?.user;
       const userId = post?.user instanceof Object ? post?.user.toString() : post?.user;
@@ -52,30 +52,30 @@ export class PostCommentService {
       if (userId != createPostCommentDto.userId) {
         let user;
         try {
-            if (createPostCommentDto.userModel == "Doctor") {
-                user = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', createPostCommentDto.userId));
-                console.log("User la bac si: "+user)
-            } else if (createPostCommentDto.userModel == "User") {
-                user = await firstValueFrom(this.usersClient.send('user.getuserbyid', createPostCommentDto.userId));
-                console.log("User la nguoi dung: "+user)
-            }
+          if (createPostCommentDto.userModel == "Doctor") {
+            user = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', createPostCommentDto.userId));
+            console.log("User la bac si: " + user)
+          } else if (createPostCommentDto.userModel == "User") {
+            user = await firstValueFrom(this.usersClient.send('user.getuserbyid', createPostCommentDto.userId));
+            console.log("User la nguoi dung: " + user)
+          }
         } catch (e) {
-            console.error("Error fetching user details", e);
+          console.error("Error fetching user details", e);
         }
-        
+
         const username = user?.name
         // Notification logic would go here, likely via another microservice call or direct FCM if moved
         // For now, we'll skip direct FCM implementation as it requires firebase-admin setup which might be in notification service
         // this.notifyComment(userId, userModel, `${username} đã bình luận bài viết của bạn`);
       }
-      console.log("Gui thanh cong: "+createdPostComment)
+      console.log("Gui thanh cong: " + createdPostComment)
 
       // Notify Notification Service
-      if(userId != postUserId) {
-          // await this.notificationService.createNotification(notification);
-          // We would emit an event or call notification service here
+      if (userId != postUserId) {
+        // await this.notificationService.createNotification(notification);
+        // We would emit an event or call notification service here
       }
-    
+
       return await createdPostComment.save();
     } catch (error) {
       throw new InternalServerErrorException('Lỗi khi tạo bình luận');
@@ -92,22 +92,22 @@ export class PostCommentService {
       // Populate user details manually via ClientProxy
       const populatedComments = await Promise.all(
         postComments.map(async (comment) => {
-            let userData = null;
-            try {
-                if (comment.userModel === 'User') {
-                    console.log('User commenting')
-                    userData = await firstValueFrom(this.usersClient.send('user.getuserbyid', comment.user));
-                  } else if (comment.userModel === 'Doctor') {
-                  console.log('Doctor commenting')
-                    userData = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', comment.user));
-                }
-            } catch (e) {
-                console.error(`Error fetching user data for comment ${comment._id}:`, e);
+          let userData = null;
+          try {
+            if (comment.userModel === 'User') {
+              console.log('User commenting')
+              userData = await firstValueFrom(this.usersClient.send('user.getuserbyid', comment.user));
+            } else if (comment.userModel === 'Doctor') {
+              console.log('Doctor commenting')
+              userData = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', comment.user));
             }
-            return {
-                ...comment,
-                user: userData ? { _id: userData._id, name: userData.name, avatarURL: userData.avatarURL } : null
-            };
+          } catch (e) {
+            console.error(`Error fetching user data for comment ${comment._id}:`, e);
+          }
+          return {
+            ...comment,
+            user: userData ? { _id: userData._id, name: userData.name, avatarURL: userData.avatarURL } : null
+          };
         })
       );
 
@@ -128,39 +128,43 @@ export class PostCommentService {
   async getCommentByUserId(userId: string) {
     try {
       const postComments = await this.postCommentModel.find({ user: userId }).lean();
-      
-      const populatedComments = await Promise.all(
-        postComments.map(async (comment) => {
-             // Populate post details
-             let postData = null;
-             try {
-                 postData = await firstValueFrom(this.postClient.send('post.get-by-post-id', comment.post));
-             } catch (e) {
-                 console.error(`Error fetching post data for comment ${comment._id}:`, e);
-             }
+      const posts = [];
 
-             // Populate user details (self)
-             let userData = null;
-             try {
-                if (comment.userModel === 'User') {
-                    userData = await firstValueFrom(this.usersClient.send('user.getuserbyid', comment.user));
-                } else if (comment.userModel === 'Doctor') {
-                    userData = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', comment.user));
-                }
-             } catch (e) {
-                 console.error(`Error fetching user data for comment ${comment._id}:`, e);
-             }
+      for (const comment of postComments) {
+        try {
+          console.log(`Fetching post with ID: ${comment.post}`);
+          const post = await firstValueFrom(this.postClient.send('post.get-by-post-id', comment.post));
+          console.log('Post result:', post); // Debug log
 
-             return {
-                 ...comment,
-                 post: postData ? { _id: postData._id, media: postData.media, content: postData.content } : null,
-                 user: userData ? { _id: userData._id, name: userData.name, avatarURL: userData.avatarURL } : null
-             }
-        })
-      );
+          console.log(`Fetching user with ID: ${comment.user}`);
+          const user = await firstValueFrom(this.usersClient.send('user.getuserbyid', comment.user));
+          console.log('User result:', user); // Debug log
 
-      const validComments = populatedComments.filter(comment => comment.user !== null);
-      return validComments;
+          posts.push({
+            ...comment,
+            post: post ? {
+              _id: post._id,
+              media: post.media,
+              content: post.content
+            } : null,
+            user: user ? {
+              _id: user._id,
+              name: user.name,
+              avatarURL: user.avatarURL
+            } : null
+          });
+
+        } catch (e) {
+          console.error("Error details:", {
+            commentId: comment._id,
+            postId: comment.post,
+            userId: comment.user,
+            error: e
+          });
+          posts.push(comment);
+        }
+      }
+      return posts;
     } catch (error) {
       throw new InternalServerErrorException('Lỗi khi lấy thông tin danh sách bình luận');
     }

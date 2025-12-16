@@ -70,6 +70,12 @@ export class AdminController {
         return this.adminService.deleteUser(id);
     }
 
+    @Put('reactivate-user/:id')
+    @UseGuards(JwtHybridAuthGuard, AdminGuard)
+    async reactivateUser(@Param('id') id: string) {
+        return this.adminService.reactivateUser(id);
+    }
+
     @Delete('delete-doctor/:id')
     //@UseGuards(JwtHybridAuthGuard, AdminGuard)
     async deleteDoctor(@Param('id') id: string) {
