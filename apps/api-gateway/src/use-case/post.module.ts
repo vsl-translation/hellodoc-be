@@ -6,7 +6,6 @@ import { PostService } from '../services/post.service';
 
 @Module({
     imports: [
-
         ClientsModule.register([
             {
                 name: 'POST_CLIENT',

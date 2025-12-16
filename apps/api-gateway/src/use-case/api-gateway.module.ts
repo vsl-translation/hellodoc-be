@@ -30,6 +30,7 @@ import { PostCommentModule } from './post-comment.module';
 import { UndertheseaModule } from './underthesea.module';
 import { NlpIntegrationModule } from './nlp-integration.module';
 import { ImageCaptionModule } from './image-caption.module';
+import { PhowhisperModule } from './phowhisper.module';
 
 @Module({
   imports: [
@@ -79,7 +80,8 @@ import { ImageCaptionModule } from './image-caption.module';
     PostCommentModule,
     UndertheseaModule,
     NlpIntegrationModule,
-    ImageCaptionModule
+    ImageCaptionModule,
+    PhowhisperModule
   ],
   controllers: [ApiGatewayController],
   providers: [ApiGatewayService],

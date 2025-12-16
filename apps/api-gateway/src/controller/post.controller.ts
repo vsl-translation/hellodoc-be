@@ -102,4 +102,5 @@ export class PostController {
   ) {
     return this.postService.findSimilarPosts(id, Number(limit), Number(minSimilarity));
   }
+
 }

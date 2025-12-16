@@ -249,6 +249,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/image-caption/tsconfig.app.json"
       }
+    },
+    "phowhisper": {
+      "type": "application",
+      "root": "apps/phowhisper",
+      "entryFile": "main",
+      "sourceRoot": "apps/phowhisper/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/phowhisper/tsconfig.app.json"
+      }
     }
   }
 }
