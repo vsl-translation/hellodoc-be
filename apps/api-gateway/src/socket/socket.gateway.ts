@@ -62,8 +62,8 @@ export class SocketGateway
       const roleMap: Record<string, string> = {
         admin: 'ADMIN',
         user: 'USER',
+        blind: 'USER',
         doctor: 'DOCTOR',
-        physician: 'DOCTOR',
       };
 
       const role = roleMap[rawRole];
@@ -175,16 +175,23 @@ export class SocketGateway
     if (!this.redisClient) return;
 
     try {
-      const onlineUsers = await this.redisClient.scard('online_users');
-      const onlineDoctors = await this.redisClient.scard('online_doctors');
-
-      this.logger.warn(
-        `📊 ADMIN STATS → users=${onlineUsers}, doctors=${onlineDoctors}`,
-      );
+      const [
+        onlineUsersCount,
+        onlineDoctorsCount,
+        onlineUsers,
+        onlineDoctors,
+      ] = await Promise.all([
+        this.redisClient.scard('online_users'),
+        this.redisClient.scard('online_doctors'),
+        this.redisClient.smembers('online_users'),
+        this.redisClient.smembers('online_doctors'),
+      ]);
 
       this.server.to('admin').emit('online_stats', {
-        users: onlineUsers,
-        doctors: onlineDoctors,
+        users: onlineUsersCount,
+        doctors: onlineDoctorsCount,
+        userIds: onlineUsers,
+        doctorIds: onlineDoctors,
       });
     } catch (e) {
       this.logger.error(`❌ Redis error in updateAdminStats: ${e.message}`);
