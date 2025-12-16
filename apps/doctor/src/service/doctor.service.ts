@@ -146,7 +146,7 @@ export class DoctorService {
   async notify(doctorId: string, message: string) {
     try {
       const doctor = await this.DoctorModel.findById(doctorId);
-      console.log("bac si thong bao ", doctor);
+      //console.log("bac si thong bao ", doctor);
       if (doctor?.fcmToken) {
         await admin.messaging().send({
           token: doctor.fcmToken,
@@ -557,5 +557,192 @@ export class DoctorService {
       timeZone: 'UTC',
     });
   }
+
+  // // Xác thực tài khoản bác sĩ bởi admin
+  // async verifyDoctor(userId: string) {
+  //   const pendingDoctor = await this.pendingDoctorModel.findOne({ userId });
+  //   if (!pendingDoctor)
+  //     throw new NotFoundException(
+  //       'Người dùng không tồn tại trong bảng chờ phê duyệt.',
+  //     );
+
+  //   // Lấy thông tin user từ bảng User
+  //   const user = await lastValueFrom(this.usersClient.send('user.getuserbyid', userId));
+  //   if (!user) throw new NotFoundException('Người dùng không tồn tại.');
+
+
+  //   // Xóa khỏi bảng PendingDoctors và cập nhật bảng Doctors
+  //   await this.DoctorModel.create({
+  //     _id: userId,
+  //     name: user.name,
+  //     email: user.email,
+  //     phone: user.phone,
+  //     password: user.password,
+  //     verified: true,
+  //     cccd: pendingDoctor.CCCD,
+  //     avatarURL: pendingDoctor.avatarURL,
+  //     frontCccdUrl: pendingDoctor.frontCccdUrl,
+  //     backCccdUrl: pendingDoctor.backCccdUrl,
+  //     address: "chua co dia chi",
+  //     licenseUrl: pendingDoctor.licenseUrl,
+  //     certificates: pendingDoctor.certificates,
+  //     experience: pendingDoctor.experience,
+  //     specialty: pendingDoctor.specialty,
+  //     isDeleted: pendingDoctor.isDeleted,
+  //   });
+  //   await this.pendingDoctorModel.deleteOne({ userId });
+  //   await this.usersClient.send('user.delete', userId);
+  //   await this.SpecialtyModel.findByIdAndUpdate(
+  //     pendingDoctor.specialty,
+  //     { $push: { doctors: userId } },
+  //   );
+
+  //   //xoa cache
+  //   const cacheKey = 'pending_doctors';
+  //   await this.cacheService.deleteCache(cacheKey);
+
+  //   return {
+  //     message: 'Xác thực bác sĩ thành công!',
+  //   };
+  // }
+
+  async updateClinic(
+    doctorId: string,
+    updateData: any,
+    files?: { serviceImage?: Express.Multer.File[] }
+  ) {
+    if (!Types.ObjectId.isValid(doctorId)) {
+      throw new BadRequestException('ID không hợp lệ');
+    }
+
+    const doctor = await this.DoctorModel.findById(doctorId);
+    if (!doctor) {
+      throw new BadRequestException('Bác sĩ không tồn tại');
+    }
+
+    // Parse & filter dữ liệu đầu vào
+    const filteredData = this.filterAllowedFields(updateData);
+    const uploadedImages = await this.uploadServiceImages(files?.serviceImage, doctorId);
+
+    // Xử lý services nếu có
+    if (Array.isArray(filteredData.services)) {
+      filteredData.services = await this.mergeServices(doctorId, filteredData.oldService, filteredData.services, uploadedImages);
+    }
+
+    // Xử lý workingHours nếu có
+    if (Array.isArray(filteredData.workingHours)) {
+      filteredData.workingHours = this.mergeWorkingHours(filteredData.oldWorkingHours, filteredData.workingHours);
+    }
+
+    // Gán và lưu
+    await Object.assign(doctor, filteredData);
+    await doctor.save();
+    await this.cacheService.deleteCache(`doctor_${doctorId}`);
+
+    return {
+      message: 'Cập nhật thông tin phòng khám thành công',
+      data: doctor,
+    };
+  }
+
+  private filterAllowedFields(data: any) {
+    const allowed = ['description', 'address', 'services', 'workingHours', 'oldService', 'oldWorkingHours', 'hasHomeService', 'isClinicPaused'];
+    const filtered: any = {};
+    for (const key of allowed) {
+      if (key in data) {
+        if (key === 'hasHomeService' || key === 'isClinicPaused') {
+          // Chuyển đổi sang boolean nếu là chuỗi
+          filtered[key] = data[key] === 'true' || data[key] === true;
+        } else {
+          filtered[key] = data[key];
+        }
+      }
+    }
+    return filtered;
+  }
+
+  private async uploadServiceImages(files: Express.Multer.File[] = [], doctorId: string): Promise<string[]> {
+    const uploaded: string[] = [];
+
+    for (const file of files) {
+      //const result = await this.cloudinaryService.uploadFile(file, `Doctors/${doctorId}/Services`);
+      const result = await this.cloudinaryClient
+        .send('cloudinary.upload', {
+          buffer: file.buffer,
+          filename: file.originalname,
+          mimetype: file.mimetype,
+          folder: `Doctors/${doctorId}/Services`,
+        })
+        .toPromise();
+
+      uploaded.push(result.secure_url);
+    }
+
+    return uploaded;
+  }
+
+  private async mergeServices(doctorId, existingServices: any[], newServices: any[], uploadedImages: string[]) {
+    const updatedServices = [...existingServices];
+    let uploadIndex = 0;
+
+    for (const service of newServices) {
+      const imageList = uploadedImages?.length
+        ? uploadedImages.filter(Boolean)
+        : service.imageService ?? [];
+
+      const newService = {
+        _id: new Types.ObjectId().toString(),
+        description: service.description,
+        maxprice: Number(service.maxprice),
+        minprice: Number(service.minprice),
+        imageService: imageList,
+        specialtyId: service.specialtyId,
+        specialtyName: service.specialtyName,
+      };
+
+      uploadIndex++;
+      updatedServices.push(newService);
+
+      // Đảm bảo bác sĩ được gắn vào chuyên khoa này (chỉ thêm nếu chưa có)
+      // await this.SpecialtyModel.findByIdAndUpdate(
+      //   service.specialtyId,
+      //   { $addToSet: { doctors: doctorId } }  // Tránh trùng
+      // );
+
+      await this.specialtyClient
+        .send('specialty.update-doctor-specialties', {
+          doctorId: new Types.ObjectId(doctorId),
+          specialtyIds: new Types.ObjectId(service.specialtyId)
+        })
+        .toPromise();
+    }
+
+    return updatedServices;
+  }
+
+  private mergeWorkingHours(existingWH: any[], newWHList: any[]): any[] {
+    const updatedWH = [...(existingWH || [])];
+
+    for (const newWH of newWHList) {
+      const isDuplicate = updatedWH.some(
+        (wh) =>
+          wh.dayOfWeek === newWH.dayOfWeek &&
+          wh.hour === newWH.hour &&
+          wh.minute === newWH.minute
+      );
+
+      if (!isDuplicate) {
+        updatedWH.push({
+          dayOfWeek: Number(newWH.dayOfWeek),
+          hour: Number(newWH.hour),
+          minute: Number(newWH.minute),
+        });
+      }
+    }
+
+    return updatedWH;
+  }
+
+
 
 }

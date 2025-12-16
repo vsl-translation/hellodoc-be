@@ -20,7 +20,7 @@ export class PostFavoriteController {
 
   @MessagePattern('post-favorite.get-by-user')
   async getPostFavoritesByUserId(@Payload() data: { userId: string }) {
-    console.log('post favorite controller')
+    //console.log('post favorite controller')
     return this.postFavoriteService.getPostFavoritesByUserId(data.userId);
   }
 }

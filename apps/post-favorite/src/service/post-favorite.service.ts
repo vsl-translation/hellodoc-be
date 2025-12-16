@@ -94,6 +94,7 @@ export class PostFavoriteService {
 
   async getPostFavoritesByUserId(userId: string) {
     try {
+      //console.log('Before get post favorites')
       const postFavorites = await this.postFavoriteModel.find({ user: userId })
       // .populate({
       //   path: 'post',

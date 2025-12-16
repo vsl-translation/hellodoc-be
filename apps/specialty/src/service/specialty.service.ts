@@ -1,7 +1,7 @@
 
 import { BadRequestException, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Specialty } from '../core/schema/specialty.schema';
 import { CacheService } from 'libs/cache.service';
 import { CreateSpecialtyDto } from '../core/dto/create-specialty.dto';
@@ -39,7 +39,8 @@ export class SpecialtyService {
         const doctorDetails = await Promise.all(
           specialty.doctors.map(async (doctorId) => {
             try {
-              const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorId));
+              const doctorObjId = new Types.ObjectId(doctorId);
+              const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
               return {
                 _id: doctor._id,
                 name: doctor.name,

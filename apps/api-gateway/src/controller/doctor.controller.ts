@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Put, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post, Put, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { DoctorService } from '../services/doctor.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
@@ -23,6 +23,7 @@ export class DoctorController {
         return this.doctorService.getDoctorById(id);
     }
 
+    // Trong controller, truyền file data một cách rõ ràng:
     @Patch('apply-for-doctor/:id')
     @UseInterceptors(
         FileFieldsInterceptor([
@@ -68,7 +69,6 @@ export class DoctorController {
             );
             doctorData.faceUrl = res.secure_url;
         }
-
         if (files?.avatarURL?.[0]) {
             const res = await upload(
                 files.avatarURL[0],
@@ -84,7 +84,6 @@ export class DoctorController {
             );
             doctorData.licenseUrl = res.secure_url;
         }
-
         if (files?.frontCccdUrl?.[0]) {
             const res = await upload(
                 files.frontCccdUrl[0],
@@ -92,7 +91,6 @@ export class DoctorController {
             );
             doctorData.frontCccdUrl = res.secure_url;
         }
-
         if (files?.backCccdUrl?.[0]) {
             const res = await upload(
                 files.backCccdUrl[0],
@@ -151,5 +149,18 @@ export class DoctorController {
         return this.doctorService.updateDoctorProfile(id, updateData);
 
     }
+
+    @UseInterceptors(FileFieldsInterceptor([{ name: 'images', maxCount: 1 }]))
+    @Post("doctor/:id/updateclinic")
+    updateClinicInfo(
+        @Param('id') id: string,
+        @UploadedFiles() files: { images?: Express.Multer.File[] },
+        @Body() updateData: any) {
+        if (files?.images?.[0]) {
+            updateData.images = files.images[0];
+        }
+        return this.doctorService.updateClinicInfo(id, updateData);
+    }
+
 
 }

@@ -35,4 +35,8 @@ export class DoctorService {
         return this.doctorClient.send('doctor.update', { id, profileData })
     }
 
+    async updateClinicInfo(id: string, clinicData: any) {
+        return this.doctorClient.send('doctor.update-clinic-info', { id, clinicData })
+    }
+
 }

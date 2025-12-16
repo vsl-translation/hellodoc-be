@@ -50,10 +50,10 @@ export class UsersController {
   }
 
   @MessagePattern('user.notify')
-  async notify(@Payload() data: { doctorID: string, message: string }) {
-    console.log('📨 Nhận message doctor.notify:', data);
+  async notify(@Payload() data: { userID: string, message: string }) {
+    console.log('📨 Nhận message userID:', data);
 
-    return this.usersService.notify(data.doctorID, data.message);
+    return this.usersService.notify(data.userID, data.message);
   }
 
   @MessagePattern('user.apply-for-doctor')

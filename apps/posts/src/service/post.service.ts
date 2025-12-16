@@ -176,10 +176,11 @@ export class PostService {
 
     async getOne(id: string): Promise<Post> {
         try {
-            const post = await this.postModel.findById(id)
+            const objectId = new Types.ObjectId(id);
+            const post = await this.postModel.findById(objectId)
 
             if (!post) {
-                throw new NotFoundException(`Không tìm thấy bài viết với id ${id}`);
+                throw new NotFoundException(`Không tìm thấy bài viết với id ${objectId}`);
             }
 
             // Lấy thông tin user
@@ -226,7 +227,7 @@ export class PostService {
     private async findOwnerById(ownerId: string): Promise<{ model: 'User' | 'Doctor', data: any; }> {
         try {
             let user = await lastValueFrom(this.usersClient.send('user.getuserbyid', ownerId).pipe(timeout(3000)))
-            console.log("user nhan duov la " + user);
+            //console.log("user nhan duov la " + user);
             if (!user) {
                 user = await lastValueFrom(
                     this.doctorClient.send('doctor.get-by-id', ownerId)

@@ -82,4 +82,9 @@ export class DoctorController {
   async getAvailableWorkingTime(doctorID: string) {
     return await this.doctorService.getAvailableWorkingHours(doctorID);
   }
+
+  @MessagePattern('doctor.update-clinic-info')
+  async updateClinicInfo(@Payload() id: string, @Payload() clinicData: any) {
+    return this.doctorService.updateClinic(id, clinicData);
+  }
 }

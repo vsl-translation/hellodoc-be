@@ -6,7 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from '../config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-redis-store';
+import KeyvRedis from '@keyv/redis';
 import { JwtModule } from '@nestjs/jwt';
 import { DoctorModule } from './doctor.module';
 import { NewsModule } from './news.module';
@@ -30,7 +30,11 @@ import { PostCommentModule } from './post-comment.module';
 import { UndertheseaModule } from './underthesea.module';
 import { NlpIntegrationModule } from './nlp-integration.module';
 import { ImageCaptionModule } from './image-caption.module';
+<<<<<<< HEAD
 import { PhowhisperModule } from './phowhisper.module';
+=======
+import { SocketModule } from '../socket/socket.module';
+>>>>>>> f028766f9915b85a57f5f919eeebfc426aa0b46a
 
 @Module({
   imports: [
@@ -53,9 +57,9 @@ import { PhowhisperModule } from './phowhisper.module';
       inject: [ConfigService],
     }),
     CacheModule.register({
-      store: redisStore,
-      ttl: 3600 * 1000, // mặc định TTL
-      url: 'rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379',
+      // @ts-ignore
+      store: new KeyvRedis('rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379'),
+      ttl: 3600 * 1000,
       isGlobal: true,
     }),
     UsersModule,
@@ -81,7 +85,11 @@ import { PhowhisperModule } from './phowhisper.module';
     UndertheseaModule,
     NlpIntegrationModule,
     ImageCaptionModule,
+<<<<<<< HEAD
     PhowhisperModule
+=======
+    SocketModule
+>>>>>>> f028766f9915b85a57f5f919eeebfc426aa0b46a
   ],
   controllers: [ApiGatewayController],
   providers: [ApiGatewayService],
