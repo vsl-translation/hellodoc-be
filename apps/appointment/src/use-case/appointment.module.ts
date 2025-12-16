@@ -6,7 +6,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { CacheService } from 'libs/cache.service';
 import { JwtModule } from '@nestjs/jwt';
 import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-redis-store';
+import KeyvRedis from '@keyv/redis';
 import { AppointmentController } from '../controller/appointment.controller';
 import { AppointmentService } from '../service/appointment.service';
 import { Appointment, AppointmentSchema } from '../core/schema/Appointment.schema';
@@ -44,10 +44,9 @@ import { Appointment, AppointmentSchema } from '../core/schema/Appointment.schem
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async () => ({
-        store: await redisStore({
-          url: 'rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379',
-          ttl: 3600 * 1000,
-        }),
+        // @ts-ignore
+        store: new KeyvRedis('rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379'),
+        ttl: 3600 * 1000,
       }),
     }),
 

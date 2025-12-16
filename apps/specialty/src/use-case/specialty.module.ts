@@ -5,7 +5,7 @@ import config from 'apps/config/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { JwtModule } from '@nestjs/jwt';
 import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-redis-store';
+import KeyvRedis from '@keyv/redis';
 import { Specialty, SpecialtySchema } from '../core/schema/specialty.schema';
 import { SpecialtyController } from '../controller/specialty.controller';
 import { SpecialtyService } from '../service/specialty.service';
@@ -36,9 +36,9 @@ import { CacheService } from 'libs/cache.service';
     }),
 
     CacheModule.register({
-      store: redisStore,
+      // @ts-ignore
+      store: new KeyvRedis('rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379'),
       ttl: 3600 * 1000, // mặc định TTL
-      url: 'rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379',
       isGlobal: true,
     }),
     //khai bao model cho USER

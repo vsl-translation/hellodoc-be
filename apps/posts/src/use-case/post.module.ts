@@ -12,7 +12,7 @@ import {
 import { PostController } from '../controller/posts.controller';
 import { CacheService } from 'libs/cache.service';
 import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-redis-store';
+import KeyvRedis from '@keyv/redis';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 
 @Module({
@@ -23,9 +23,9 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
       load: [config],
     }),
     CacheModule.register({
-      store: redisStore,
+      // @ts-ignore
+      store: new KeyvRedis('rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379'),
       ttl: 3600 * 1000, // mặc định TTL
-      url: 'rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379',
       isGlobal: true,
     }),
     MongooseModule.forRootAsync({
