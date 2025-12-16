@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Put, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { DoctorService } from '../services/doctor.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
@@ -129,5 +129,18 @@ export class DoctorController {
         return this.doctorService.updateDoctorProfile(id, updateData);
 
     }
+
+    @UseInterceptors(FileFieldsInterceptor([{ name: 'images', maxCount: 1 }]))
+    @Post("doctor/:id/updateclinic")
+    updateClinicInfo(
+        @Param('id') id: string,
+        @UploadedFiles() files: { images?: Express.Multer.File[] },
+        @Body() updateData: any) {
+        if (files?.images?.[0]) {
+            updateData.images = files.images[0];
+        }
+        return this.doctorService.updateClinicInfo(id, updateData);
+        }
+
 
 }

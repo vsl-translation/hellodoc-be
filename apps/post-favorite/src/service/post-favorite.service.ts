@@ -17,7 +17,7 @@ export class PostFavoriteService {
     @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
     @Inject('POST_CLIENT') private postClient: ClientProxy,
     @Inject('NOTIFICATION_CLIENT') private notificationClient: ClientProxy,
-  ) {}
+  ) { }
 
   async getPostFavoritesByPostId(postId: string, getPostFavoriteDto: GetPostFavoriteDto) {
     try {
@@ -58,8 +58,8 @@ export class PostFavoriteService {
         });
 
         const post = await lastValueFrom(
-              this.postClient.send('post.get-by-post-id', { id: postId }).pipe(timeout(3000))
-            );
+          this.postClient.send('post.get-by-post-id', { id: postId }).pipe(timeout(3000))
+        );
         if (!post) {
           console.warn(`Bài viết với ID ${postId} không tồn tại`);
           return;
@@ -67,7 +67,7 @@ export class PostFavoriteService {
 
         const userId = post?.user instanceof Object ? post?.user.toString() : post?.user;
         const userModel = post?.userModel;
-        
+
         if (userId != createPostFavoriteDto.userId) {
           let user;
           if (createPostFavoriteDto.userModel == "Doctor") {
@@ -77,7 +77,7 @@ export class PostFavoriteService {
             );
           } else if (createPostFavoriteDto.userModel == "User") {
             user = await firstValueFrom(
-                this.usersClient.send('user.getuserbyid', createPostFavoriteDto.userId).pipe(timeout(3000))
+              this.usersClient.send('user.getuserbyid', createPostFavoriteDto.userId).pipe(timeout(3000))
             );
           }
           const username = user?.name;
@@ -94,7 +94,7 @@ export class PostFavoriteService {
 
   async getPostFavoritesByUserId(userId: string) {
     try {
-      console.log('Before get post favorites')
+      //console.log('Before get post favorites')
       const postFavorites = await this.postFavoriteModel.find({ user: userId })
         .populate({
           path: 'post',
