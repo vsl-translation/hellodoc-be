@@ -87,4 +87,9 @@ export class DoctorController {
   async updateClinicInfo(@Payload() id: string, @Payload() clinicData: any) {
     return this.doctorService.updateClinic(id, clinicData);
   }
+
+  @MessagePattern('doctor.verify-doctor')
+  async verifyDoctor(userId: string) {
+    return this.doctorService.verifyDoctor(userId);
+  }
 }

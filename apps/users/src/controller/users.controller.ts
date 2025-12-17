@@ -86,4 +86,9 @@ export class UsersController {
     return this.usersService.updateUser(id, data);
   }
 
+  @MessagePattern('user.hard-delete')
+  async hardDelete(id: string) {
+    return this.usersService.hardDelete(id);
+  }
+
 }

@@ -163,4 +163,9 @@ export class DoctorController {
     }
 
 
+    @Patch('verify-doctor/:id')
+    async verifyDoctor(@Param('id') userId: string) {
+        return this.doctorService.verifyDoctor(userId);
+    }
+
 }
