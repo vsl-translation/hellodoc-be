@@ -39,4 +39,8 @@ export class DoctorService {
         return this.doctorClient.send('doctor.update-clinic-info', { id, clinicData })
     }
 
+    async verifyDoctor(userId: string) {
+        return this.doctorClient.send('doctor.verify-doctor', userId)
+    }
+
 }

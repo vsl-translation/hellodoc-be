@@ -415,4 +415,12 @@ export class UsersService {
       return { message: 'User updated successfully in DoctorModel', user: updatedDoctor };
     }
   }
+
+  async hardDelete(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ID format');
+    }
+    await this.UserModel.findByIdAndDelete(id);
+    return { message: 'User hard-deleted successfully' };
+  }
 }
