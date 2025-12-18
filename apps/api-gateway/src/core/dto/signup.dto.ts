@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsNumberString, IsString, Matches, MinLength } from "class-validator";
+import { IsEmail, IsOptional, IsNumberString, IsString, Matches, MinLength, IsIn } from "class-validator";
 
 export class SignupDto {
     @IsString()
@@ -20,4 +20,9 @@ export class SignupDto {
     @IsOptional()
     @IsString()
     licenseUrl: string;
+
+    @IsOptional()
+    @IsString()
+    @IsIn(['User', 'Blind', 'Deaf', 'Mute'], { message: 'Role must be one of: User, Blind, Deaf, Mute' })
+    role: string = 'User';
 }
