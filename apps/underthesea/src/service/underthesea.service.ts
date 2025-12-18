@@ -4,7 +4,7 @@ import { ClassificationResult } from '../core/dto/underthesea.dto';
 
 @Injectable()
 export class UndertheseaService {
-  private colab_url = process.env.COLAB_URL || 'https://myles-undeliverable-symbolically.ngrok-free.dev';
+  private colab_url = process.env.COLAB_URL || 'https://lorriane-noncongregative-benson.ngrok-free.dev';
 
   async classifyPOS(text: string): Promise<ClassificationResult> {
     try {
@@ -28,6 +28,8 @@ export class UndertheseaService {
   }
 
   async tokenize(text: string) {
+
+    console.log('text ', { text });
     try {
       const response = await axios.post(`${this.colab_url}/classify/tokenize`, { text });
       return { tokens: response.data.tokens, success: true };

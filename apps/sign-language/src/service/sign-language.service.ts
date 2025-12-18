@@ -6,20 +6,41 @@ import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { HttpService } from '@nestjs/axios';
 import { ClientProxy } from '@nestjs/microservices';
+import { text } from 'express';
 
 @Injectable()
 export class SignLanguageService {
   private readonly logger = new Logger(SignLanguageService.name);
-  // Giả sử các service AI đều nằm chung host này hoặc bạn có thể tách ra biến env riêng
   private SYNONISM_URL = process.env.SYNNONISM_URL;
   private PHOWHISPER_URL = process.env.PHOWHISPER_URL;
-
 
   constructor(
     private readonly httpService: HttpService,
     @InjectModel(SignLanguage.name, "signLanguageConnection") private signLanguage: Model<SignLanguage>,
+    @Inject("PHOWHISPER_CLIENT") private phowhisperClient: ClientProxy,
     @Inject("UNDERTHESEA_CLIENT") private undertheseaClient: ClientProxy
   ) { }
+
+  private parseSRTContent(srtContent: string): string {
+    const lines = srtContent.split('\n');
+    const textLines: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Skip empty lines, sequence numbers, and timestamp lines
+      if (!line ||
+        /^\d+$/.test(line) ||
+        /^\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}$/.test(line)) {
+        continue;
+      }
+
+      // This is subtitle text
+      textLines.push(line);
+    }
+
+    return textLines.join(' ').trim();
+  }
 
   async getGestureCode(urlMedia: string) {
     this.logger.log(`Processing gesture code for URL: ${urlMedia}`);
@@ -32,70 +53,89 @@ export class SignLanguageService {
         return {
           cached: true,
           urlMedia: existed.urlMedia,
-          signLanguage: existed.signLanguage // Đây là mảng gesture codes
+          signLanguage: existed.signLanguage
         };
       }
     }
 
     try {
       // --- STEP 1: Get Subtitle ---
-      // Input: urlMedia -> Output: String (VD: "Anh đang ăn cơm")
-      const phoWhisperEndpoint = `${this.PHOWHISPER_URL}/subtitle/getSubtitle`; // Điều chỉnh path nếu cần      
-      this.logger.log(`Step 1: Fetching subtitle from ${phoWhisperEndpoint}`);
+      this.logger.log(`Step 1: Fetching subtitle from phowhisper`);
 
       const subtitleRes = await firstValueFrom(
-        this.httpService.post(phoWhisperEndpoint, { videoUrl: urlMedia })
+        this.phowhisperClient.send(
+          "subtitle.getSubtitle",
+          { videoUrl: urlMedia }
+        )
       );
-      console.log("subtitleRes", subtitleRes)
-      const subtitleText = subtitleRes.data; // Giả sử API trả về text trực tiếp hoặc object { text: "..." }
 
-      if (!subtitleText) throw new Error("Subtitle extraction failed");
-      this.logger.debug(`Subtitle extracted: ${JSON.stringify(subtitleText)}`);
-      console.log("Chạy được tới bước 1")
+      console.log("subtitleRes", subtitleRes);
 
+      // Kiểm tra xem có subtitleUrl không
+      if (!subtitleRes?.subtitleUrl) {
+        throw new Error("No subtitle URL returned from phowhisper");
+      }
+
+      // Tải nội dung file SRT từ subtitleUrl
+      //this.logger.log(`Downloading SRT file from: ${subtitleRes.subtitleUrl}`);
+      const srtResponse = await firstValueFrom(
+        this.httpService.get(subtitleRes.subtitleUrl, {
+          responseType: 'text'
+        })
+      );
+
+      const srtContent = srtResponse.data;
+      //this.logger.debug(`SRT Content received: ${srtContent.substring(0, 200)}...`);
+
+      // Parse nội dung SRT để lấy text
+      const subtitleText = this.parseSRTContent(srtContent);
+
+      if (!subtitleText) throw new Error("Subtitle extraction failed - no text found");
+      this.logger.debug(`Subtitle text extracted: ${subtitleText}`);
+      console.log("Step 1 completed - Subtitle text:", subtitleText);
 
       // --- STEP 2: Tokenize (Underthesea) ---
-      // Input: subtitleText -> Output: Array (VD: ["Anh", "ăn cơm", "ngon"])
       this.logger.log(`Step 2: Tokenizing text...`);
 
       const tokenizeRes = await firstValueFrom(
-        this.undertheseaClient.send(
-          'underthesea.tokenize',
-          { body: subtitleText }
-        )
+        this.undertheseaClient.send('underthesea.tokenize', { text: subtitleText })
       );
-      const tokens = tokenizeRes.data; // Mảng các từ
 
-      if (!Array.isArray(tokens)) throw new Error("Tokenization failed to return an array");
-      this.logger.debug(`Tokens: ${tokens}`);
-      console.log("Chạy được tới bước 2")
+      console.log("tokenizeRes ", tokenizeRes);
 
+      // Response structure: { tokens: [...], success: true }
+      if (!tokenizeRes?.success || !Array.isArray(tokenizeRes?.tokens)) {
+        throw new Error("Tokenization failed or returned invalid response");
+      }
+
+      const tokens = tokenizeRes.tokens;
+
+      this.logger.debug(`Tokens: ${tokens.join(', ')}`);
+      console.log("Step 2 completed - Tokens:", tokens);
 
       // --- STEP 3: Get Synonyms ---
-      // Input: Array Tokens -> Output: Array Synonyms (đã map theo quy tắc)
       const synonymEndpoint = `${this.SYNONISM_URL}/search`;
       this.logger.log(`Step 3: Getting synonyms...`);
 
       const synonymRes = await firstValueFrom(
-        this.httpService.post(synonymEndpoint, { words: tokens })
+        this.httpService.post(synonymEndpoint, { query: tokens })
       );
 
       const synonyms = synonymRes.data;
-      this.logger.debug(`Synonyms: ${JSON.stringify(synonyms)}`);
+      //this.logger.debug(`Synonyms: ${JSON.stringify(synonyms)}`);
+      console.log("Step 3 completed - Synonyms:", synonyms);
 
-      console.log("Chạy được tới bước 3")
       // --- STEP 4: Detect Gesture Code ---
-      // Input: Array Synonyms -> Output: Complex JSON Array (Frame, timestamp, bones...)
       const gestureEndpoint = `${this.SYNONISM_URL}/detectGestureCode/get`;
       this.logger.log(`Step 4: Generating gesture codes...`);
 
       const gestureRes = await firstValueFrom(
         this.httpService.post(
           gestureEndpoint,
-          { words: synonyms }, // Payload gửi đi
+          { words: synonyms },
           {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 600000, // Timeout dài cho xử lý nặng
+            timeout: 600000,
           }
         )
       );
@@ -107,7 +147,7 @@ export class SignLanguageService {
         this.logger.log("Saving result to database...");
         const newRecord = new this.signLanguage({
           urlMedia: urlMedia,
-          signLanguage: gestureCodes, // Lưu mảng JSON phức tạp vào field này
+          signLanguage: gestureCodes,
           createdAt: new Date()
         });
         await newRecord.save();

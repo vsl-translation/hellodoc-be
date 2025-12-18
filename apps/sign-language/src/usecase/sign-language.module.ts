@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { SignLanguageController } from  '../controller/sign-language.controller';
-import { SignLanguageService } from  '../service/sign-language.service';
+import { SignLanguageController } from '../controller/sign-language.controller';
+import { SignLanguageService } from '../service/sign-language.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from 'apps/config/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -28,26 +28,33 @@ import { HttpModule } from '@nestjs/axios';
       inject: [ConfigService],
       connectionName: 'signLanguageConnection',
     }),
-  MongooseModule.forFeature([
-    { name: SignLanguage.name, schema: SignLanguageSchema }], 'signLanguageConnection'),
-  ClientsModule.register([
-    {
-      name: 'CLOUDINARY_CLIENT',
-      transport: Transport.TCP,
-      options: {
-        port: 3006,
+    MongooseModule.forFeature([
+      { name: SignLanguage.name, schema: SignLanguageSchema }], 'signLanguageConnection'),
+    ClientsModule.register([
+      {
+        name: 'CLOUDINARY_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3006,
+        },
       },
-    },
-    {
-      name: 'UNDERTHESEA_CLIENT',
-      transport: Transport.TCP,
-      options: {
-        port: 3003,
+      {
+        name: 'UNDERTHESEA_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3020,
+        },
       },
-    }
-  ]),
+      {
+        name: 'PHOWHISPER_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3024,
+        },
+      },
+    ]),
   ],
   controllers: [SignLanguageController],
   providers: [SignLanguageService],
 })
-export class SignLanguageModule {}
+export class SignLanguageModule { }
