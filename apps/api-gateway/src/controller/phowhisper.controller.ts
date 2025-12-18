@@ -14,11 +14,9 @@ export class PhowhisperController {
     @Post('get-subtitle')
     @UseInterceptors(FileInterceptor('file'))
     async getSubtitle(
-    @UploadedFile() file?: Express.Multer.File,
-    @Body('videoUrl') videoUrl?: string,
+    @Body('shortenString') shortenString?: string[],
     ) {
-        console.log('Received request with videoUrl:', videoUrl, 'and file:', file ? file.originalname : 'no file');
-        return this.phowhisperService.getSubtitle(videoUrl, file);
+        return this.phowhisperService.getSubtitle(shortenString);
     }
 
     @Get('download-subtitle/:requestId/:fileType')
