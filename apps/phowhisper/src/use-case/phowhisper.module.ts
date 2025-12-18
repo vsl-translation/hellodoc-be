@@ -6,6 +6,7 @@ import { VideoSubtitle, VideoSubtitleSchema } from '../core/subtitle.schema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import config from 'apps/config/config';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 
 @Module({
   imports: [ 
@@ -39,6 +40,15 @@ import config from 'apps/config/config';
       }),
       inject: [ConfigService],
     }),
+    ClientsModule.register([
+      {
+        name: 'CLOUDINARY_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3006,
+        },
+      },
+    ]),
   ],
   controllers: [PhowhisperController],
   providers: [PhowhisperService],

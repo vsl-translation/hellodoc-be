@@ -258,6 +258,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/phowhisper/tsconfig.app.json"
       }
+    },
+    "sign-language": {
+      "type": "application",
+      "root": "apps/sign-language",
+      "entryFile": "main",
+      "sourceRoot": "apps/sign-language/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/sign-language/tsconfig.app.json"
+      }
     }
   }
 }

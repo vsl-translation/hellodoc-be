@@ -30,11 +30,8 @@ import { PostCommentModule } from './post-comment.module';
 import { UndertheseaModule } from './underthesea.module';
 import { NlpIntegrationModule } from './nlp-integration.module';
 import { ImageCaptionModule } from './image-caption.module';
-<<<<<<< HEAD
 import { PhowhisperModule } from './phowhisper.module';
-=======
 import { SocketModule } from '../socket/socket.module';
->>>>>>> f028766f9915b85a57f5f919eeebfc426aa0b46a
 
 @Module({
   imports: [
@@ -85,11 +82,8 @@ import { SocketModule } from '../socket/socket.module';
     UndertheseaModule,
     NlpIntegrationModule,
     ImageCaptionModule,
-<<<<<<< HEAD
-    PhowhisperModule
-=======
+    PhowhisperModule,
     SocketModule
->>>>>>> f028766f9915b85a57f5f919eeebfc426aa0b46a
   ],
   controllers: [ApiGatewayController],
   providers: [ApiGatewayService],
