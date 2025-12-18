@@ -6,9 +6,11 @@ import config from 'apps/config/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SignLanguage, SignLanguageSchema } from 'apps/sign-language/core/sign_language.schema';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
+    HttpModule,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,

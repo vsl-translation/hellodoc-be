@@ -20,6 +20,13 @@ import { SignLanguageController } from '../controller/sign_language.controller';
       options: {
         port: 3003,
       },
+    },
+    {
+      name: 'SIGNLANGUAGE_CLIENT',
+      transport: Transport.TCP,
+      options: {
+        port: 3005,
+      },
     }
     ]),
   ],
