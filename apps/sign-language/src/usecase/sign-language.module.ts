@@ -44,7 +44,14 @@ import { HttpModule } from '@nestjs/axios';
       options: {
         port: 3003,
       },
-    }
+    },
+    {
+      name: 'PHOWHISPER_CLIENT',
+      transport: Transport.TCP,
+      options: {
+        port: 3024,
+      },
+    },
   ]),
   ],
   controllers: [SignLanguageController],

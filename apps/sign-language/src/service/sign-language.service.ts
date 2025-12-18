@@ -18,6 +18,7 @@ export class SignLanguageService {
   constructor(
     private readonly httpService: HttpService,
     @InjectModel(SignLanguage.name, "signLanguageConnection") private signLanguage: Model<SignLanguage>,
+    @Inject ("PHOWHISPER_CLIENT") private phowhisperClient:ClientProxy,
     @Inject ("UNDERTHESEA_CLIENT") private undertheseaClient:ClientProxy
   ) {}
 
@@ -40,11 +41,11 @@ export class SignLanguageService {
     try {
       // --- STEP 1: Get Subtitle ---
       // Input: urlMedia -> Output: String (VD: "Anh đang ăn cơm")
-      const phoWhisperEndpoint = `${this.PHOWHISPER_URL}/subtitle/getSubtitle`; // Điều chỉnh path nếu cần      
-      this.logger.log(`Step 1: Fetching subtitle from ${phoWhisperEndpoint}`);
+      this.logger.log(`Step 1: Fetching subtitle from `);
       
       const subtitleRes = await firstValueFrom(
-        this.httpService.post(phoWhisperEndpoint, { videoUrl: urlMedia })
+        this.phowhisperClient.send(
+          "", { videoUrl: urlMedia })
       );
       console.log(subtitleRes)
       const subtitleText = subtitleRes.data; // Giả sử API trả về text trực tiếp hoặc object { text: "..." }
