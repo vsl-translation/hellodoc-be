@@ -11,15 +11,15 @@ import { ClientProxy } from '@nestjs/microservices';
 export class SignLanguageService {
   private readonly logger = new Logger(SignLanguageService.name);
   // Giả sử các service AI đều nằm chung host này hoặc bạn có thể tách ra biến env riêng
-  private SYNONISM_URL = process.env.SYNNONISM_URL; 
+  private SYNONISM_URL = process.env.SYNNONISM_URL;
   private PHOWHISPER_URL = process.env.PHOWHISPER_URL;
 
 
   constructor(
     private readonly httpService: HttpService,
     @InjectModel(SignLanguage.name, "signLanguageConnection") private signLanguage: Model<SignLanguage>,
-    @Inject ("UNDERTHESEA_CLIENT") private undertheseaClient:ClientProxy
-  ) {}
+    @Inject("UNDERTHESEA_CLIENT") private undertheseaClient: ClientProxy
+  ) { }
 
   async getGestureCode(urlMedia: string) {
     this.logger.log(`Processing gesture code for URL: ${urlMedia}`);
@@ -42,13 +42,13 @@ export class SignLanguageService {
       // Input: urlMedia -> Output: String (VD: "Anh đang ăn cơm")
       const phoWhisperEndpoint = `${this.PHOWHISPER_URL}/subtitle/getSubtitle`; // Điều chỉnh path nếu cần      
       this.logger.log(`Step 1: Fetching subtitle from ${phoWhisperEndpoint}`);
-      
+
       const subtitleRes = await firstValueFrom(
         this.httpService.post(phoWhisperEndpoint, { videoUrl: urlMedia })
       );
-      console.log(subtitleRes)
+      console.log("subtitleRes", subtitleRes)
       const subtitleText = subtitleRes.data; // Giả sử API trả về text trực tiếp hoặc object { text: "..." }
-      
+
       if (!subtitleText) throw new Error("Subtitle extraction failed");
       this.logger.debug(`Subtitle extracted: ${JSON.stringify(subtitleText)}`);
       console.log("Chạy được tới bước 1")
@@ -60,7 +60,7 @@ export class SignLanguageService {
 
       const tokenizeRes = await firstValueFrom(
         this.undertheseaClient.send(
-          'underthesea.tokenize', 
+          'underthesea.tokenize',
           { body: subtitleText }
         )
       );
@@ -99,7 +99,7 @@ export class SignLanguageService {
           }
         )
       );
-      
+
       const gestureCodes = gestureRes.data;
 
       // --- STEP 5: Save to Database (Cache) ---
@@ -136,7 +136,7 @@ export class SignLanguageService {
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
-    
+
     this.logger.error('Internal Server Error', error);
     throw new HttpException(error.message || 'Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
   }

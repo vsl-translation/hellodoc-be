@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsNumberString, IsString, Matches, MinLength } from "class-validator";
+import { IsEmail, IsOptional, IsNumberString, IsString, Matches, MinLength, IsIn } from "class-validator";
 
 export class CreateUserDto {
     @IsString()
@@ -20,4 +20,9 @@ export class CreateUserDto {
     @IsOptional()
     @IsString()
     licenseUrl: string;
+
+    @IsOptional()
+    @IsString()
+    @IsIn(['User', 'Blind', 'Deaf', 'Mute'])
+    role: string;
 }
