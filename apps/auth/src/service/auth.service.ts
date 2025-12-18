@@ -205,11 +205,12 @@ export class AuthService {
 
   // Gửi email trực tiếp trong AuthService
   async sendOTPEmail(to: string, otp: string): Promise<void> {
+    console.log('sendOTPEmail');
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: 'hellodoc2000@gmail.com',
-        pass: 'upqr lzkh dtft rgfv', // phải là app password
+        pass: 'hsdr pjat ybkc fazy', // phải là app password
       },
     });
 

@@ -70,5 +70,8 @@ export class AdminController {
         return this.adminService.deleteDoctor(id);
     }
 
-
+    @MessagePattern('admin.updatePassword')
+    async updatePassword(@Payload() data: { email: string, password: string }) {
+        return this.adminService.updatePassword(data.email, data.password);
+    }
 }

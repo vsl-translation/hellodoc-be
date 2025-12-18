@@ -248,5 +248,12 @@ export class AdminService {
         return this.doctorClient.send('doctor.delete', id);
     }
 
-
+    async updatePassword(email: string, password: string) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        return await this.AdminModel.findOneAndUpdate(
+            { email },
+            { password: hashedPassword },
+            { new: true }
+        );
+    }
 }

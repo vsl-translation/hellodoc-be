@@ -11,69 +11,111 @@ export class AuthController {
 
   @MessagePattern('auth.signUp')
   async signup(@Payload() signUpData: SignupDto) {
-    return this.authService.signup(signUpData);
+    try {
+      const result = await this.authService.signup(signUpData);
+      return { success: true, statusCode: 200, message: 'Tạo tài khoản thành công', data: result };
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
+    }
   }
 
   @MessagePattern('auth.createAdmin')
   async signupAdmin(@Payload() signUpData: SignupDto) {
-    return this.authService.signupAdmin(signUpData);
+    try {
+      const result = await this.authService.signupAdmin(signUpData);
+      return { success: true, statusCode: 200, message: 'Tạo tài khoản admin thành công', data: result };
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
+    }
   }
 
   @MessagePattern('auth.login')
   async login(@Payload() loginData: loginDto) {
-    return this.authService.login(loginData);
+    try {
+      const result = await this.authService.login(loginData);
+      // login service already returns object with success/statusCode
+      return result;
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
+    }
   }
 
   @MessagePattern('auth.login-google')
-  async loginAdmin(@Body() loginData: LoginGoogleDto) {
-    return this.authService.loginGoogle(loginData);
+  async loginAdmin(@Payload() loginData: LoginGoogleDto) {
+    try {
+      const result = await this.authService.loginGoogle(loginData);
+      // loginGoogle service doesn't have success/statusCode yet, let's wrap it
+      return { success: true, statusCode: 200, ...result };
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
+    }
   }
 
   @MessagePattern('auth.request-otp')
-  async requestOtp(@Body('email') email: string) {
-    if (!email) {
-      throw new BadRequestException('Emil không được để trống')
+  async requestOtp(@Payload() data: { email: string }) {
+    console.log('requestOtp service');
+    if (!data.email) {
+      return { success: false, statusCode: 400, message: 'Email không được để trống' };
     }
 
-    const otp = await this.authService.requestOtp(email);
-    return { message: 'OTP đã được gửi tới email', otp };
+    try {
+      const otp = await this.authService.requestOtp(data.email);
+      return { success: true, statusCode: 200, message: 'OTP đã được gửi tới email', otp };
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
+    }
   }
 
   @MessagePattern('auth.request-otp-signup')
-  async requestOtpSignup(@Body('email') email: string) {
-    if (!email) {
-      throw new BadRequestException('Email không được để trống');
+  async requestOtpSignup(@Payload() data: { email: string }) {
+    if (!data.email) {
+      return { success: false, statusCode: 400, message: 'Email không được để trống' };
     }
 
-    const otp = await this.authService.requestOtpSignup(email);
-    return { message: 'OTP đã được gửi đến email', otp };
+    try {
+      const otp = await this.authService.requestOtpSignup(data.email);
+      return { success: true, statusCode: 200, message: 'OTP đã được gửi đến email', otp };
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
+    }
   }
 
   @MessagePattern('auth.verify-otp')
-  async verifyOtp(@Body('email') email: string, @Body('otp') otp: string) {
-    if (!email || !otp) {
-      throw new BadRequestException('Email và OTP là bắt buộc');
+  async verifyOtp(@Payload() data: { email: string, otp: string }) {
+    if (!data.email || !data.otp) {
+      return { success: false, statusCode: 400, message: 'Email và OTP là bắt buộc' };
     }
 
-    const isValid = await this.authService.verifyOTP(email, otp);
+    try {
+      const isValid = await this.authService.verifyOTP(data.email, data.otp);
 
-    if (!isValid) {
-      throw new BadRequestException('OTP không hợp lệ hoặc đã hết hạn');
+      if (!isValid) {
+        return { success: false, statusCode: 400, message: 'OTP không hợp lệ hoặc đã hết hạn' };
+      }
+
+      return { success: true, statusCode: 200, message: 'Xác minh OTP thành công' };
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
     }
-
-    return { message: 'Xác minh OTP thành công' };
   }
 
   @MessagePattern('auth.reset-password')
-  async resetPassword(@Body('email') email: string, @Body('newPassword') password: string) {
-    // Cập nhật mật khẩu mới (hash trước khi lưu)
-    await this.authService.resetPassword(email, password);
-
-    return { message: 'Mật khẩu đã được cập nhật thành công' };
+  async resetPassword(@Payload() data: { email: string, password: string }) {
+    try {
+      await this.authService.resetPassword(data.email, data.password);
+      return { success: true, statusCode: 200, message: 'Mật khẩu đã được cập nhật thành công' };
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
+    }
   }
 
   @MessagePattern('auth.generate-token')
-  async generateToken(@Body('email') email: string) {
-    return this.authService.generateGoogleTokens(email);
+  async generateToken(@Payload() data: { email: string }) {
+    try {
+      const result = await this.authService.generateGoogleTokens(data.email);
+      return { success: true, statusCode: 200, ...result };
+    } catch (error) {
+      return { success: false, statusCode: error.status || 500, message: error.message };
+    }
   }
 }

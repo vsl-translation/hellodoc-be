@@ -35,10 +35,7 @@ export class AuthController {
             throw new BadRequestException('Email không được để trống');
         }
 
-        const otp = await this.authService.requestOTP(email);
-
-        // Với mục đích demo, trả về otp (sản phẩm thật thì không trả)
-        return { message: 'OTP đã được gửi đến email', otp };
+        return this.authService.requestOTP(email);
     }
 
     @Post('request-otp-signup')
@@ -47,10 +44,7 @@ export class AuthController {
             throw new BadRequestException('Email không được để trống');
         }
 
-        const otp = await this.authService.requestOtpSignup(email);
-
-        // Với mục đích demo, trả về otp (sản phẩm thật thì không trả)
-        return { message: 'OTP đã được gửi đến email', otp };
+        return this.authService.requestOtpSignup(email);
     }
 
     // Xác minh OTP
@@ -63,13 +57,7 @@ export class AuthController {
             throw new BadRequestException('Email và OTP là bắt buộc');
         }
 
-        const isValid = await this.authService.verifyOTP(email, otp);
-
-        if (!isValid) {
-            throw new BadRequestException('OTP không hợp lệ hoặc đã hết hạn');
-        }
-
-        return { message: 'Xác minh OTP thành công' };
+        return this.authService.verifyOTP(email, otp);
     }
 
     @Post('reset-password')
@@ -77,10 +65,7 @@ export class AuthController {
         @Body('email') email: string,
         @Body('newPassword') newPassword: string
     ) {
-        // Cập nhật mật khẩu mới (hash trước khi lưu)
-        await this.authService.resetPassword(email, newPassword);
-
-        return { message: 'Mật khẩu đã được cập nhật thành công' };
+        return this.authService.resetPassword(email, newPassword);
     }
 
     @Post('generate-token')

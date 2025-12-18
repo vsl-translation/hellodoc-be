@@ -45,8 +45,8 @@ export class UsersController {
   }
 
   @MessagePattern('user.updatePassword')
-  async updatePassword(@Body() email: string, newPassword: string) {
-    return this.usersService.updatePassword(email, newPassword);
+  async updatePassword(@Payload() data: { email: string, password: string }) {
+    return this.usersService.updatePassword(data.email, data.password);
   }
 
   @MessagePattern('user.notify')

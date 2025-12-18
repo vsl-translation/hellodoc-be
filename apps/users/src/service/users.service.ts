@@ -117,10 +117,21 @@ export class UsersService {
         const doctor = await lastValueFrom(
           this.doctorClient.send('doctor.update-password', { email, password }).pipe(timeout(3000))
         );
-        return doctor;
+        if (doctor) return doctor;
       } catch (e) {
-        throw new UnauthorizedException('Không tìm thấy người dùng');
+        console.warn('Doctor service update password failed:', e.message);
       }
+
+      try {
+        const admin = await lastValueFrom(
+          this.adminClient.send('admin.updatePassword', { email, password }).pipe(timeout(3000))
+        );
+        if (admin) return admin;
+      } catch (e) {
+        console.warn('Admin service update password failed:', e.message);
+      }
+
+      throw new UnauthorizedException('Không tìm thấy người dùng');
     }
     return updated;
   }

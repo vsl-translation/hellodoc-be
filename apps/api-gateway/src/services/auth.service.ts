@@ -11,59 +11,87 @@ export class AuthService {
         @Inject('AUTH_CLIENT') private authClient: ClientProxy
     ) { }
 
-    async signUp(signUpData: SignupDto) {
-        return this.authClient.send('auth.signUp', signUpData);
+    private handleResult(result: any) {
+        if (!result.success) {
+            console.error('Microservice Error:', result);
+            const message = result.message || 'Lỗi hệ thống';
+            if (result.statusCode === 401) {
+                throw new UnauthorizedException(message);
+            }
+            if (result.statusCode === 400) {
+                throw new BadRequestException(message);
+            }
+            if (result.statusCode === 404) {
+                throw new BadRequestException(message);
+            }
+            throw new InternalServerErrorException(message);
+        }
+        
+        // Trả về kết quả sạch (loại bỏ success và statusCode)
+        const { success, statusCode, ...data } = result;
+        return data;
     }
 
     async login(loginData: loginDto) {
         const result = await firstValueFrom(
             this.authClient.send('auth.login', loginData)
         );
-
-        // Kiểm tra kết quả và throw exception nếu cần
-        if (!result.success) {
-            if (result.statusCode === 401) {
-                throw new UnauthorizedException(result.message);
-            }
-            if (result.statusCode === 400) {
-                throw new BadRequestException(result.message);
-            }
-            throw new InternalServerErrorException(result.message);
-        }
-
-        // Trả về kết quả thành công
-        return {
-            accessToken: result.accessToken,
-            message: result.message
-        };
+        return this.handleResult(result);
     }
 
     async loginGoogle(loginGoogleData: LoginGoogleDto) {
-        return this.authClient.send('auth.login-google', loginGoogleData);
+        const result = await firstValueFrom(
+            this.authClient.send('auth.login-google', loginGoogleData)
+        );
+        return this.handleResult(result);
     }
 
     async requestOTP(email: string) {
-        return this.authClient.send('auth.request-otp', email);
+        const result = await firstValueFrom(
+            this.authClient.send('auth.request-otp', { email })
+        );
+        return this.handleResult(result);
     }
 
     async requestOtpSignup(email: string) {
-        return this.authClient.send('auth.request-otp-signup', email);
+        const result = await firstValueFrom(
+            this.authClient.send('auth.request-otp-signup', { email })
+        );
+        return this.handleResult(result);
     }
 
     async verifyOTP(email: string, otp: string) {
-        return this.authClient.send('auth.verify-otp', { email, otp });
+        const result = await firstValueFrom(
+            this.authClient.send('auth.verify-otp', { email, otp })
+        );
+        return this.handleResult(result);
     }
 
     async resetPassword(email: string, password: string) {
-        return this.authClient.send('auth.reset-password', { email, password });
+        const result = await firstValueFrom(
+            this.authClient.send('auth.reset-password', { email, password })
+        );
+        return this.handleResult(result);
     }
 
     async generateGoogleTokens(email: string) {
-        return this.authClient.send('auth.generate-token', email);
+        const result = await firstValueFrom(
+            this.authClient.send('auth.generate-token', { email })
+        );
+        return this.handleResult(result);
     }
 
     async signUpAdmin(signUpData: SignupDto) {
-        return this.authClient.send('auth.createAdmin', signUpData);
+        const result = await firstValueFrom(
+            this.authClient.send('auth.createAdmin', signUpData)
+        );
+        return this.handleResult(result);
     }
 
+    async signUp(signUpData: SignupDto) {
+        const result = await firstValueFrom(
+            this.authClient.send('auth.signUp', signUpData)
+        );
+        return this.handleResult(result);
+    }
 }

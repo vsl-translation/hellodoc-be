@@ -32,8 +32,8 @@ export class DoctorController {
   }
 
   @MessagePattern('doctor.updatePassword')
-  async updatePassword(@Body() email: string, newPassword: string) {
-    return this.doctorService.updatePassword(email, newPassword);
+  async updatePassword(@Payload() data: { email: string, password: string }) {
+    return this.doctorService.updatePassword(data.email, data.password);
   }
 
   @MessagePattern('doctor.notify')
