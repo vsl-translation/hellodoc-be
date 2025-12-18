@@ -382,11 +382,10 @@ export class UsersService {
     }
 
     let roleChanged = false;
-    let newRole = user.role; // Keep the old role by default
 
     if (updateData.role && updateData.role !== user.role) {
       roleChanged = true;
-      newRole = updateData.role;
+      updateFields.role = updateData.role;
     }
     // Log thông tin cập nhật
     console.log('Thông tin cập nhật nguoi dung:', {
