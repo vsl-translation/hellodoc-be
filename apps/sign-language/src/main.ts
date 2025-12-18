@@ -23,7 +23,7 @@ async function bootstrap() {
     },
   );
   await app.listen();
-  console.log('Specialty service is listening on port 3009');
+  console.log('Specialty service is listening on port 3025');
 }
 bootstrap();
 

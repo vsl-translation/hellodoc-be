@@ -10,24 +10,14 @@ export class SignLanguageService{
         @Inject('SIGNLANGUAGE_CLIENT') private readonly signClient: ClientProxy
     ){}
 
-    async getGestureCode(urlMedia:string){
-        if (urlMedia){
+    async getGestureCode(urlMedia: string){
+        console.log("urlMedia ", urlMedia)
+        if (!urlMedia){
             throw new BadRequestException('Cần cung cấp url');
         }
-
-        try {
-            const result = await firstValueFrom(
-                this.signClient.send(
-                    'gesture_code.getGestureCode',
-                    {
-                        urlMedia
-                    }
-                )
-            )
-        }
-        catch(e){
-            console.log("ERROR: ",e)
+        console.log("Chạy được service")
+       
+        return this.signClient.send('gesture_code.getGestureCode', urlMedia)
             
-        }
     }
 }

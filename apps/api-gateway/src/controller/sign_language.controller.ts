@@ -8,13 +8,7 @@ export class SignLanguageController {
   constructor(private readonly signLanguageService: SignLanguageService) {}
 
   @Post('get-gesture_code')
-  async getGestureCode(
-    @Payload()
-    payload: {
-      urlMedia?: string;
-    },
-  ) {
-    const { urlMedia } = payload;
+  async getGestureCode(@Body() urlMedia: string) {
     return this.signLanguageService.getGestureCode(urlMedia);
   }
 

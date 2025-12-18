@@ -46,10 +46,12 @@ export class SignLanguageService {
       const subtitleRes = await firstValueFrom(
         this.httpService.post(phoWhisperEndpoint, { videoUrl: urlMedia })
       );
+      console.log(subtitleRes)
       const subtitleText = subtitleRes.data; // Giả sử API trả về text trực tiếp hoặc object { text: "..." }
       
       if (!subtitleText) throw new Error("Subtitle extraction failed");
       this.logger.debug(`Subtitle extracted: ${JSON.stringify(subtitleText)}`);
+      console.log("Chạy được tới bước 1")
 
 
       // --- STEP 2: Tokenize (Underthesea) ---
@@ -66,6 +68,7 @@ export class SignLanguageService {
 
       if (!Array.isArray(tokens)) throw new Error("Tokenization failed to return an array");
       this.logger.debug(`Tokens: ${tokens}`);
+      console.log("Chạy được tới bước 2")
 
 
       // --- STEP 3: Get Synonyms ---
