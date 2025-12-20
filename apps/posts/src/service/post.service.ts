@@ -155,6 +155,64 @@ export class PostService {
         }
     }
 
+    async getAllWithFilter(limit: number, skip: number, searchText?: string): Promise<{ posts: Post[]; total: number }> {
+        try {
+            let filter: any = {};
+
+            if (searchText && searchText.trim() !== '') {
+                filter = {
+                    $or: [
+                        { content: { $regex: searchText, $options: 'i' } },
+                        { keywords: { $regex: searchText, $options: 'i' } }
+                    ]
+                };
+            }
+
+            // Tính total dựa trên limit và offset (skip)
+            // Lấy đúng số lượng bài viết sẽ được trả về trong window này
+            const totalMatched = await this.postModel.countDocuments(filter);
+            const total = Math.max(0, Math.min(limit, totalMatched - skip));
+
+            const posts = await this.postModel
+                .find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit);
+
+            // Lấy thông tin user cho từng post
+            const postWithOwners = await Promise.all(
+                posts.map(async (post) => {
+                    try {
+                        const owner = await firstValueFrom(
+                            this.usersClient.send('user.getuserbyid', post.user.toString()).pipe(timeout(3000))
+                        );
+
+                        return {
+                            ...post.toObject(),
+                            userInfo: owner ? {
+                                _id: owner._id,
+                                name: owner.name,
+                                avatarURL: owner.avatarURL
+                            } : null
+                        };
+
+                    } catch (error) {
+                        console.error(`Error fetching owner ${post.user}:`, error);
+                        return {
+                            ...post.toObject(),
+                            userInfo: null
+                        };
+                    }
+                })
+            );
+
+            return { posts: postWithOwners as any, total };
+
+        } catch (error) {
+            this.logger.error('Error getting filtered posts:', error);
+            throw new InternalServerErrorException('Lỗi khi lấy danh sách bài viết với bộ lọc');
+        }
+    }
 
     async search(query: string) {
         return this.postModel.find({

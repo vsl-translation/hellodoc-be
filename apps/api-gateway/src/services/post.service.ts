@@ -16,6 +16,14 @@ export class PostService {
         return this.postClient.send('post.get-all', { limit:limit.toString(), skip:skip.toString() });
     }
 
+    async getAllWithFilter(limit?: string, offset?: string, searchText?: string) {
+        return lastValueFrom(this.postClient.send('post.get-all-filtered', { 
+            limit: limit ? parseInt(limit) : 10, 
+            offset: offset ? parseInt(offset) : 0, 
+            searchText 
+        }));
+    }
+
     async search(q: string) {
         return lastValueFrom(this.postClient.send('post.search', { q }));
     }

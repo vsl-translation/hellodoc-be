@@ -31,6 +31,15 @@ export class PostController {
     return this.postService.getAll(limit, skip);
   }
 
+  @Get('get-all-filtered')
+  async getAllWithFilter(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('searchText') searchText?: string,
+  ) {
+    return this.postService.getAllWithFilter(limit, offset, searchText);
+  }
+
   @Get('search')
   async searchPost(@Query('q') query: string) {
     return this.postService.search(query);

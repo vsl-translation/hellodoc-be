@@ -27,6 +27,15 @@ export class PostController {
     return this.postService.getAll(limit, skip);
   }
 
+  @MessagePattern('post.get-all-filtered')
+  async getAllWithFilter(@Payload() data: { limit?: number; offset?: number; searchText?: string }) {
+    const limit = data.limit ?? 10;
+    const skip = data.offset ?? 0;
+    const searchText = data.searchText;
+
+    return this.postService.getAllWithFilter(limit, skip, searchText);
+  }
+
 
   @MessagePattern('post.search')
   async searchPost(@Payload() data: { q: string }) {
