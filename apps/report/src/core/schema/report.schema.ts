@@ -6,7 +6,7 @@ export type ReportDocument = Report & Document;
 @Schema({ timestamps: true })
 export class Report {
   @Prop({ type: MongooseSchema.Types.ObjectId, required: true, refPath: 'reporterModel' })
-  reporter: string;
+  reporter: string; //người bị báo cáo
 
   @Prop({ required: true, enum: ['User', 'Doctor'] })
   reporterModel: string;
@@ -18,7 +18,7 @@ export class Report {
   type: string;
 
   @Prop({ required: true })
-  reportedId: string;
+  reportedId: string; //người báo cáo
 
   @Prop({ required: false })
   postId?: string;

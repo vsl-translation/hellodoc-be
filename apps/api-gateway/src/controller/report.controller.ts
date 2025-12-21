@@ -5,7 +5,7 @@ import { UpdateReportStatusDto, UpdateReportResponseDto } from '../core/dto/repo
 
 @Controller('report')
 export class ReportController {
-  constructor(private readonly reportService: ReportService) {}
+  constructor(private readonly reportService: ReportService) { }
 
   @Post()
   async create(@Body() createReportDto: CreateReportDto) {
@@ -15,6 +15,11 @@ export class ReportController {
   @Get()
   async getAll() {
     return this.reportService.getAll();
+  }
+
+  @Get('user/:userId')
+  async getByUserId(@Param('userId') userId: string) {
+    return this.reportService.getByUserId(userId);
   }
 
   @Patch(':id/status')
