@@ -13,7 +13,7 @@ export class ReportService {
     @InjectModel(Report.name, 'reportConnection') private reportModel: Model<ReportDocument>,
     @Inject('USERS_CLIENT') private readonly usersClient: ClientProxy,
     @Inject('DOCTOR_CLIENT') private readonly doctorClient: ClientProxy,
-  ) {}
+  ) { }
 
   async createReport(data: CreateReportDto) {
     const report = await this.reportModel.create({
@@ -37,7 +37,7 @@ export class ReportService {
     const populatedReports = await Promise.all(
       reports.map(async (report) => {
         let reporterData = null;
-        
+
         try {
           if (report.reporterModel === 'User') {
             reporterData = await firstValueFrom(
@@ -62,10 +62,52 @@ export class ReportService {
     return populatedReports;
   }
 
+  async getReportsByUserId(userId: string) {
+    const reports = await this.reportModel
+      .find({ reporter: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let reportData = [];
+    // Populate reporter name
+    for (const report of reports) {
+      try {
+        // Convert ObjectId to string
+        const reporterId = report.reporter.toString();
+
+
+        const reporterData = await firstValueFrom(
+          this.usersClient.send('user.getuserbyid', reporterId)
+        );
+
+        if (reporterData) {
+          reportData.push({
+            ...report,
+            reporter: reporterData,
+          });
+        } else {
+
+          const reporterData = await firstValueFrom(
+            this.doctorClient.send('doctor.get-by-id', reporterId)
+          );
+          reportData.push({
+            ...report,
+            reporter: reporterData,
+          });
+        }
+
+      } catch (error) {
+        console.error(`Error fetching reporter data: ${error.message}`);
+        reportData.push(report);
+      }
+    }
+    return reportData;
+  }
+
   async updateStatus(id: string, status: 'opened' | 'closed') {
     const report = await this.reportModel.findById(id);
     if (!report) throw new NotFoundException('Report not found');
-    
+
     report.status = status;
     return report.save();
   }
@@ -73,7 +115,7 @@ export class ReportService {
   async updateResponse(id: string, responseContent: string, responseTime: string) {
     const report = await this.reportModel.findById(id);
     if (!report) throw new NotFoundException('Report not found');
-    
+
     report.responseContent = responseContent;
     report.responseTime = responseTime;
     report.status = 'closed'; // đổi trạng thái thành 'closed' sau khi phản hồi

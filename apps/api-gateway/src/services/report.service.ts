@@ -8,7 +8,7 @@ import { firstValueFrom } from 'rxjs';
 export class ReportService {
   constructor(
     @Inject('REPORT_CLIENT') private readonly reportClient: ClientProxy,
-  ) {}
+  ) { }
 
   async create(createReportDto: CreateReportDto) {
     return firstValueFrom(
@@ -19,6 +19,12 @@ export class ReportService {
   async getAll() {
     return firstValueFrom(
       this.reportClient.send('get_all_reports', {})
+    );
+  }
+
+  async getByUserId(userId: string) {
+    return firstValueFrom(
+      this.reportClient.send('get_report_by_user_id', userId)
     );
   }
 

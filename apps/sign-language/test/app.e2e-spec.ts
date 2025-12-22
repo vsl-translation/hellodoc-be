@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { SignLanguageModule } from './../src/sign-language.module';
+import { SignLanguageModule } from '../src/usecase/sign-language.module';
 
 describe('SignLanguageController (e2e)', () => {
   let app: INestApplication;

@@ -6,7 +6,7 @@ import { UpdateReportStatusDto, UpdateReportResponseDto } from '../core/dto/upda
 
 @Controller()
 export class ReportController {
-  constructor(private readonly reportService: ReportService) {}
+  constructor(private readonly reportService: ReportService) { }
 
   @MessagePattern('create_report')
   async createReport(@Payload() data: CreateReportDto) {
@@ -16,6 +16,11 @@ export class ReportController {
   @MessagePattern('get_all_reports')
   async getAllReports() {
     return this.reportService.getAllReports();
+  }
+
+  @MessagePattern('get_report_by_user_id')
+  async getReportsByUserId(@Payload() userId: string) {
+    return this.reportService.getReportsByUserId(userId);
   }
 
   @MessagePattern('update_report_status')

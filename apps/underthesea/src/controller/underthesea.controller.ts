@@ -17,8 +17,8 @@ export class UndertheseaController {
   }
 
   @MessagePattern('underthesea.tokenize')
-  async tokenize(@Payload() body: ClassifyRequest) {
-    return this.classificationService.tokenize(body.text);
+  async tokenize(@Payload() payload: { text: string }) {
+    return this.classificationService.tokenize(payload.text);
   }
 
   @MessagePattern('underthesea.classify')

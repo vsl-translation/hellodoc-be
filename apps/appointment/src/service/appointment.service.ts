@@ -284,6 +284,7 @@ export class AppointmentService {
             ? {
               _id: patientInfo._id,
               name: patientInfo.name,
+              avatarURL: patientInfo.avatarURL,
             }
             : null,
         });

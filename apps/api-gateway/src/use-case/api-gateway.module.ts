@@ -32,6 +32,7 @@ import { NlpIntegrationModule } from './nlp-integration.module';
 import { ImageCaptionModule } from './image-caption.module';
 import { PhowhisperModule } from './phowhisper.module';
 import { SocketModule } from '../socket/socket.module';
+import { SignLanguageModule } from './sign-language.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { SocketModule } from '../socket/socket.module';
     NlpIntegrationModule,
     ImageCaptionModule,
     PhowhisperModule,
+    SignLanguageModule,
     SocketModule
   ],
   controllers: [ApiGatewayController],
