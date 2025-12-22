@@ -64,7 +64,7 @@ export class ReportService {
 
   async getReportsByUserId(userId: string) {
     const reports = await this.reportModel
-      .find({ reportedId: userId })
+      .find({ reporter: userId })
       .sort({ createdAt: -1 })
       .lean();
 
