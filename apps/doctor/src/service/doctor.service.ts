@@ -827,7 +827,7 @@ export class DoctorService {
       avatarURL: pendingDoctor.avatarURL,
       frontCccdUrl: pendingDoctor.frontCccdUrl,
       backCccdUrl: pendingDoctor.backCccdUrl,
-      address: "chua co dia chi",
+      address: pendingDoctor.address,
       licenseUrl: pendingDoctor.licenseUrl,
       certificates: pendingDoctor.certificates,
       experience: pendingDoctor.experience,
