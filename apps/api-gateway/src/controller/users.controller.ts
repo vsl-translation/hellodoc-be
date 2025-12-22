@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
 import { UsersService } from '../services/users.service';
 import { Payload } from '@nestjs/microservices';
 
@@ -15,6 +15,15 @@ export class UsersController {
   @Get('getallusers')
   getAllUsers() {
     return this.usersService.getAllUsers();
+  }
+
+  @Get('get-all-filtered')
+  getAllWithFilter(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('searchText') searchText?: string,
+  ) {
+    return this.usersService.getAllWithFilter(limit, offset, searchText);
   }
 
   @Get('getuserbyid/:id')

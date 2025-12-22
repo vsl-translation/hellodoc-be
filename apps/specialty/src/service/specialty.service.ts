@@ -68,6 +68,54 @@ export class SpecialtyService {
     return specialtiesWithDoctors;
   }
 
+  async getAllWithFilter(limit: number, skip: number, searchText?: string) {
+    let filter: any = {};
+    if (searchText && searchText.trim() !== '') {
+      filter.$or = [
+        { name: { $regex: searchText, $options: 'i' } },
+        { description: { $regex: searchText, $options: 'i' } },
+      ];
+    }
+
+    const total = await this.SpecialtyModel.countDocuments(filter);
+
+    const data = await this.SpecialtyModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Lấy thông tin bác sĩ (tái sử dụng logic từ getSpecialties)
+    const specialtiesWithDoctors = await Promise.all(
+      data.map(async (specialty) => {
+        const doctorDetails = await Promise.all(
+          specialty.doctors.map(async (doctorId) => {
+            try {
+              const doctorObjId = new Types.ObjectId(doctorId);
+              const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
+              return {
+                _id: doctor._id,
+                name: doctor.name,
+                avatarURL: doctor.avatarURL
+              }
+            } catch (error) {
+              console.error(`Error fetching doctor ${doctorId}:`, error);
+              return null;
+            }
+          })
+        );
+
+        const validDoctors = doctorDetails.filter(doc => doc !== null);
+
+        return {
+          ...specialty.toObject(),
+          doctors: validDoctors
+        };
+      })
+    );
+
+    return { data: specialtiesWithDoctors, total };
+  }
+
   async create(createSpecialtyDto: CreateSpecialtyDto) {
     try {
       // Kiểm tra xem chuyên khoa đã tồn tại hay chưa

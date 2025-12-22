@@ -67,6 +67,26 @@ export class UsersService {
     }
   }
 
+  async getAllWithFilter(limit: number, skip: number, searchText?: string) {
+    let filter: any = { isDeleted: false };
+    if (searchText && searchText.trim() !== '') {
+      filter.$or = [
+        { name: { $regex: searchText, $options: 'i' } },
+        { email: { $regex: searchText, $options: 'i' } },
+        { phone: { $regex: searchText, $options: 'i' } },
+      ];
+    }
+
+    const total = await this.UserModel.countDocuments(filter);
+
+    const users = await this.UserModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return { data: users, total };
+  }
+
 
   async getUserByID(id: string) {
     //console.log('Received user ID:', id, typeof id);

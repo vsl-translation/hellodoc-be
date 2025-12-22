@@ -2,12 +2,21 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import { CreateNewsDto } from "apps/news/src/core/dto/createNews.dto";
 import { UpdateNewsDto } from "apps/news/src/core/dto/updateNews.dto";
+import { lastValueFrom } from "rxjs";
 
 @Injectable()
 export class NewsService {
     constructor(@Inject('NEWS_CLIENT') private newsClient: ClientProxy) { }
     async getAll() {
         return this.newsClient.send('news.get-all', {})
+    }
+
+    async getAllWithFilter(limit?: string, offset?: string, searchText?: string) {
+        return lastValueFrom(this.newsClient.send('news.get-all-filtered', {
+            limit: limit ? parseInt(limit) : 10,
+            offset: offset ? parseInt(offset) : 0,
+            searchText
+        }));
     }
 
     async getById(id: string) {

@@ -28,6 +28,16 @@ export class ReportService {
     );
   }
 
+  async getAllWithFilter(limit?: string, offset?: string, searchText?: string) {
+    return firstValueFrom(
+      this.reportClient.send('get_all_filtered', {
+        limit: limit ? parseInt(limit) : 10,
+        offset: offset ? parseInt(offset) : 0,
+        searchText
+      })
+    );
+  }
+
   async updateStatus(id: string, status: 'opened' | 'closed') {
     return firstValueFrom(
       this.reportClient.send('update_report_status', { id, status })

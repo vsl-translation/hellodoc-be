@@ -20,6 +20,15 @@ export class DoctorController {
     return this.doctorService.getAllDoctor();
   }
 
+  @MessagePattern('doctor.get-all-filtered')
+  async getAllWithFilter(@Payload() data: { limit?: number; offset?: number; searchText?: string }) {
+    const limit = data.limit ?? 10;
+    const skip = data.offset ?? 0;
+    const searchText = data.searchText;
+
+    return this.doctorService.getAllWithFilter(limit, skip, searchText);
+  }
+
   @MessagePattern('doctor.get-by-specialtyID')
   async getDoctorBySpecialtyID(specialtyID: string) {
     return this.doctorService.getDoctorBySpecialtyID(specialtyID);

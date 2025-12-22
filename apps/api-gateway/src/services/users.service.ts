@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class UsersService {
@@ -11,6 +12,14 @@ export class UsersService {
 
   getAllUsers() {
     return this.usersClient.send('user.getallusers', {});
+  }
+
+  async getAllWithFilter(limit?: string, offset?: string, searchText?: string) {
+    return lastValueFrom(this.usersClient.send('user.get-all-filtered', {
+      limit: limit ? parseInt(limit) : 10,
+      offset: offset ? parseInt(offset) : 0,
+      searchText
+    }));
   }
 
   getUserById(id: string) {

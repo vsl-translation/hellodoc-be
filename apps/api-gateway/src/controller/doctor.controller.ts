@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Put, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post, Put, Query, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { DoctorService } from '../services/doctor.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
@@ -16,6 +16,15 @@ export class DoctorController {
     @Get('get-all')
     findAll() {
         return this.doctorService.getAllDoctor();
+    }
+
+    @Get('get-all-filtered')
+    getAllWithFilter(
+        @Query('limit') limit?: string,
+        @Query('offset') offset?: string,
+        @Query('searchText') searchText?: string,
+    ) {
+        return this.doctorService.getAllWithFilter(limit, offset, searchText);
     }
 
     @Get('get-by-id/:id')

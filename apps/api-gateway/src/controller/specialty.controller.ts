@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UpdateSpecialtyDto } from '../core/dto/update-specialty.dto';
 import { CreateSpecialtyDto } from '../core/dto/create-specialty.dto';
@@ -11,6 +11,15 @@ export class SpecialtyController {
     @Get('get-all')
     getSpecialties() {
         return this.specialtyService.getSpecialties();
+    }
+
+    @Get('get-all-filtered')
+    getSpecialtiesFiltered(
+        @Query('limit') limit?: string,
+        @Query('offset') offset?: string,
+        @Query('searchText') searchText?: string,
+    ) {
+        return this.specialtyService.getAllWithFilter(limit, offset, searchText);
     }
 
     @Post('create')

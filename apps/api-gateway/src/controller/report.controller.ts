@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ReportService } from '../services/report.service';
 import { CreateReportDto } from '../core/dto/report/create-report.dto';
 import { UpdateReportStatusDto, UpdateReportResponseDto } from '../core/dto/report/update-report.dto';
@@ -20,6 +20,15 @@ export class ReportController {
   @Get('user/:userId')
   async getByUserId(@Param('userId') userId: string) {
     return this.reportService.getByUserId(userId);
+  }
+
+  @Get('get-all-filtered')
+  async getAllWithFilter(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('searchText') searchText?: string,
+  ) {
+    return this.reportService.getAllWithFilter(limit, offset, searchText);
   }
 
   @Patch(':id/status')

@@ -104,6 +104,52 @@ export class ReportService {
     return reportData;
   }
 
+  async getAllWithFilter(limit: number, skip: number, searchText?: string) {
+    let filter: any = {};
+    if (searchText && searchText.trim() !== '') {
+      filter.$or = [
+        { content: { $regex: searchText, $options: 'i' } },
+        { type: { $regex: searchText, $options: 'i' } },
+      ];
+    }
+
+    const total = await this.reportModel.countDocuments(filter);
+
+    const reports = await this.reportModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Populate reporter data (tái sử dụng logic từ getAllReports)
+    const populatedReports = await Promise.all(
+      reports.map(async (report) => {
+        let reporterData = null;
+        try {
+          if (report.reporterModel === 'User') {
+            reporterData = await firstValueFrom(
+              this.usersClient.send('user.getuserbyid', report.reporter)
+            );
+          } else if (report.reporterModel === 'Doctor') {
+            reporterData = await firstValueFrom(
+              this.doctorClient.send('doctor.get-by-id', report.reporter)
+            );
+          }
+        } catch (error) {
+          console.error(`Error fetching reporter data: ${error.message}`);
+        }
+
+        return {
+          ...report,
+          reporter: reporterData || report.reporter,
+        };
+      })
+    );
+
+    return { data: populatedReports, total };
+  }
+
   async updateStatus(id: string, status: 'opened' | 'closed') {
     const report = await this.reportModel.findById(id);
     if (!report) throw new NotFoundException('Report not found');

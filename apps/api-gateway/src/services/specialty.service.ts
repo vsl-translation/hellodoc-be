@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import { CreateSpecialtyDto } from "../core/dto/create-specialty.dto";
 import { UpdateSpecialtyDto } from "../core/dto/update-specialty.dto";
+import { lastValueFrom } from "rxjs";
 
 @Injectable()
 export class SpecialtyService {
@@ -11,6 +12,14 @@ export class SpecialtyService {
 
     async getSpecialties() {
         return this.specialtyClient.send('specialty.get-all', {})
+    }
+
+    async getAllWithFilter(limit?: string, offset?: string, searchText?: string) {
+        return lastValueFrom(this.specialtyClient.send('specialty.get-all-filtered', {
+            limit: limit ? parseInt(limit) : 10,
+            offset: offset ? parseInt(offset) : 0,
+            searchText
+        }));
     }
 
     async create(createSpecialtyDto: CreateSpecialtyDto) {

@@ -155,7 +155,7 @@ export class PostService {
         }
     }
 
-    async getAllWithFilter(limit: number, skip: number, searchText?: string): Promise<{ posts: Post[]; total: number }> {
+    async getAllWithFilter(limit: number, skip: number, searchText?: string): Promise<{ data: Post[]; total: number }> {
         try {
             let filter: any = {};
 
@@ -168,10 +168,7 @@ export class PostService {
                 };
             }
 
-            // Tính total dựa trên limit và offset (skip)
-            // Lấy đúng số lượng bài viết sẽ được trả về trong window này
-            const totalMatched = await this.postModel.countDocuments(filter);
-            const total = Math.max(0, Math.min(limit, totalMatched - skip));
+            const total = await this.postModel.countDocuments(filter);
 
             const posts = await this.postModel
                 .find(filter)
@@ -206,7 +203,7 @@ export class PostService {
                 })
             );
 
-            return { posts: postWithOwners as any, total };
+            return { data: postWithOwners as any, total };
 
         } catch (error) {
             this.logger.error('Error getting filtered posts:', error);

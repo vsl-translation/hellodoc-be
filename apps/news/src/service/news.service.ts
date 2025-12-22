@@ -16,6 +16,26 @@ export class NewsService {
     return await this.newsModel.find({ isHidden: false }).sort({ createdAt: -1 }).exec();
   }
 
+  async getAllWithFilter(limit: number, skip: number, searchText?: string) {
+    let filter: any = { isHidden: false };
+    if (searchText && searchText.trim() !== '') {
+      filter.$or = [
+        { title: { $regex: searchText, $options: 'i' } },
+        { content: { $regex: searchText, $options: 'i' } },
+      ];
+    }
+
+    const total = await this.newsModel.countDocuments(filter);
+
+    const news = await this.newsModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .exec();
+
+    return { data: news, total };
+  }
+
   async getOne(id: string): Promise<News> {
     const news = await this.newsModel.findById(id).exec();
     if (!news) throw new NotFoundException('Không tìm thấy tin tức');

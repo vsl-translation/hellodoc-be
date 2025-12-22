@@ -29,6 +29,15 @@ export class UsersController {
     return this.usersService.getAllUsers();
   }
 
+  @MessagePattern('user.get-all-filtered')
+  async getAllWithFilter(@Payload() data: { limit?: number; offset?: number; searchText?: string }) {
+    const limit = data.limit ?? 10;
+    const skip = data.offset ?? 0;
+    const searchText = data.searchText;
+
+    return this.usersService.getAllWithFilter(limit, skip, searchText);
+  }
+
   @MessagePattern('user.getuserbyid')
   async getUserByID(id: string) {
     return this.usersService.getUserByID(id);

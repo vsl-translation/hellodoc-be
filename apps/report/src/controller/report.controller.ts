@@ -23,6 +23,15 @@ export class ReportController {
     return this.reportService.getReportsByUserId(userId);
   }
 
+  @MessagePattern('get_all_filtered')
+  async getAllWithFilter(@Payload() data: { limit?: number; offset?: number; searchText?: string }) {
+    const limit = data.limit ?? 10;
+    const skip = data.offset ?? 0;
+    const searchText = data.searchText;
+
+    return this.reportService.getAllWithFilter(limit, skip, searchText);
+  }
+
   @MessagePattern('update_report_status')
   async updateStatus(@Payload() data: { id: string; status: 'opened' | 'closed' }) {
     return this.reportService.updateStatus(data.id, data.status);

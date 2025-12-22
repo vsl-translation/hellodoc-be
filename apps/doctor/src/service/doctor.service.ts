@@ -107,6 +107,53 @@ export class DoctorService {
     });
   }
 
+  async getAllWithFilter(limit: number, skip: number, searchText?: string) {
+    let filter: any = { isDeleted: false };
+    if (searchText && searchText.trim() !== '') {
+      filter.$or = [
+        { name: { $regex: searchText, $options: 'i' } },
+        { degree: { $regex: searchText, $options: 'i' } },
+      ];
+    }
+
+    const total = await this.DoctorModel.countDocuments(filter);
+
+    const doctors = await this.DoctorModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Lấy thông tin specialty chi tiết (tái sử dụng logic từ getAllDoctor)
+    const specialtyIds = [...new Set(
+      doctors
+        .map(doc => doc.specialty?.toString())
+        .filter(Boolean)
+    )];
+
+    if (specialtyIds.length === 0) {
+      return { doctors, total };
+    }
+
+    const specialties = await this.specialtyClient
+      .send('specialty.get-by-ids', { specialtyIds })
+      .toPromise();
+
+    const doctorsWithSpecialty = doctors.map(doc => {
+      const doctorObj = doc.toObject();
+      const specialtyId = doc.specialty?.toString();
+      const specialtyData = specialties.find(
+        s => s._id.toString() === specialtyId
+      );
+
+      return {
+        ...doctorObj,
+        specialty: specialtyData || doctorObj.specialty
+      };
+    });
+
+    return { data: doctorsWithSpecialty, total };
+  }
+
   async getDoctorBySpecialtyID(specialtyId: string) {
     return this.DoctorModel.find({ specialty: specialtyId });
   }

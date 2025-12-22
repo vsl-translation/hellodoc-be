@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { NewsService } from '../services/news.service';
 import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { UpdateNewsDto } from 'apps/news/src/core/dto/updateNews.dto';
@@ -17,6 +17,15 @@ export class NewsController {
     @Get('')
     getAllNews() {
         return this.newsService.getAll();
+    }
+
+    @Get('get-all-filtered')
+    getAllNewsWithFilter(
+        @Query('limit') limit?: string,
+        @Query('offset') offset?: string,
+        @Query('searchText') searchText?: string,
+    ) {
+        return this.newsService.getAllWithFilter(limit, offset, searchText);
     }
 
     @Get(':id')

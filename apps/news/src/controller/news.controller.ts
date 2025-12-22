@@ -22,6 +22,15 @@ export class NewsController {
     return this.newsService.getAll();
   }
 
+  @MessagePattern('news.get-all-filtered')
+  async getAllWithFilter(@Payload() data: { limit?: number; offset?: number; searchText?: string }) {
+    const limit = data.limit ?? 10;
+    const skip = data.offset ?? 0;
+    const searchText = data.searchText;
+
+    return this.newsService.getAllWithFilter(limit, skip, searchText);
+  }
+
   @MessagePattern('news.create')
   async create(@Payload() dto: CreateNewsDto) {
     try {

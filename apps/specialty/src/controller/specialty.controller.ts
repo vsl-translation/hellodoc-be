@@ -18,6 +18,15 @@ export class SpecialtyController {
     return this.specialtyService.getSpecialties();
   }
 
+  @MessagePattern('specialty.get-all-filtered')
+  async getAllWithFilter(@Payload() data: { limit?: number; offset?: number; searchText?: string }) {
+    const limit = data.limit ?? 10;
+    const skip = data.offset ?? 0;
+    const searchText = data.searchText;
+
+    return this.specialtyService.getAllWithFilter(limit, skip, searchText);
+  }
+
   @MessagePattern('specialty.create')
   create(createSpecialtyDto: any) {
     return this.specialtyService.create(createSpecialtyDto);
