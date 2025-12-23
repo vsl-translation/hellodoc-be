@@ -13,8 +13,8 @@ export class PhowhisperService {
   /**
    * Gọi microservice để xử lý file upload
    */
-  async getSubtitle(shortenString?: string[]) {
-    if (!shortenString) {
+  async getSubtitle(videoUrl?: string, file?: Express.Multer.File) {
+    if (!videoUrl && !file) {
         throw new BadRequestException('Cần cung cấp videoUrl hoặc file');
     }
 
@@ -24,7 +24,7 @@ export class PhowhisperService {
         const result = await firstValueFrom(
         this.phowhisperClient.send(
             'subtitle.getSubtitle',
-            { shortenString },
+            { videoUrl, file },
         ),
         );
 
@@ -33,7 +33,7 @@ export class PhowhisperService {
         this.logger.error('Error calling phowhisper microservice', error);
         throw error;
     }
-    }
+  }
 
 
   /**

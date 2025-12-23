@@ -10,14 +10,16 @@ import { PostService } from '../services/post.service';
 @Controller('api/phowhisper')
 export class PhowhisperController {
     constructor(private readonly phowhisperService: PhowhisperService) {}
-
     @Post('get-subtitle')
     @UseInterceptors(FileInterceptor('file'))
     async getSubtitle(
-    @Body('shortenString') shortenString?: string[],
+    @UploadedFile() file?: Express.Multer.File,
+    @Body('videoUrl') videoUrl?: string,
     ) {
-        return this.phowhisperService.getSubtitle(shortenString);
+        console.log('Received request with videoUrl:', videoUrl, 'and file:', file ? file.originalname : 'no file');
+        return this.phowhisperService.getSubtitle(videoUrl, file);
     }
+
 
     @Get('download-subtitle/:requestId/:fileType')
     async downloadSubtitle(
