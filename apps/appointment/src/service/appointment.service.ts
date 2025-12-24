@@ -7,6 +7,10 @@ import { Appointment, AppointmentStatus, ExaminationMethod } from '../core/schem
 import { BookAppointmentDto } from '../core/dto/appointment.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+
+
 
 @Injectable()
 export class AppointmentService {
@@ -15,6 +19,8 @@ export class AppointmentService {
     @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
     @Inject('USERS_CLIENT') private usersClient: ClientProxy,
     private cacheService: CacheService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache
+
   ) { }
   async getDoctorStats(doctorID: string) {
     const patientsCount = await this.appointmentModel.countDocuments({
@@ -124,6 +130,7 @@ export class AppointmentService {
       // Không throw error để appointment vẫn được lưu
     }
     this.clearDoctorAppointmentCache(doctorID);
+    this.clearAllAppointmentsCache();
 
     return {
       message: 'Appointment booked successfully',
@@ -134,13 +141,23 @@ export class AppointmentService {
   // hàm hủy cache bác sĩ
   async clearDoctorAppointmentCache(doctorID: string) {
     const doctorCacheKey = 'all_doctor_appointments_' + doctorID;
-    await this.cacheService.deleteCache(doctorCacheKey);
+    //await this.cacheService.deleteCache(doctorCacheKey);
+    await this.cacheManager.del(doctorCacheKey);
+    console.log('Deleted doctor cache key:', doctorCacheKey);
   }
 
   // hàm hủy cache bệnh nhân
   async clearPatientAppointmentCache(patientID: string) {
     const patientCacheKey = 'all_patient_appointments_' + patientID;
-    await this.cacheService.deleteCache(patientCacheKey);
+    //await this.cacheService.deleteCache(patientCacheKey);
+    await this.cacheManager.del(patientCacheKey);
+    console.log('Deleted patient cache key:', patientCacheKey);
+  }
+
+  async clearAllAppointmentsCache() {
+    const cacheKey = 'appointments_cache';
+    await this.cacheManager.del(cacheKey);
+    console.log('Deleted all appointments cache key:', cacheKey);
   }
 
   // 📌 Hủy lịch hẹn
@@ -156,8 +173,9 @@ export class AppointmentService {
     appointment.status = AppointmentStatus.CANCELLED;
 
     // Xóa cache bệnh nhân & bác sĩ
-    //await this.clearPatientAppointmentCache(patientID);
-    //await this.clearDoctorAppointmentCache(doctorID);
+    await this.clearPatientAppointmentCache(patientID);
+    await this.clearDoctorAppointmentCache(doctorID);
+    await this.clearAllAppointmentsCache();
 
 
     try {
@@ -209,16 +227,15 @@ export class AppointmentService {
 
   // Lấy danh sách tất cả lịch hẹn
   async getAllAppointments() {
-    //const cacheKey = 'appointments_cache';
+    const cacheKey = 'appointments_cache';
     //console.log('Trying to get all appointments from cache...');
 
-    // const cached = await this.cacheService.getCache(cacheKey);
-    // if (cached) {
-    //   //console.log('Cache HIT');
-    //   return cached;
-    // }
-
-    //console.log('Cache MISS - querying DB');
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      console.log('Cache HIT');
+      return cached;
+    }
+    console.log('Cache MISS - querying DB');
 
     const appointmentsRaw = await this.appointmentModel.find()
       .populate({
@@ -237,7 +254,7 @@ export class AppointmentService {
       });
 
     const appointments = appointmentsRaw.filter(appt => appt.doctor && appt.patient);
-    //await this.cacheService.setCache(cacheKey, appointments, 10000); //cache for 30 seconds
+    await this.cacheService.setCache(cacheKey, appointments, 30 * 1000); //cache for 30 seconds
 
     return appointments;
   }
@@ -248,6 +265,14 @@ export class AppointmentService {
     if (!doctor) {
       throw new NotFoundException('Doctor not found');
     }
+
+    const doctorCacheKey = 'all_doctor_appointments_' + doctorID;
+    const cached = await this.cacheManager.get(doctorCacheKey);
+    if (cached) {
+      console.log('Cache HIT');
+      return cached;
+    }
+    console.log('Cache MISS - querying DB');
 
     // Lấy raw appointments từ database
     const appointmentsRaw = await this.appointmentModel.find({ doctor: doctorID });
@@ -308,6 +333,9 @@ export class AppointmentService {
       throw new NotFoundException('No appointments found for this doctor');
     }
 
+    // cache 30s
+    await this.cacheService.setCache(doctorCacheKey, filteredAppointments, 30 * 1000);
+
     return filteredAppointments;
   }
 
@@ -320,24 +348,22 @@ export class AppointmentService {
     }
 
     // --- cache ---
-    // const cacheKey = 'all_patient_appointments_' + patientID;
-    // const cached = await this.cacheService.getCache(cacheKey);
-    // if (cached) return cached;
-
+    const cacheKey = 'all_patient_appointments_' + patientID;
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      console.log('Cache HIT');
+      return cached;
+    }
+    console.log('Cache MISS - querying DB');
     const appointmentsRaw = await this.appointmentModel.find({
       patient: new Types.ObjectId(patientID),
     });
-
-    //console.log("RAW APPOINTMENTS:", appointmentsRaw);
 
     // --- populate thủ công ---
     const appointments = [];
 
     for (const appt of appointmentsRaw) {
       try {
-
-        // console.log("DOCTOR ID:", appt.doctor.toString());
-        // console.log("PATIENT ID:", appt.patient.toString());
         const doctor = await firstValueFrom(
           this.doctorClient
             .send('doctor.get-by-id', appt.doctor.toString())
@@ -366,8 +392,6 @@ export class AppointmentService {
             }
             : null,
         });
-
-        //console.log("APPOINTMENT:", appointments[appointments.length - 1]);
       } catch (err) {
         console.error('Populate error:', err);
         appointments.push(appt.toObject());
@@ -386,7 +410,7 @@ export class AppointmentService {
       throw new NotFoundException('No appointments found for this patient');
     }
     // cache 30s
-    //await this.cacheService.setCache(cacheKey, filterAppointments, 30 * 1000);
+    await this.cacheService.setCache(cacheKey, filterAppointments, 30 * 1000);
 
     return filterAppointments;
   }
