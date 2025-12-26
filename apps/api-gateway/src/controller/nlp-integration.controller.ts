@@ -44,56 +44,56 @@ export class NlpController {
 
 
     // ========== ENDPOINT ĐỂ XEM THỐNG KÊ WEIGHT ==========
-// @Get('weight-statistics')
-// async getWeightStatistics() {
-//   try {
-//     const allRelations = await firstValueFrom(
-//       this.neo4jClient.send('neo4j.get-all-relations', {})
-//     );
+    // @Get('weight-statistics')
+    // async getWeightStatistics() {
+    //   try {
+    //     const allRelations = await firstValueFrom(
+    //       this.neo4jClient.send('neo4j.get-all-relations', {})
+    //     );
 
-//     const weights = allRelations
-//       .filter(r => r.weight !== undefined)
-//       .map(r => r.weight)
-//       .sort((a, b) => a - b);
+    //     const weights = allRelations
+    //       .filter(r => r.weight !== undefined)
+    //       .map(r => r.weight)
+    //       .sort((a, b) => a - b);
 
-//     if (weights.length === 0) {
-//       return { message: 'Chưa có relation nào' };
-//     }
+    //     if (weights.length === 0) {
+    //       return { message: 'Chưa có relation nào' };
+    //     }
 
-//     const sum = weights.reduce((acc, w) => acc + w, 0);
-//     const mean = sum / weights.length;
-//     const median = weights.length % 2 === 0
-//       ? (weights[weights.length / 2 - 1] + weights[weights.length / 2]) / 2
-//       : weights[Math.floor(weights.length / 2)];
+    //     const sum = weights.reduce((acc, w) => acc + w, 0);
+    //     const mean = sum / weights.length;
+    //     const median = weights.length % 2 === 0
+    //       ? (weights[weights.length / 2 - 1] + weights[weights.length / 2]) / 2
+    //       : weights[Math.floor(weights.length / 2)];
 
-//     return {
-//       total: weights.length,
-//       min: weights[0],
-//       max: weights[weights.length - 1],
-//       mean: Number(mean.toFixed(4)),
-//       median: Number(median.toFixed(4)),
-//       distribution: {
-//         '0.0-0.2': weights.filter(w => w < 0.2).length,
-//         '0.2-0.4': weights.filter(w => w >= 0.2 && w < 0.4).length,
-//         '0.4-0.6': weights.filter(w => w >= 0.4 && w < 0.6).length,
-//         '0.6-0.8': weights.filter(w => w >= 0.6 && w < 0.8).length,
-//         '0.8-1.0': weights.filter(w => w >= 0.8).length,
-//       },
-//       top10: allRelations
-//         .sort((a, b) => b.weight - a.weight)
-//         .slice(0, 10)
-//         .map(r => ({
-//           from: r.fromName,
-//           to: r.toName,
-//           type: r.relationType,
-//           weight: r.weight,
-//         })),
-//     };
-//   } catch (error) {
-//     console.error('Lỗi khi lấy thống kê:', error);
-//     throw new InternalServerErrorException('Không thể lấy thống kê weight');
-//   }
-// }
+    //     return {
+    //       total: weights.length,
+    //       min: weights[0],
+    //       max: weights[weights.length - 1],
+    //       mean: Number(mean.toFixed(4)),
+    //       median: Number(median.toFixed(4)),
+    //       distribution: {
+    //         '0.0-0.2': weights.filter(w => w < 0.2).length,
+    //         '0.2-0.4': weights.filter(w => w >= 0.2 && w < 0.4).length,
+    //         '0.4-0.6': weights.filter(w => w >= 0.4 && w < 0.6).length,
+    //         '0.6-0.8': weights.filter(w => w >= 0.6 && w < 0.8).length,
+    //         '0.8-1.0': weights.filter(w => w >= 0.8).length,
+    //       },
+    //       top10: allRelations
+    //         .sort((a, b) => b.weight - a.weight)
+    //         .slice(0, 10)
+    //         .map(r => ({
+    //           from: r.fromName,
+    //           to: r.toName,
+    //           type: r.relationType,
+    //           weight: r.weight,
+    //         })),
+    //     };
+    //   } catch (error) {
+    //     console.error('Lỗi khi lấy thống kê:', error);
+    //     throw new InternalServerErrorException('Không thể lấy thống kê weight');
+    //   }
+    // }
     /**
      * Xây dựng knowledge graph từ nhiều văn bản
      * 
@@ -127,5 +127,9 @@ export class NlpController {
         return await this.nlpService.findWordByLabel(word, toLabel);
     }
 
+    @Post('clear-invalid-pronouns')
+    async clearInvalidPronouns() {
+        return await this.nlpService.cleanInvalidPronounNodes();
+    }
 
 }

@@ -75,7 +75,7 @@ export class Neo4jController {
   async getRelationsToNode(@Payload() payload: { label: string; name: string }) {
     return this.neo4jService.getRelationsToNode(payload.label, payload.name);
   }
-    @MessagePattern('neo4j.get-relation')
+  @MessagePattern('neo4j.get-relation')
   async getRelation(@Payload() payload: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string }) {
     return this.neo4jService.getRelation(
       payload.fromLabel,
@@ -87,9 +87,27 @@ export class Neo4jController {
   }
 
   @MessagePattern('neo4j.find-word-by-label')
-  async getNodeByLabel(@Payload() payload: {word: string, toLabel: string}) {
-    return this.neo4jService.getSuggestionsByLabel(payload.word,  payload.toLabel);
+  async getNodeByLabel(@Payload() payload: { word: string, toLabel: string }) {
+    return this.neo4jService.getSuggestionsByLabel(payload.word, payload.toLabel);
   }
 
+  @MessagePattern('neo4j.get-nodes-by-label')
+  async getNodesByLabel(@Payload() payload: { label: string }) {
+    return this.neo4jService.getNodesByLabel(payload.label);
+  }
 
+  @MessagePattern('neo4j.count-nodes-by-label')
+  async countNodesByLabel(@Payload() payload: { label: string }) {
+    return this.neo4jService.countNodesByLabel(payload.label);
+  }
+
+  @MessagePattern('neo4j.delete-nodes-batch')
+  async deleteNodesBatch(@Payload() payload: { label: string; names: string[] }) {
+    return this.neo4jService.deleteNodesBatch(payload.label, payload.names);
+  }
+
+  @MessagePattern('neo4j.node-exists')
+  async nodeExists(@Payload() payload: { label: string; name: string }) {
+    return this.neo4jService.nodeExists(payload.label, payload.name);
+  }
 }

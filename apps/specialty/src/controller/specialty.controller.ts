@@ -71,4 +71,9 @@ export class SpecialtyController {
       { new: true }
     );
   }
+
+  @MessagePattern('specialty.get-by-name')
+  async getSpecialtyByName(name: string) {
+    return this.specialtyService.getSpecialtyByName(name);
+  }
 }

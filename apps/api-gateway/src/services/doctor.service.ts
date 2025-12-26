@@ -52,4 +52,8 @@ export class DoctorService {
         return this.doctorClient.send('doctor.verify-doctor', userId)
     }
 
+    async getDoctorHomeVisit(specialtyId: string) {
+        return this.doctorClient.send('doctor.get-doctor-home-visit', specialtyId)
+    }
+
 }

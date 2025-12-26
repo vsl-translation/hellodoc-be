@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { UpdateSpecialtyDto } from '../core/dto/update-specialty.dto';
 import { CreateSpecialtyDto } from '../core/dto/create-specialty.dto';
 import { SpecialtyService } from '../services/specialty.service';
+import { GetSpecialtyByNameDto } from '../core/dto/specialty/get-specialty-by-name.dto';
 
 @Controller('specialty')
 export class SpecialtyController {
@@ -59,4 +60,8 @@ export class SpecialtyController {
         return this.specialtyService.getSpecialtyById(id);
     }
 
+    @Post('specialty-by-name')
+    getSpecialtyByName(@Body() dto: GetSpecialtyByNameDto) {
+        return this.specialtyService.getSpecialtyByName(dto.name);
+    }
 }

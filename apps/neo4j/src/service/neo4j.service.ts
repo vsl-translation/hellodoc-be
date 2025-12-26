@@ -85,7 +85,7 @@ export class Neo4jService {
         ORDER BY r.weight DESC;
       `;
 
-    const result = await session.run(query, { word });
+      const result = await session.run(query, { word });
       console.log('Suggestion query result:', result.records);
 
       return result.records.map(r => ({
@@ -102,14 +102,14 @@ export class Neo4jService {
     }
   }
 
- async getSuggestionsByLabel(
+  async getSuggestionsByLabel(
     word: string,
     toLabel: string
   ) {
     const session = this.getSession();
     try {
       const upperToLabel = toLabel.toUpperCase();
-      
+
       // Bước 1: Thử lấy 10 nút liền kề với word
       const adjacentQuery = `
         MATCH (a)--(b)
@@ -122,12 +122,12 @@ export class Neo4jService {
           labels(b) AS label
         LIMIT 10
       `;
-      
+
       const adjacentResult = await session.run(adjacentQuery, {
         word: word,
         toLabel: upperToLabel
       });
-      
+
       // Nếu có kết quả từ nút liền kề, trả về luôn
       if (adjacentResult.records.length > 0) {
         return adjacentResult.records.map(r => ({
@@ -136,7 +136,7 @@ export class Neo4jService {
           label: r.get('label')
         }));
       }
-      
+
       // Bước 2: Nếu rỗng, lấy 10 nút bất kỳ có label
       const fallbackQuery = `
         MATCH (b)
@@ -149,17 +149,17 @@ export class Neo4jService {
         ORDER BY score DESC
         LIMIT 10
       `;
-      
+
       const fallbackResult = await session.run(fallbackQuery, {
         toLabel: upperToLabel
       });
-      
+
       return fallbackResult.records.map(r => ({
         suggestion: r.get('suggestion'),
         score: r.get('score'),
         label: r.get('label')
       }));
-      
+
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException(
@@ -345,26 +345,26 @@ export class Neo4jService {
   }
 
   // ========== SỬA batchUpdateWeights() - CHUẨN HÓA WEIGHT TYPE ==========
-async batchUpdateWeights(relations: { 
-  fromLabel: string; 
-  fromName: string; 
-  toLabel: string; 
-  toName: string; 
-  relationType: string; 
-  weight: number 
-}[]) {
-  const session = this.getSession();
-  const tx = session.beginTransaction();
-  try {
-    console.log(`🔄 Batch updating ${relations.length} relations...`);
-    
-    // ✅ Đơn giản hóa - Neo4j tự convert number sang float
-    const normalizedRelations = relations.map(rel => ({
-      ...rel,
-      weight: Number(rel.weight.toFixed(6)) // Đảm bảo là number thuần túy
-    }));
-    
-    const query = `
+  async batchUpdateWeights(relations: {
+    fromLabel: string;
+    fromName: string;
+    toLabel: string;
+    toName: string;
+    relationType: string;
+    weight: number
+  }[]) {
+    const session = this.getSession();
+    const tx = session.beginTransaction();
+    try {
+      console.log(`🔄 Batch updating ${relations.length} relations...`);
+
+      // ✅ Đơn giản hóa - Neo4j tự convert number sang float
+      const normalizedRelations = relations.map(rel => ({
+        ...rel,
+        weight: Number(rel.weight.toFixed(6)) // Đảm bảo là number thuần túy
+      }));
+
+      const query = `
       UNWIND $relations AS rel
       MATCH (a {name: rel.fromName})-[r]->(b {name: rel.toName})
       WHERE rel.fromLabel IN labels(a) 
@@ -373,32 +373,32 @@ async batchUpdateWeights(relations: {
       SET r.weight = toFloat(rel.weight)
       RETURN count(r) as updated
     `;
-    
-    const result = await tx.run(query, { relations: normalizedRelations });
-    await tx.commit();
-    
-    const updatedCount = result.records[0]?.get('updated')?.toNumber() || 0;
-    
-    console.log(`✅ Successfully updated ${updatedCount} relations`);
-    
-    // ⚠️ WARNING nếu số lượng không khớp
-    if (updatedCount !== relations.length) {
-      console.warn(`⚠️  Expected ${relations.length} updates, but only ${updatedCount} were successful`);
+
+      const result = await tx.run(query, { relations: normalizedRelations });
+      await tx.commit();
+
+      const updatedCount = result.records[0]?.get('updated')?.toNumber() || 0;
+
+      console.log(`✅ Successfully updated ${updatedCount} relations`);
+
+      // ⚠️ WARNING nếu số lượng không khớp
+      if (updatedCount !== relations.length) {
+        console.warn(`⚠️  Expected ${relations.length} updates, but only ${updatedCount} were successful`);
+      }
+
+      return {
+        message: 'Cập nhật weight thành công',
+        requested: relations.length,
+        updated: updatedCount
+      };
+    } catch (error) {
+      await tx.rollback();
+      console.error('❌ Lỗi khi cập nhật weight:', error);
+      throw new InternalServerErrorException('Lỗi khi cập nhật weight');
+    } finally {
+      await session.close();
     }
-    
-    return { 
-      message: 'Cập nhật weight thành công',
-      requested: relations.length,
-      updated: updatedCount
-    };
-  } catch (error) {
-    await tx.rollback();
-    console.error('❌ Lỗi khi cập nhật weight:', error);
-    throw new InternalServerErrorException('Lỗi khi cập nhật weight');
-  } finally {
-    await session.close();
   }
-}
   // ========== SỬA getAllRelations() - THÊM LABELS ==========
   async getAllRelations() {
     const session = this.getSession();
@@ -417,7 +417,7 @@ async batchUpdateWeights(relations: {
       return result.records.map(record => {
         const fromLabels = record.get('fromLabels');
         const toLabels = record.get('toLabels');
-        
+
         return {
           fromName: record.get('fromName'),
           fromLabel: fromLabels[0], // ✅ Lấy label đầu tiên
@@ -462,7 +462,7 @@ async batchUpdateWeights(relations: {
     }
   }
 
-    async getRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
+  async getRelation(fromLabel: string, fromName: string, toLabel: string, toName: string, relationType: string) {
     const session = this.getSession();
     try {
       console.log('Getting relation:', { fromLabel, fromName, toLabel, toName, relationType });
@@ -489,4 +489,107 @@ async batchUpdateWeights(relations: {
     }
   }
 
+  /**
+ * Lấy tất cả các node theo label
+ */
+  async getNodesByLabel(label: string) {
+    const session = this.getSession();
+    try {
+      const query = `
+      MATCH (n:${label})
+      RETURN n.name AS name, labels(n) AS labels, n AS node
+      ORDER BY n.name
+    `;
+      const result = await session.run(query);
+
+      return result.records.map(record => ({
+        name: record.get('name'),
+        labels: record.get('labels'),
+        properties: record.get('node').properties,
+      }));
+    } catch (error) {
+      console.error(`Lỗi khi lấy nodes với label ${label}:`, error);
+      throw new InternalServerErrorException(`Lỗi khi lấy nodes với label ${label}`);
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Đếm số lượng node theo label
+   */
+  async countNodesByLabel(label: string) {
+    const session = this.getSession();
+    try {
+      const query = `
+      MATCH (n:${label})
+      RETURN count(n) AS total
+    `;
+      const result = await session.run(query);
+      return result.records[0]?.get('total')?.toNumber() || 0;
+    } catch (error) {
+      console.error(`Lỗi khi đếm nodes với label ${label}:`, error);
+      throw new InternalServerErrorException(`Lỗi khi đếm nodes với label ${label}`);
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Xóa nhiều nodes theo label và danh sách tên
+   */
+  async deleteNodesBatch(label: string, names: string[]) {
+    const session = this.getSession();
+    const tx = session.beginTransaction();
+
+    try {
+      console.log(`🗑️  Đang xóa ${names.length} nodes với label "${label}"...`);
+
+      const query = `
+      UNWIND $names AS nodeName
+      MATCH (n:${label} {name: nodeName})
+      DETACH DELETE n
+      RETURN count(n) AS deletedCount
+    `;
+
+      const result = await tx.run(query, { names });
+      await tx.commit();
+
+      const deletedCount = result.records[0]?.get('deletedCount')?.toNumber() || 0;
+
+      console.log(`✅ Đã xóa ${deletedCount} nodes`);
+
+      return {
+        deletedCount,
+        requested: names.length,
+        success: deletedCount === names.length
+      };
+    } catch (error) {
+      await tx.rollback();
+      console.error('❌ Lỗi khi xóa batch nodes:', error);
+      throw new InternalServerErrorException('Lỗi khi xóa batch nodes');
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Kiểm tra node có tồn tại không
+   */
+  async nodeExists(label: string, name: string): Promise<boolean> {
+    const session = this.getSession();
+    try {
+      const query = `
+      MATCH (n:${label} {name: $name})
+      RETURN count(n) > 0 AS exists
+    `;
+      const result = await session.run(query, { name });
+      return result.records[0]?.get('exists') || false;
+    } catch (error) {
+      console.error('Lỗi khi kiểm tra node:', error);
+      return false;
+    } finally {
+      await session.close();
+    }
+  }
 }

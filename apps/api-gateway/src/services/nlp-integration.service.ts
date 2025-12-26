@@ -28,19 +28,25 @@ export class NlpIntegrationService {
 
     async findWord(word: string, label: string) {
         return firstValueFrom(
-            this.nlpClient.send('nlp-integration.find-word',{ word, label})
+            this.nlpClient.send('nlp-integration.find-word', { word, label })
         );
     }
 
     async findWordByLabel(word: string, toLabel: string) {
         return firstValueFrom(
-            this.nlpClient.send('nlp-integration.find-word-by-label',{ word, toLabel})
+            this.nlpClient.send('nlp-integration.find-word-by-label', { word, toLabel })
         );
     }
 
     async processBatchFiles(folderPath: string) {
         return firstValueFrom(
             this.nlpClient.send('nlp-integration.batch-process', folderPath)
+        );
+    }
+
+    async cleanInvalidPronounNodes() {
+        return firstValueFrom(
+            this.nlpClient.send('nlp-integration.clearInvalidPronouns', {})
         );
     }
 

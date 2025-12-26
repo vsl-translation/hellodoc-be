@@ -177,4 +177,10 @@ export class DoctorController {
         return this.doctorService.verifyDoctor(userId);
     }
 
+    @Get('get-doctor-home-visit/:specialtyId')
+    async getDoctorHomeVisit(@Param('specialtyId') specialtyId: string) {
+        return this.doctorService.getDoctorHomeVisit(specialtyId);
+    }
+
+
 }

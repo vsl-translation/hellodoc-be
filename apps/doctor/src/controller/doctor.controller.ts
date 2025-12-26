@@ -3,10 +3,15 @@ import { Body, Controller, Get, Param, UploadedFiles, UseInterceptors } from '@n
 import { DoctorService } from '../service/doctor.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { InjectModel } from '@nestjs/mongoose';
+import { Doctor } from '../core/schema/doctor.schema';
+import { Model } from 'mongoose';
 
 @Controller()
 export class DoctorController {
   constructor(
+    @InjectModel(Doctor.name, 'doctorConnection') private DoctorModel: Model<Doctor>,
+
     private readonly doctorService: DoctorService
   ) { }
 
@@ -100,5 +105,30 @@ export class DoctorController {
   @MessagePattern('doctor.verify-doctor')
   async verifyDoctor(userId: string) {
     return this.doctorService.verifyDoctor(userId);
+  }
+
+  //lay bac si co dich vu kham tai nha
+  @MessagePattern('doctor.get-doctor-home-visit')
+  async getDoctorHomeVisit(specialtyId: string) {
+    return this.doctorService.getDoctorHomeVisit(specialtyId);
+  }
+
+  // Trong Doctor Service
+  @MessagePattern('doctor.get-by-ids-with-home-service')
+  async getDoctorsByIdsWithHomeService(doctorIds: string[]) {
+    const doctors = await this.DoctorModel.find({
+      _id: { $in: doctorIds },
+      hasHomeService: true
+    });
+
+    return doctors.map(doc => ({
+      _id: doc._id,
+      name: doc.name,
+      specialty: doc.specialty,
+      address: doc.address,
+      avatarURL: doc.avatarURL,
+      isClinicPaused: doc.isClinicPaused,
+      hasHomeService: doc.hasHomeService,
+    }));
   }
 }

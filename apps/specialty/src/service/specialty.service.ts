@@ -254,6 +254,36 @@ export class SpecialtyService {
     };
   }
 
+  async getSpecialtyByName(name: string) {
+    if (typeof name !== 'string') {
+      throw new Error(`name must be string, got ${typeof name}`);
+    }
+
+    const specialty = await this.SpecialtyModel.findOne({ name });
+
+    if (!specialty) {
+      return null;
+    }
+
+    // Gọi 1 lần duy nhất thay vì loop
+    try {
+      const validDoctors = await firstValueFrom(
+        this.doctorClient.send('doctor.get-by-ids-with-home-service', specialty.doctors)
+      );
+
+      return {
+        ...specialty.toObject(),
+        doctors: validDoctors,
+      };
+    } catch (error) {
+      console.error('Error fetching doctors with home service:', error);
+      return {
+        ...specialty.toObject(),
+        doctors: [],
+      };
+    }
+  }
+
   async findByIds(ids: string[]) {
     return this.SpecialtyModel.find({
       _id: { $in: ids }

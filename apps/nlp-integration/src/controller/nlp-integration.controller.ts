@@ -34,13 +34,13 @@ export class NlpIntegrationController {
   }
 
   @MessagePattern('nlp-integration.find-word')
-  async findWord(@Payload() data : { word: string}) {
+  async findWord(@Payload() data: { word: string }) {
     const { word } = data;
     return this.nlpIntegrationService.findWord(word);
   }
 
   @MessagePattern('nlp-integration.find-word-by-label')
-  async findWordByLabel(@Payload() payload: { word: string, toLabel: string}) {
+  async findWordByLabel(@Payload() payload: { word: string, toLabel: string }) {
     return this.nlpIntegrationService.findWordByLabel(payload.word, payload.toLabel);
   }
 
@@ -49,4 +49,8 @@ export class NlpIntegrationController {
     return this.nlpIntegrationService.processBatchFiles(folderPath);
   }
 
+  @MessagePattern('nlp-integration.clearInvalidPronouns')
+  async clearInvalidPronouns() {
+    return this.nlpIntegrationService.cleanInvalidPronounNodes();
+  }
 }
