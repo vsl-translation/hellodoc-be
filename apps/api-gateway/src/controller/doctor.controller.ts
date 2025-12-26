@@ -118,6 +118,11 @@ export class DoctorController {
         return this.doctorService.getPendingDoctor();
     }
 
+    @Get('get-rejected-doctor')
+    getRejectedDoctors() {
+        return this.doctorService.getRejectedDoctors();
+    }
+
     @Get('get-pendingDoctor-by-id/:id')
     getPendingDoctorById(@Param('id') id: string) {
         return this.doctorService.getPendingDoctorById(id);
@@ -175,6 +180,11 @@ export class DoctorController {
     @Patch('verify-doctor/:id')
     async verifyDoctor(@Param('id') userId: string) {
         return this.doctorService.verifyDoctor(userId);
+    }
+
+    @Patch('reject-doctor/:id')
+    async rejectDoctor(@Param('id') userId: string, @Body('reason') reason: string) {
+        return this.doctorService.rejectDoctor(userId, reason);
     }
 
 }

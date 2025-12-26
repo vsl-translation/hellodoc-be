@@ -6,7 +6,8 @@ import { CacheService } from 'libs/cache.service';
 import * as bcrypt from 'bcrypt';
 import * as admin from 'firebase-admin';
 import { ClientProxy } from '@nestjs/microservices';
-import { PendingDoctor } from '../core/schema/PendingDoctor.schema';
+import { PendingDoctor, PendingDoctorStatus } from '../core/schema/PendingDoctor.schema';
+import { Specialty } from 'apps/specialty/src/core/schema/specialty.schema';
 import { lastValueFrom, timeout } from 'rxjs';
 
 @Injectable()
@@ -212,7 +213,11 @@ export class DoctorService {
   }
 
   async getPendingDoctors() {
-    return this.pendingDoctorModel.find();
+    return this.pendingDoctorModel.find({ status: { $ne: PendingDoctorStatus.REJECTED } });
+  }
+
+  async getRejectedDoctors() {
+    return this.pendingDoctorModel.find({ status: PendingDoctorStatus.REJECTED });
   }
 
   async getPendingDoctorById(id: string) {
@@ -224,7 +229,7 @@ export class DoctorService {
   }
 
   async createPendingDoctor(data: any) {
-    return this.pendingDoctorModel.create(data);
+    return this.pendingDoctorModel.create({ ...data, status: PendingDoctorStatus.PENDING });
   }
 
   async applyForDoctor(userId: string, applyData: any) {
@@ -870,5 +875,30 @@ export class DoctorService {
     };
   }
 
-}
+  async rejectDoctor(userId: string, reason: string) {
+    const pendingDoctor = await this.pendingDoctorModel.findOne({ userId });
+    if (!pendingDoctor) {
+      throw new NotFoundException('Đơn đăng ký không tồn tại hoặc đã được xử lý.');
+    }
 
+    // Cập nhật trạng thái và lý do từ chối
+    await this.pendingDoctorModel.findOneAndUpdate(
+      { userId },
+      { 
+        status: PendingDoctorStatus.REJECTED,
+        denyReason: reason 
+      }
+    );
+
+    // Xóa cache liên quan
+    const cacheKey = 'pending_doctors';
+    await this.cacheService.deleteCache(cacheKey);
+
+    console.log(`Từ chối bác sĩ ${userId} với lý do: ${reason}`);
+
+    return {
+      message: 'Từ chối đơn đăng ký thành công!',
+      reason,
+    };
+  }
+}

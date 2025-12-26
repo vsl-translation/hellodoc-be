@@ -62,6 +62,11 @@ export class DoctorController {
     return this.doctorService.getPendingDoctorById(id);
   }
 
+  @MessagePattern('doctor.get-rejected-doctor')
+  async getRejectedDoctors() {
+    return this.doctorService.getRejectedDoctors();
+  }
+
   @MessagePattern('doctor.create-pending-doctor')
   async createPendingDoctor(@Payload() data: any) {
     return this.doctorService.createPendingDoctor(data);
@@ -100,5 +105,10 @@ export class DoctorController {
   @MessagePattern('doctor.verify-doctor')
   async verifyDoctor(userId: string) {
     return this.doctorService.verifyDoctor(userId);
+  }
+
+  @MessagePattern('doctor.reject-doctor')
+  async rejectDoctor(@Payload() data: { userId: string, reason: string }) {
+    return this.doctorService.rejectDoctor(data.userId, data.reason);
   }
 }
