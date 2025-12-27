@@ -901,41 +901,41 @@ export class DoctorService {
       reason,
     };
   }
-}
+
   async getDoctorHomeVisit(specialtyId: string) {
-  console.log("specialtyId input: ", specialtyId);
+    console.log("specialtyId input: ", specialtyId);
 
-  // Kiểm tra doctor có home service
-  const doctorWithHomeService = await this.DoctorModel.findOne({ hasHomeService: true });
-  console.log("Doctor có home service:");
-  console.log("- specialty value:", doctorWithHomeService.specialty);
-  console.log("- specialty type:", typeof doctorWithHomeService.specialty);
-  console.log("- specialty toString:", doctorWithHomeService.specialty.toString());
+    // Kiểm tra doctor có home service
+    const doctorWithHomeService = await this.DoctorModel.findOne({ hasHomeService: true });
+    console.log("Doctor có home service:");
+    console.log("- specialty value:", doctorWithHomeService.specialty);
+    console.log("- specialty type:", typeof doctorWithHomeService.specialty);
+    console.log("- specialty toString:", doctorWithHomeService.specialty.toString());
 
-  // Thử query bằng string
-  const doctorsByString = await this.DoctorModel.find({
-    specialty: specialtyId,  // Dùng string trực tiếp
-    hasHomeService: true
-  });
-  console.log("Query bằng string:", doctorsByString.length);
+    // Thử query bằng string
+    const doctorsByString = await this.DoctorModel.find({
+      specialty: specialtyId,  // Dùng string trực tiếp
+      hasHomeService: true
+    });
+    console.log("Query bằng string:", doctorsByString.length);
 
-  // Thử query bằng ObjectId
-  const doctorsByObjectId = await this.DoctorModel.find({
-    specialty: new Types.ObjectId(specialtyId),
-    hasHomeService: true
-  });
-  console.log("Query bằng ObjectId:", doctorsByObjectId.length);
+    // Thử query bằng ObjectId
+    const doctorsByObjectId = await this.DoctorModel.find({
+      specialty: new Types.ObjectId(specialtyId),
+      hasHomeService: true
+    });
+    console.log("Query bằng ObjectId:", doctorsByObjectId.length);
 
-  // Thử so sánh trực tiếp
-  const allDoctors = await this.DoctorModel.find({ hasHomeService: true });
-  const matched = allDoctors.filter(doc => {
-    const specId = doc.specialty.toString();
-    console.log(`Comparing: ${specId} === ${specialtyId} => ${specId === specialtyId}`);
-    return specId === specialtyId;
-  });
-  console.log("Matched doctors:", matched.length);
+    // Thử so sánh trực tiếp
+    const allDoctors = await this.DoctorModel.find({ hasHomeService: true });
+    const matched = allDoctors.filter(doc => {
+      const specId = doc.specialty.toString();
+      console.log(`Comparing: ${specId} === ${specialtyId} => ${specId === specialtyId}`);
+      return specId === specialtyId;
+    });
+    console.log("Matched doctors:", matched.length);
 
-  return matched;
+    return matched;
+  }
 }
 
-}
