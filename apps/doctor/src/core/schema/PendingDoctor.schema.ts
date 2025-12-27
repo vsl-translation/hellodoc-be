@@ -9,6 +9,11 @@ export enum ExaminationMethod {
     AT_HOME = 'at_home',
 }
 
+export enum PendingDoctorStatus {
+    PENDING = 'pending',
+    REJECTED = 'rejected',
+}
+
 @Schema()
 export class PendingDoctor extends Document {
     @Prop({ required: true })
@@ -59,6 +64,12 @@ export class PendingDoctor extends Document {
 
     @Prop()
     frontCccdUrl?: string;
+
+    @Prop()
+    denyReason?: string;
+
+    @Prop({ default: PendingDoctorStatus.PENDING })
+    status?: string;
 
     @Prop({ default: false })
     isDeleted: boolean;

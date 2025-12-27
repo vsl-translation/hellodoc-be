@@ -6,7 +6,8 @@ import { CacheService } from 'libs/cache.service';
 import * as bcrypt from 'bcrypt';
 import * as admin from 'firebase-admin';
 import { ClientProxy } from '@nestjs/microservices';
-import { PendingDoctor } from '../core/schema/PendingDoctor.schema';
+import { PendingDoctor, PendingDoctorStatus } from '../core/schema/PendingDoctor.schema';
+import { Specialty } from 'apps/specialty/src/core/schema/specialty.schema';
 import { lastValueFrom, timeout } from 'rxjs';
 
 @Injectable()
@@ -212,7 +213,11 @@ export class DoctorService {
   }
 
   async getPendingDoctors() {
-    return this.pendingDoctorModel.find();
+    return this.pendingDoctorModel.find({ status: { $ne: PendingDoctorStatus.REJECTED } });
+  }
+
+  async getRejectedDoctors() {
+    return this.pendingDoctorModel.find({ status: PendingDoctorStatus.REJECTED });
   }
 
   async getPendingDoctorById(id: string) {
@@ -224,7 +229,7 @@ export class DoctorService {
   }
 
   async createPendingDoctor(data: any) {
-    return this.pendingDoctorModel.create(data);
+    return this.pendingDoctorModel.create({ ...data, status: PendingDoctorStatus.PENDING });
   }
 
   async applyForDoctor(userId: string, applyData: any) {
@@ -827,7 +832,7 @@ export class DoctorService {
       avatarURL: pendingDoctor.avatarURL,
       frontCccdUrl: pendingDoctor.frontCccdUrl,
       backCccdUrl: pendingDoctor.backCccdUrl,
-      address: "chua co dia chi",
+      address: pendingDoctor.address,
       licenseUrl: pendingDoctor.licenseUrl,
       certificates: pendingDoctor.certificates,
       experience: pendingDoctor.experience,
@@ -870,40 +875,67 @@ export class DoctorService {
     };
   }
 
-  async getDoctorHomeVisit(specialtyId: string) {
-    console.log("specialtyId input: ", specialtyId);
+  async rejectDoctor(userId: string, reason: string) {
+    const pendingDoctor = await this.pendingDoctorModel.findOne({ userId });
+    if (!pendingDoctor) {
+      throw new NotFoundException('Đơn đăng ký không tồn tại hoặc đã được xử lý.');
+    }
 
-    // Kiểm tra doctor có home service
-    const doctorWithHomeService = await this.DoctorModel.findOne({ hasHomeService: true });
-    console.log("Doctor có home service:");
-    console.log("- specialty value:", doctorWithHomeService.specialty);
-    console.log("- specialty type:", typeof doctorWithHomeService.specialty);
-    console.log("- specialty toString:", doctorWithHomeService.specialty.toString());
+    // Cập nhật trạng thái và lý do từ chối
+    await this.pendingDoctorModel.findOneAndUpdate(
+      { userId },
+      {
+        status: PendingDoctorStatus.REJECTED,
+        denyReason: reason
+      }
+    );
 
-    // Thử query bằng string
-    const doctorsByString = await this.DoctorModel.find({
-      specialty: specialtyId,  // Dùng string trực tiếp
-      hasHomeService: true
-    });
-    console.log("Query bằng string:", doctorsByString.length);
+    // Xóa cache liên quan
+    const cacheKey = 'pending_doctors';
+    await this.cacheService.deleteCache(cacheKey);
 
-    // Thử query bằng ObjectId
-    const doctorsByObjectId = await this.DoctorModel.find({
-      specialty: new Types.ObjectId(specialtyId),
-      hasHomeService: true
-    });
-    console.log("Query bằng ObjectId:", doctorsByObjectId.length);
+    console.log(`Từ chối bác sĩ ${userId} với lý do: ${reason}`);
 
-    // Thử so sánh trực tiếp
-    const allDoctors = await this.DoctorModel.find({ hasHomeService: true });
-    const matched = allDoctors.filter(doc => {
-      const specId = doc.specialty.toString();
-      console.log(`Comparing: ${specId} === ${specialtyId} => ${specId === specialtyId}`);
-      return specId === specialtyId;
-    });
-    console.log("Matched doctors:", matched.length);
-
-    return matched;
+    return {
+      message: 'Từ chối đơn đăng ký thành công!',
+      reason,
+    };
   }
+}
+  async getDoctorHomeVisit(specialtyId: string) {
+  console.log("specialtyId input: ", specialtyId);
+
+  // Kiểm tra doctor có home service
+  const doctorWithHomeService = await this.DoctorModel.findOne({ hasHomeService: true });
+  console.log("Doctor có home service:");
+  console.log("- specialty value:", doctorWithHomeService.specialty);
+  console.log("- specialty type:", typeof doctorWithHomeService.specialty);
+  console.log("- specialty toString:", doctorWithHomeService.specialty.toString());
+
+  // Thử query bằng string
+  const doctorsByString = await this.DoctorModel.find({
+    specialty: specialtyId,  // Dùng string trực tiếp
+    hasHomeService: true
+  });
+  console.log("Query bằng string:", doctorsByString.length);
+
+  // Thử query bằng ObjectId
+  const doctorsByObjectId = await this.DoctorModel.find({
+    specialty: new Types.ObjectId(specialtyId),
+    hasHomeService: true
+  });
+  console.log("Query bằng ObjectId:", doctorsByObjectId.length);
+
+  // Thử so sánh trực tiếp
+  const allDoctors = await this.DoctorModel.find({ hasHomeService: true });
+  const matched = allDoctors.filter(doc => {
+    const specId = doc.specialty.toString();
+    console.log(`Comparing: ${specId} === ${specialtyId} => ${specId === specialtyId}`);
+    return specId === specialtyId;
+  });
+  console.log("Matched doctors:", matched.length);
+
+  return matched;
+}
 
 }

@@ -36,6 +36,10 @@ export class DoctorService {
         return this.doctorClient.send('doctor.get-pedingDoctor-by-id', id)
     }
 
+    async getRejectedDoctors() {
+        return this.doctorClient.send('doctor.get-rejected-doctor', {})
+    }
+
     async getAvailableWorkingTime(id: string) {
         return this.doctorClient.send('doctor.getAvailableWorkingTime', id)
     }
@@ -50,6 +54,10 @@ export class DoctorService {
 
     async verifyDoctor(userId: string) {
         return this.doctorClient.send('doctor.verify-doctor', userId)
+    }
+
+    async rejectDoctor(userId: string, reason: string) {
+        return this.doctorClient.send('doctor.reject-doctor', { userId, reason })
     }
 
     async getDoctorHomeVisit(specialtyId: string) {
