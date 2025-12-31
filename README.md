@@ -1,25 +1,26 @@
-# HelloDoc - Hệ thống Diễn đàn Cộng đồng Hỗ trợ Người Khuyết Tật
+# HelloDoc Backend - Microservices API
 
 <p align="center">
   <img src="https://img.shields.io/badge/status-active-brightgreen" />
-  <img src="https://img.shields.io/badge/platform-Android%20%7C%20Web%20Admin%20%7C%20API-blue" />
-  <img src="https://img.shields.io/badge/tech-NestJS%20%7C%20Nuxt%20%7C%20Kotlin-orange" />
+  <img src="https://img.shields.io/badge/NestJS-E0234E?logo=nestjs&logoColor=white" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" />
+  <img src="https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white" />
 </p>
-
 <p align="center">
-  Nền tảng y tế toàn diện kết hợp diễn đàn cộng đồng, đặt lịch khám bệnh và công nghệ hỗ trợ người khuyết tật.
+  Backend API cho hệ thống y tế toàn diện hỗ trợ người khuyết tật
 </p>
 
 ---
 
 ## 📖 Giới thiệu
 
-HelloDoc là hệ thống diễn đàn cộng đồng và đặt lịch khám bệnh được phát triển với mục tiêu:
+HelloDoc Backend là hệ thống API microservices được xây dựng bằng NestJS, cung cấp các dịch vụ:
 
-- **Thu hẹp khoảng cách số**: Hỗ trợ người khiếm thị, khiếm thính và khiếm thanh tiếp cận thông tin y tế
-- **Kết nối cộng đồng**: Tạo không gian chia sẻ kinh nghiệm và tư vấn sức khỏe
+- **Community Forum API**: Quản lý bài viết, bình luận, tương tác cộng đồng
+- **AI/ML Services**: Tích hợp Gemini API, NLP, vector search
 - **Đặt lịch thông minh**: Hệ thống quản lý lịch khám hiệu quả
-- **AI hỗ trợ**: Tích hợp trí tuệ nhân tạo để phân tích triệu chứng và gợi ý
+- **Real-time Services:**: WebSocket cho cập nhật trực tuyến
+- **...**
 
 **Nhóm thực hiện:**
 - Mai Nguyễn Đăng Khoa (2251120423)
@@ -28,85 +29,185 @@ HelloDoc là hệ thống diễn đàn cộng đồng và đặt lịch khám b�
 
 ---
 
-## ⭐ Demo Ứng dụng
-<p align="center">
-  <a href="https://ibb.co/B5pYFk3s">
-    <img src="https://i.ibb.co/ks7PvZBc/Screenshot-2025-12-30-211100.png"
-         alt="HelloDoc Demo"
-         width="600">
-  </a>
-</p>
-
-## ⭐ Demo Admin
-<p align="center">
-  <a href="https://ibb.co/FbymzF7H">
-    <img src="https://i.ibb.co/ynZdqrs4/z7380911785310-8154f636a38c51a041b3b85ed0b5c55e.jpg" alt="z7380911785310-8154f636a38c51a041b3b85ed0b5c55e" width="600">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://ibb.co/Hf6hKW64"><img src="https://i.ibb.co/S4bf6hby/z7380911850008-b73c15a349f89645f18242f6b039462d.jpg" alt="z7380911850008-b73c15a349f89645f18242f6b039462d" width="600"></a>
-</p>
-
-## 🎯 Tính năng chính
-
-### 1. Chức năng chung
-- ✅ Đăng ký / Đăng nhập với xác thực an toàn
-- ✅ Quản lý thông tin cá nhân
-- ✅ Đăng bài viết và tương tác cộng đồng
-- ✅ Bình luận và báo cáo vi phạm
-- ✅ Đặt lịch khám bệnh
-- ✅ Quản lý chuyên khoa và tìm kiếm bác sĩ
-- ✅ Trợ lý ảo AI (Gemini API)
-- ✅ Quản lý tin tức y tế
-
-### 2. Hỗ trợ người khiếm thị
-- 🔊 Điều hướng bằng cử chỉ và phản hồi âm thanh
-- 🔊 Text-to-Speech đọc nội dung
-- 🔊 Thao tác: vuốt, chạm, nhấn giữ
-
-### 3. Hỗ trợ người khiếm thanh  
-- 💬 Gợi ý từ ngữ thông minh với NLP (Underthesea)
-- 💬 Xây dựng câu nhanh từ ngữ cảnh
-- 💬 Tích hợp Graph Database (Neo4j) cho quan hệ ngữ nghĩa
-
-### 4. Hỗ trợ người khiếm thính
-- 🤟 Chuyển đổi giọng nói sang ngôn ngữ ký hiệu 3D
-- 🤟 Nhận dạng giọng nói tiếng Việt (PhoWhisper)
-- 🤟 Trích xuất chuyển động với MediaPipe
-- 🤟 Hiển thị nhân vật 3D bằng SceneView
-
----
-
 ## 🏗️ Kiến trúc hệ thống
 
 ```
-HelloDoc/
-├── backend/              # NestJS API (Microservices)
-│   ├── src/
-│   │   ├── auth/        # Xác thực & JWT
-│   │   ├── posts/       # Quản lý bài viết
-│   │   ├── appointments/ # Đặt lịch khám
-│   │   ├── ai/          # Tích hợp AI/ML models
-│   │   └── accessibility/ # Các service hỗ trợ người khuyết tật
-│   └── ...
-├── web-admin/           # Nuxt.js Dashboard
-│   ├── pages/
-│   ├── components/
-│   └── ...
-├── mobile-app/          # Kotlin + Jetpack Compose
-│   ├── app/src/main/
-│   │   ├── auth/
-│   │   ├── Pages/
-│   │   ├── components/
-│   │   ├── player/      # ExoPlayer media player
-│   │   └── ViewModel/
-│   └── ...
-└── db/                  # Database schemas
-    ├── mongodb/         # Dữ liệu chính
-    ├── qdrant/          # Vector embeddings
-    ├── neo4j/           # Graph data
-    └── redis/           # Cache
+backend/
+├── apps/                         # Microservices Architecture
+│   ├── admin/                    # Admin Management System
+│   │   └── src/
+│   │       ├── controller/       # Admin API controllers
+│   │       ├── core/             # Domain models & entities
+│   │       ├── service/          # Business logic services
+│   │       └── use-case/         # Application use cases
+│   │
+│   ├── api-gateway/              # API Gateway & Routing
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── core/
+│   │       └── middleware/       # Gateway middleware
+│   │
+│   ├── appointment/              # Booking System Service
+│   │   └── src/
+│   │       ├── controller/       # Appointment endpoints
+│   │       ├── core/             # Booking domain logic
+│   │       ├── service/          # Appointment services
+│   │       └── use-case/         # Booking use cases
+│   │
+│   ├── auth/                     # Authentication Service
+│   │   └── src/
+│   │       ├── controller/       # Auth endpoints
+│   │       ├── core/             # JWT, tokens, strategies
+│   │       ├── service/          # Auth business logic
+│   │       └── use-case/         # Login, register flows
+│   │
+│   ├── cloudinary/               # Media Storage Service
+│   │   └── src/
+│   │       ├── controller/       # Upload endpoints
+│   │       ├── service/          # Cloudinary integration
+│   │       └── use-case/         # Media upload flows
+│   │
+│   ├── config/                   # Configuration Service
+│   │   └── src/
+│   │       └── environments/     # Environment configs
+│   │
+│   ├── doctor/                   # Doctor Management Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── core/
+│   │       ├── service/
+│   │       └── use-case/
+│   │
+│   ├── embedding/                # Vector Embeddings Service
+│   │   └── src/
+│   │       ├── controller/       # Embedding API
+│   │       ├── service/          # Sentence transformers
+│   │       └── use-case/         # Text vectorization
+│   │
+│   ├── image-caption/            # AI Image Analysis Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── service/          # Gemini Vision API
+│   │       └── use-case/         # Image captioning
+│   │
+│   ├── medicalservice/           # Medical Services Management
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── core/
+│   │       └── service/
+│   │
+│   ├── neo4j/                    # Graph Database Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── service/          # Neo4j driver integration
+│   │       └── use-case/         # Word suggestion, relations
+│   │
+│   ├── news/                     # Medical News Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── core/
+│   │       └── service/
+│   │
+│   ├── news-comment/             # News Comment Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       └── service/
+│   │
+│   ├── news-favorite/            # News Bookmark Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       └── service/
+│   │
+│   ├── nlp-integration/          # NLP Processing Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── service/          # Underthesea integration
+│   │       └── use-case/         # Word segmentation, POS tagging
+│   │
+│   ├── notification/             # Push Notification Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── service/          # Firebase Cloud Messaging
+│   │       └── use-case/
+│   │
+│   ├── phowhisper/               # Speech Recognition Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── service/          # PhoWhisper ASR
+│   │       └── use-case/         # Vietnamese speech-to-text
+│   │
+│   ├── post-comment/             # Forum Comment Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── core/
+│   │       └── service/
+│   │
+│   ├── post-favorite/            # Post Bookmark Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       └── service/
+│   │
+│   ├── posts/                    # Forum Posts Service
+│   │   └── src/
+│   │       ├── controller/       # Post CRUD endpoints
+│   │       ├── core/             # Post entities
+│   │       ├── service/          # Post business logic
+│   │       └── use-case/         # Create, update, delete posts
+│   │
+│   ├── projects/                 # Projects Management (Admin)
+│   │   └── src/
+│   │       ├── controller/
+│   │       └── service/
+│   │
+│   ├── qdrant/                   # Vector Search Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── service/          # Qdrant client integration
+│   │       └── use-case/         # Semantic search, recommendations
+│   │
+│   ├── report/                   # Content Moderation Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── core/
+│   │       └── service/
+│   │
+│   ├── review/                   # Doctor Review Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       └── service/
+│   │
+│   ├── sign-language/            # Sign Language Processing Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── service/          # MediaPipe integration
+│   │       └── use-case/         # Speech-to-sign conversion
+│   │
+│   ├── specialty/                # Medical Specialty Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       ├── core/
+│   │       └── service/
+│   │
+│   ├── underthesea/              # Vietnamese NLP Service
+│   │   └── src/
+│   │       ├── controller/
+│   │       └── service/          # Underthesea library wrapper
+│   │
+│   └── users/                    # User Management Service
+│       └── src/
+│           ├── controller/       # User API endpoints
+│           ├── core/             # User entities
+│           ├── service/          # User business logic
+│           └── use-case/         # Profile management flows
+│
+├── libs/                         # Shared Libraries
+│   ├── common/                   # Common utilities
+│       ├── guards/
+│       └── contracts/
+│   
+│
+├── docker-compose.yml            # Container orchestration
+└── nest-cli.json                 # NestJS monorepo config
 ```
 
 ### Stack công nghệ
@@ -203,58 +304,6 @@ npm run start:all
 
 Backend API sẽ chạy tại `http://localhost:4000`
 
-## 📱 Demo & Screenshots
-
-### Mobile App - Chức năng chính
-
-<!-- Thêm screenshots thực tế -->
-
-**Diễn đàn cộng đồng**
-- Đăng bài viết với text/image/video
-- Bình luận
-- Bài viết liên quan với Vector Search
-  
-<p align="center">
-  <a href="https://imgbb.com/"><img src="https://i.ibb.co/d0fcTPZD/Screenshot-2025-12-30-214929.png" alt="Screenshot 2025 12 30 214929" width="600"></a>
-</p>
-
-**Đặt lịch khám**
-- Chọn chuyên khoa → Chọn bác sĩ → Chọn thời gian
-- Quét QR code thanh toán
-- Lịch sử lịch khám
-
-<p align="center">
-  <a href="https://ibb.co/fdxTK6f4"><img src="https://i.ibb.co/pjLksVcJ/Screenshot-2025-12-30-222719.png" alt="Screenshot-2025-12-30-222719" width="600"></a>
-</p>
-
-### Tính năng hỗ trợ người khuyết tật
-
-**Người khiếm thị**
-- Navigation bằng gesture (swipe/tap/long-press)
-- Text-to-Speech feedback
-- Hướng dẫn bước-by-bước
-  
-<p align="center">
-  <a href="https://ibb.co/rGJ1BJXs"><img src="https://i.ibb.co/DDnSBnjp/Screenshot-2025-12-30-223412.png" alt="Screenshot-2025-12-30-223412" width="600"></a>
-</p>
-
-**Người khiếm thanh**
-- Gợi ý từ ngữ thông minh
-- Word completion từ Neo4j graph
-
-<p align="center">
-  <a href="https://imgbb.com/"><img src="https://i.ibb.co/4wsBNdND/Screenshot-2025-12-30-224303.png" alt="Screenshot 2025 12 30 224303" width="600"></a>
-</p>
-
-**Người khiếm thính**
-- Video → Sign language 3D animation
-- Real-time gesture rendering
-  
-<p align="center">
-  <a href="https://imgbb.com/"><img src="https://i.ibb.co/3Y4S9MJY/Screenshot-2025-12-30-224648.png" alt="Screenshot 2025 12 30 224648" width="600"></a>
-</p>
-
----
 
 ## 🧪 Kiểm thử & Đánh giá
 
@@ -264,18 +313,17 @@ Backend API sẽ chạy tại `http://localhost:4000`
 |----------|---------|----------|
 | Mức độ hoàn thiện | Đầy đủ chức năng chính | ✅ Đạt |
 | Tốc độ phản hồi | < 3 giây | ✅ Đạt |
-| Độ chính xác AI | 60-70% (gợi ý từ), 50-60% (sign language) | ⚠️ Đạt (cần cải thiện) |
+| Độ chính xác | 65-70% (gợi ý từ), 85-90% (vector search) | ⚠️ Đạt (cần cải thiện) |
 | Tính bảo mật | Mã hóa AES, JWT | ✅ Tốt |
 | Tính nhân văn | Thu hẹp khoảng cách số | ⭐ Xuất sắc |
 
 ---
 
 ### Kế hoạch tương lai 🚀
-- [ ] iOS app (React Native/Flutter)
-- [ ] Mở rộng dataset y khoa Việt Nam
-- [ ] Tích hợp thanh toán (Momo/ZaloPay)
-- [ ] Cải tiến mô hình 3D scenceView
-- [ ] Hệ sinh thái giáo dục cho người khuyết tật
+- [ ] Sử dụng RabbitMQ
+- [ ] Tích hợp CI/CD
+- [ ] Sử dụng load balancing
+- [ ] Cải tiến logic
 
 ---
 
