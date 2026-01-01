@@ -18,7 +18,7 @@ export class Appointment extends Document {
     doctor: Types.ObjectId;
 
     // Thêm trường xác định patient là từ model nào
-    @Prop({ type: String, required: true, enum: ['User', 'Doctor', 'Blind', 'Deaf', 'Mute'] })
+    @Prop({ type: String, required: true, enum: ['User', 'Doctor', 'Blind', 'Mute', 'Deaf'] })
     patientModel: string;
 
     // Tham chiếu động đến model tùy theo patientModel
