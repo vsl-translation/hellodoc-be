@@ -1,4 +1,4 @@
-import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException,BadRequestException } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 
@@ -316,161 +316,6 @@ export class NlpIntegrationService {
     return 'Related_To';
   }
 
-  // // Phân tích văn bản và tạo graph với các mối quan hệ ngữ nghĩa
-  // async analyzeAndCreateSemanticGraph(text: string) {
-  //   try {
-  //     const posResult = await firstValueFrom(
-  //       this.undertheseaClient.send('underthesea.pos', { text: text })
-  //     );
-
-  //     if (!posResult.success) {
-  //       throw new InternalServerErrorException('Không thể phân tích POS');
-  //     }
-
-  //     const { tokens, pos_tags } = posResult;
-
-  //     // ✅ Danh sách đầy đủ các đại từ nhân xưng và xưng hô trong tiếng Việt
-  //     const PRONOUNS = new Set([
-  //       // Đại từ ngôi thứ nhất
-  //       'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta', 'chúng mình',
-
-  //       // Đại từ ngôi thứ hai
-  //       'bạn', 'mày', 'cậu', 'các bạn', 'quý vị',
-
-  //       // Đại từ ngôi thứ ba
-  //       'họ', 'nó', 'hắn', 'y', 'chúng nó',
-
-  //       // Đại từ xưng hô gia đình/thân tộc
-  //       'anh', 'chị', 'em', 'ông', 'bà', 'cháu',
-  //       'bố', 'ba', 'tía', 'con', 'mẹ', 'má',
-  //       'chú', 'bác', 'cô', 'dì'
-  //     ]);
-
-  //     // ✅ Trích xuất POS tags và override cho đại từ nhân xưng
-  //     const extractedPosTags = pos_tags.map((item, index) => {
-  //       // Lấy POS tag từ mảng 2 chiều hoặc string
-  //       const posTag = Array.isArray(item) ? item[1] : item;
-
-  //       // Kiểm tra nếu token là đại từ nhân xưng → gán label "P"
-  //       const currentToken = tokens[index].toLowerCase();
-  //       if (PRONOUNS.has(currentToken)) {
-  //         console.log(`Token "${tokens[index]}" được nhận dạng là đại từ nhân xưng → Label: P`);
-  //         return 'P';
-  //       }
-
-  //       return posTag;
-  //     });
-
-  //     const createdNodes = [];
-  //     const createdRelations = [];
-  //     const pronounNodes = []; // ✅ Danh sách riêng cho các đại từ (label = "P")
-
-  //     // Tạo nodes (TẤT CẢ các từ)
-  //     console.log('=== BẮT ĐẦU TẠO NODES ===');
-  //     for (let i = 0; i < tokens.length; i++) {
-  //       try {
-  //         const nodePayload = {
-  //           label: extractedPosTags[i],
-  //           name: tokens[i],
-  //         };
-
-  //         console.log(`Tạo node ${i + 1}/${tokens.length}: "${tokens[i]}" (${extractedPosTags[i]})`);
-
-  //         const node = await firstValueFrom(
-  //           this.neo4jClient.send('neo4j.create-node', nodePayload)
-  //         );
-
-  //         const nodeData = {
-  //           token: tokens[i],
-  //           posTag: extractedPosTags[i],
-  //           posInfo: this.getPosTagInfo(extractedPosTags[i]),
-  //           node,
-  //         };
-
-  //         createdNodes.push(nodeData);
-
-  //         // ✅ Nếu là đại từ (label = "P"), thêm vào danh sách riêng
-  //         if (extractedPosTags[i] === 'P') {
-  //           pronounNodes.push(nodeData);
-  //           console.log(`  → Đã thêm vào danh sách pronouns`);
-  //         }
-  //       } catch (error) {
-  //         console.error(`Lỗi khi tạo node cho token "${tokens[i]}":`, error.message);
-  //         console.error('Error stack:', error.stack);
-  //       }
-  //     }
-
-  //     console.log(`Đã tạo ${createdNodes.length} nodes (trong đó có ${pronounNodes.length} đại từ)`);
-
-  //     // Tạo relations dựa trên ngữ nghĩa (TẤT CẢ các quan hệ)
-  //     console.log('=== BẮT ĐẦU TẠO RELATIONS ===');
-  //     for (let i = 0; i < tokens.length - 1; i++) {
-  //       const currentTag = extractedPosTags[i];
-  //       const nextTag = extractedPosTags[i + 1];
-
-  //       // Bỏ qua dấu câu
-  //       if (currentTag === 'CH' || nextTag === 'CH') {
-  //         console.log(`Bỏ qua relation có dấu câu: "${tokens[i]}" (${currentTag}) -> "${tokens[i + 1]}" (${nextTag})`);
-  //         continue;
-  //       }
-
-  //       const relationType = this.determineRelationType(currentTag, nextTag);
-
-  //       try {
-  //         const relationPayload = {
-  //           fromLabel: currentTag,
-  //           fromName: tokens[i],
-  //           toLabel: nextTag,
-  //           toName: tokens[i + 1],
-  //           relationType,
-  //           weight: 1,
-  //         };
-
-  //         console.log(`Tạo relation ${i + 1}: "${tokens[i]}" (${currentTag}) -[${relationType}]-> "${tokens[i + 1]}" (${nextTag})`);
-
-  //         const relation = await firstValueFrom(
-  //           this.neo4jClient.send('neo4j.create-relation', relationPayload)
-  //         );
-
-  //         createdRelations.push({
-  //           ...relation,
-  //           relationDescription: this.getRelationDescription(relationType),
-  //         });
-  //       } catch (error) {
-  //         console.error(`Lỗi khi tạo relation: "${tokens[i]}" -> "${tokens[i + 1]}"`, error.message);
-  //         console.error('Error stack:', error.stack);
-  //       }
-  //     }
-
-  //     console.log(`Đã tạo ${createdRelations.length} relations`);
-
-  //     const result = {
-  //       success: true,
-  //       text,
-  //       totalNodes: createdNodes.length,
-  //       totalRelations: createdRelations.length,
-  //       totalPronouns: pronounNodes.length, // ✅ Số lượng đại từ
-  //       nodes: createdNodes,
-  //       relations: createdRelations,
-  //       pronouns: pronounNodes, // ✅ Danh sách các đại từ (label = "P")
-  //     };
-
-  //     console.log('=== KẾT QUẢ CUỐI CÙNG ===');
-  //     console.log(`- Tổng nodes: ${result.totalNodes}`);
-  //     console.log(`- Tổng relations: ${result.totalRelations}`);
-  //     console.log(`- Tổng đại từ: ${result.totalPronouns}`);
-  //     console.log(`- Danh sách đại từ:`, pronounNodes.map(p => p.token).join(', '));
-
-  //     return result;
-  //   } catch (error) {
-  //     console.error('Lỗi nghiêm trọng trong quá trình tạo semantic graph:', error);
-  //     console.error('Error message:', error.message);
-  //     console.error('Error stack:', error.stack);
-  //     throw new InternalServerErrorException(`Không thể tạo semantic graph: ${error.message}`);
-  //   }
-  // }
-
-
 
   // Hàm đọc tất cả file txt trong folder
   async getTextFiles(folderPath: string): Promise<string[]> {
@@ -763,187 +608,6 @@ export class NlpIntegrationService {
     }
   }
 
-  // ========== THÊM VALIDATION VÀO calculateWeightIncrement() ==========
-  private async calculateWeightIncrement(params: {
-    fromLabel: string;
-    fromName: string;
-    toLabel: string;
-    toName: string;
-    currentWeight: number;
-  }): Promise<number> {
-    let { fromLabel, fromName, toLabel, toName, currentWeight } = params;
-    // ✅ VALIDATION: Đảm bảo currentWeight hợp lệ
-    if (currentWeight === undefined || currentWeight === null || isNaN(currentWeight) || !isFinite(currentWeight)) {
-      console.warn(`⚠️  Invalid currentWeight for ${fromName}->${toName}, using 0`);
-      currentWeight = 0;
-    }
-
-    // 1️⃣ Base increment (giảm từ 1.0 xuống 0.1 để tránh tăng quá nhanh)
-    let increment = 0.5; // ✅ GIẢM từ 1.0 → 0.5
-
-    // 2️⃣ Lấy tất cả relations từ cùng node gốc (fromName)
-    const siblingRelations = await firstValueFrom(
-      this.neo4jClient.send('neo4j.get-relations-from-node', {
-        label: fromLabel,
-        name: fromName,
-      })
-    );
-
-    if (siblingRelations && siblingRelations.length > 0) {
-      const siblingWeights = siblingRelations
-        .filter(r => r.weight !== undefined && !isNaN(r.weight) && isFinite(r.weight))
-        .map(r => r.weight);
-
-      if (siblingWeights.length > 0) {
-        const avgSiblingWeight = siblingWeights.reduce((sum, w) => sum + w, 0) / siblingWeights.length;
-        const ratio = currentWeight / (avgSiblingWeight + 0.01);
-
-        if (ratio < 1) {
-          increment *= (1.5 - ratio * 0.5);
-        } else {
-          increment *= (1 / (1 + ratio * 0.2));
-        }
-
-        console.log(`  🔗 Sibling context: avg=${avgSiblingWeight.toFixed(4)}, ratio=${ratio.toFixed(2)}, increment=${increment.toFixed(4)}`);
-      }
-    }
-
-    // 3️⃣ Incoming relations
-    const incomingRelations = await firstValueFrom(
-      this.neo4jClient.send('neo4j.get-relations-to-node', {
-        label: toLabel,
-        name: toName,
-      })
-    );
-
-    if (incomingRelations && incomingRelations.length > 1) {
-      const popularityBoost = Math.log(incomingRelations.length + 1) * 0.2;
-      increment *= (1 + popularityBoost);
-      console.log(`  ⭐ Target popularity: ${incomingRelations.length} incoming, boost=${popularityBoost.toFixed(4)}`);
-    }
-
-    // ✅ LIMIT INCREMENT: Không cho phép increment > 2.0
-    increment = Math.min(increment, 2.0);
-
-    return increment;
-  }
-
-  // ========== CHUẨN HÓA TẤT CẢ WEIGHT VỀ [0,1] ==========
-  private async normalizeAllWeights(): Promise<void> {
-    try {
-      // Lấy tất cả relations trong database
-      const allRelations = await firstValueFrom(
-        this.neo4jClient.send('neo4j.get-all-relations', {})
-      );
-      console.log(`🔍 Tìm thấy tổng cộng ${allRelations.length} relations để chuẩn hóa`);
-
-      if (!allRelations || allRelations.length === 0) {
-        console.log('⚠️  Không có relation nào để chuẩn hóa');
-        return;
-      }
-
-      // Lấy weights hợp lệ
-      const validRelations = allRelations.filter(r =>
-        r.weight !== undefined &&
-        r.weight !== null &&
-        !isNaN(r.weight) &&
-        isFinite(r.weight)
-      );
-
-      console.log(`🔍 Tìm thấy ${validRelations.length} relations với weight hợp lệ`);
-
-      if (validRelations.length === 0) {
-        console.log('⚠️  Không có weight hợp lệ nào để chuẩn hóa');
-        return;
-      }
-
-      // Lấy mảng weights
-      const weights = validRelations.map(r => r.weight);
-      const minWeight = Math.min(...weights);
-      const maxWeight = Math.max(...weights);
-
-      console.log(`📊 Weight range: [${minWeight}, ${maxWeight}]`);
-      console.log(`📊 Sample weights:`, weights.slice(0, 10));
-
-      // Kiểm tra nếu tất cả weight bằng nhau
-      if (maxWeight === minWeight) {
-        console.log('⚠️  Tất cả weight bằng nhau, set tất cả về 0.5');
-        const updates = validRelations.map(relation => ({
-          fromLabel: relation.fromLabel,
-          fromName: relation.fromName,
-          toLabel: relation.toLabel,
-          toName: relation.toName,
-          relationType: relation.relationType,
-          weight: 0.5, // Giá trị trung bình khi không có sự khác biệt
-        }));
-
-        await firstValueFrom(
-          this.neo4jClient.send('neo4j.batch-update-weights', { updates })
-        );
-        console.log(`✅ Đã set ${updates.length} relations về weight = 0.5`);
-        return;
-      }
-
-      // Chuẩn hóa Min-Max về [0, 1]
-      const range = maxWeight - minWeight;
-      const updates = [];
-
-      for (const relation of validRelations) {
-        // Công thức chuẩn hóa Min-Max: (x - min) / (max - min)
-        const normalizedWeight = (relation.weight - minWeight) / range;
-
-        // ✅ Clamp giá trị để đảm bảo nằm trong [0, 1]
-        const clampedWeight = Math.max(0, Math.min(1, normalizedWeight));
-
-        updates.push({
-          fromLabel: relation.fromLabel,
-          fromName: relation.fromName,
-          toLabel: relation.toLabel,
-          toName: relation.toName,
-          relationType: relation.relationType,
-          weight: Number(clampedWeight.toFixed(6)), // Làm tròn 6 chữ số
-        });
-      }
-
-      // ✅ Validation: kiểm tra kết quả trước khi update
-      const invalidWeights = updates.filter(u => u.weight < 0 || u.weight > 1);
-      if (invalidWeights.length > 0) {
-        console.error('❌ Phát hiện weight không hợp lệ:', invalidWeights.slice(0, 5));
-        throw new Error(`Có ${invalidWeights.length} weight nằm ngoài [0,1]`);
-      }
-
-      console.log(`🔄 Chuẩn bị cập nhật ${updates.length} relations`);
-      console.log(`📊 Sample normalized weights:`, updates.slice(0, 10).map(u => u.weight));
-
-      // Batch update
-      await firstValueFrom(
-        this.neo4jClient.send('neo4j.batch-update-weights', { updates })
-      );
-
-      // ✅ Verify sau khi update
-      const verifyRelations = await firstValueFrom(
-        this.neo4jClient.send('neo4j.get-all-relations', {})
-      );
-      const verifyWeights = verifyRelations
-        .filter(r => r.weight !== undefined && r.weight !== null)
-        .map(r => r.weight);
-
-      const verifyMin = Math.min(...verifyWeights);
-      const verifyMax = Math.max(...verifyWeights);
-
-      console.log(`✅ Đã chuẩn hóa ${updates.length} relations`);
-      console.log(`✅ Verify - New range: [${verifyMin}, ${verifyMax}]`);
-
-      if (verifyMax > 1 || verifyMin < 0) {
-        console.error('⚠️  WARNING: Vẫn còn weight nằm ngoài [0,1] sau khi chuẩn hóa!');
-      }
-
-    } catch (error) {
-      console.error('❌ Lỗi khi chuẩn hóa weight:', error.message);
-      throw error;
-    }
-  }
-
   // ========== LẤY RELATIONS SAU KHI CHUẨN HÓA ==========
   private async getUpdatedRelations(relations: any[]): Promise<any[]> {
     const updated = [];
@@ -1176,39 +840,265 @@ export class NlpIntegrationService {
       throw new InternalServerErrorException('Không thể thống kê POS');
     }
   }
+  // ========== FIXED: calculateWeightIncrement ==========
+  // Chuẩn hóa wieght của các nút liên quan sau khi weight của 1 nút khác đã được tăng
+  //Ví dụ tôi->yêu (weight=0.8), tôi->thương (weight=0.3), tôi->ghét (weight=0.2), tôi->rất (weight=0.1)  thì khi tôi->yêu được tăng lên 0.9,
+  //thì tôi->thương và tôi->ghét, tôi->rất sẽ bị giảm xuống theo nguyên tắc chuẩn hóa về 0.5.
+  private async calculateWeightIncrement(params: {
+    fromLabel: string;
+    fromName: string;
+    toLabel: string;
+    toName: string;
+    currentWeight: number;
+  }): Promise<number> {
+    let { fromLabel, fromName, toLabel, toName, currentWeight } = params;
 
-  // Tìm từ trong graph và lấy thông tin liên quan
+    // ✅ Validation
+    if (currentWeight === undefined || currentWeight === null ||
+      isNaN(currentWeight) || !isFinite(currentWeight)) {
+      console.warn(`⚠️  Invalid currentWeight for ${fromName}->${toName}, using 0`);
+      currentWeight = 0;
+    }
+
+    // 1️⃣ Base increment - giảm xuống để tránh tăng trưởng nổ
+    let increment = 0.2; // ✅ Giảm từ 0.5 → 0.2
+
+    // 2️⃣ Lấy tất cả relations từ cùng node gốc
+    const siblingRelations = await firstValueFrom(
+      this.neo4jClient.send('neo4j.get-relations-from-node', {
+        label: fromLabel,
+        name: fromName,
+      })
+    );
+
+    if (siblingRelations && siblingRelations.length > 0) {
+      const siblingWeights = siblingRelations
+        .filter(r => r.weight !== undefined && !isNaN(r.weight) && isFinite(r.weight))
+        .map(r => r.weight);
+
+      if (siblingWeights.length > 0) {
+        const avgSiblingWeight = siblingWeights.reduce((sum, w) => sum + w, 0) / siblingWeights.length;
+
+        // ✅ FIXED: Tránh giá trị âm, dùng công thức an toàn hơn
+        const ratio = currentWeight / (avgSiblingWeight + 0.01);
+
+        if (ratio < 1) {
+          // Relation yếu hơn trung bình → tăng nhiều hơn
+          increment *= (1 + (1 - ratio) * 0.3); // Max boost = 1.3x
+        } else {
+          // Relation mạnh hơn trung bình → tăng ít hơn
+          increment *= 1 / (1 + Math.log(ratio + 1) * 0.3); // Giảm dần theo log
+        }
+
+        console.log(`  🔗 Sibling context: avg=${avgSiblingWeight.toFixed(4)}, ratio=${ratio.toFixed(2)}, increment=${increment.toFixed(4)}`);
+      }
+    }
+
+    // 3️⃣ Popularity boost cho target node
+    const incomingRelations = await firstValueFrom(
+      this.neo4jClient.send('neo4j.get-relations-to-node', {
+        label: toLabel,
+        name: toName,
+      })
+    );
+
+    if (incomingRelations && incomingRelations.length > 1) {
+      const popularityBoost = Math.log(incomingRelations.length + 1) * 0.1; // ✅ Giảm từ 0.2 → 0.1
+      increment *= (1 + popularityBoost);
+      console.log(`  ⭐ Target popularity: ${incomingRelations.length} incoming, boost=${popularityBoost.toFixed(4)}`);
+    }
+
+    // ✅ Limit increment trong khoảng an toàn
+    increment = Math.min(Math.max(increment, 0.05), 1.0); // [0.05, 1.0]
+
+    return increment;
+  }
+
+  // ========== FIXED: normalizeAllWeights - Chuẩn hóa theo từng node ==========
+  private async normalizeAllWeights(): Promise<void> {
+    try {
+      console.log('🔄 Bắt đầu chuẩn hóa weight theo từng node...');
+
+      // Lấy tất cả relations
+      const allRelations = await firstValueFrom(
+        this.neo4jClient.send('neo4j.get-all-relations', {})
+      );
+
+      if (!allRelations || allRelations.length === 0) {
+        console.log('⚠️  Không có relation nào để chuẩn hóa');
+        return;
+      }
+
+      // ✅ Nhóm relations theo node gốc (fromLabel + fromName)
+      const relationsBySource = new Map<string, any[]>();
+
+      for (const rel of allRelations) {
+        if (rel.weight === undefined || rel.weight === null ||
+          isNaN(rel.weight) || !isFinite(rel.weight)) {
+          continue; // Bỏ qua weight không hợp lệ
+        }
+
+        const sourceKey = `${rel.fromLabel}:${rel.fromName}`;
+        if (!relationsBySource.has(sourceKey)) {
+          relationsBySource.set(sourceKey, []);
+        }
+        relationsBySource.get(sourceKey).push(rel);
+      }
+
+      console.log(`📊 Tìm thấy ${relationsBySource.size} nodes gốc cần chuẩn hóa`);
+
+      const updates = [];
+
+      // ✅ Chuẩn hóa từng nhóm riêng biệt
+      for (const [sourceKey, relations] of relationsBySource.entries()) {
+        if (relations.length === 0) continue;
+
+        // Lấy min/max trong nhóm này
+        const weights = relations.map(r => r.weight);
+        const minWeight = Math.min(...weights);
+        const maxWeight = Math.max(...weights);
+        const range = maxWeight - minWeight;
+
+        console.log(`  🔍 ${sourceKey}: ${relations.length} relations, range=[${minWeight.toFixed(4)}, ${maxWeight.toFixed(4)}]`);
+
+        // Nếu tất cả weight bằng nhau trong nhóm
+        if (range < 0.0001) {
+          for (const rel of relations) {
+            updates.push({
+              fromLabel: rel.fromLabel,
+              fromName: rel.fromName,
+              toLabel: rel.toLabel,
+              toName: rel.toName,
+              relationType: rel.relationType,
+              weight: 0.5, // Giá trị trung bình
+            });
+          }
+          continue;
+        }
+
+        // ✅ Chuẩn hóa Min-Max trong nhóm
+        for (const rel of relations) {
+          const normalizedWeight = (rel.weight - minWeight) / range;
+          const clampedWeight = Math.max(0, Math.min(1, normalizedWeight));
+
+          updates.push({
+            fromLabel: rel.fromLabel,
+            fromName: rel.fromName,
+            toLabel: rel.toLabel,
+            toName: rel.toName,
+            relationType: rel.relationType,
+            weight: Number(clampedWeight.toFixed(6)),
+          });
+        }
+      }
+
+      // Validation trước khi update
+      const invalidWeights = updates.filter(u => u.weight < 0 || u.weight > 1 || isNaN(u.weight));
+      if (invalidWeights.length > 0) {
+        console.error('❌ Phát hiện weight không hợp lệ:', invalidWeights.slice(0, 5));
+        throw new Error(`Có ${invalidWeights.length} weight nằm ngoài [0,1]`);
+      }
+
+      console.log(`🔄 Chuẩn bị cập nhật ${updates.length} relations`);
+
+      // Batch update
+      await firstValueFrom(
+        this.neo4jClient.send('neo4j.batch-update-weights', { updates })
+      );
+
+      console.log(`✅ Đã chuẩn hóa ${updates.length} relations theo ${relationsBySource.size} nodes`);
+
+    } catch (error) {
+      console.error('❌ Lỗi khi chuẩn hóa weight:', error.message);
+      throw error;
+    }
+  }
+
+  // ========== FIXED: findWord với validation ==========
   async findWord(word: string) {
     try {
+      // ✅ Validation input
+      if (!word || typeof word !== 'string' || word.trim().length === 0) {
+        throw new BadRequestException('Từ tìm kiếm không hợp lệ');
+      }
+
+      const cleanWord = word.trim().toLowerCase();
+
       const nodes = await firstValueFrom(
-        this.neo4jClient.send('neo4j.get-suggestions', { word: word })
+        this.neo4jClient.send('neo4j.get-suggestions', { word: cleanWord })
       );
+
+      // ✅ Kiểm tra kết quả
+      if (!nodes || nodes.length === 0) {
+        return {
+          success: false,
+          word: cleanWord,
+          message: 'Không tìm thấy từ trong graph',
+          nodes: [],
+        };
+      }
+
       return {
         success: true,
-        word,
+        word: cleanWord,
+        totalResults: nodes.length,
         nodes,
       };
     } catch (error) {
       console.error('Lỗi khi tìm từ trong graph:', error);
-      throw new InternalServerErrorException('Không thể tìm từ trong graph');
+      throw new InternalServerErrorException(`Không thể tìm từ: ${error.message}`);
     }
   }
 
+  // ========== FIXED: findWordByLabel với validation ==========
   async findWordByLabel(word: string, toLabel: string) {
     try {
+      // ✅ Validation input
+      if (!word || typeof word !== 'string' || word.trim().length === 0) {
+        throw new BadRequestException('Từ tìm kiếm không hợp lệ');
+      }
+
+      if (!toLabel || typeof toLabel !== 'string' || toLabel.trim().length === 0) {
+        throw new BadRequestException('Label không hợp lệ');
+      }
+
+      const cleanWord = word.trim().toLowerCase();
+      const cleanLabel = toLabel.trim().toUpperCase();
+
+      // ✅ Validate label format (POS tags thường là 1-2 ký tự)
+      const validLabels = ['N', 'V', 'A', 'R', 'P', 'M', 'E', 'C', 'I', 'T', 'CH'];
+      if (!validLabels.includes(cleanLabel)) {
+        console.warn(`⚠️  Label không chuẩn: ${cleanLabel}`);
+      }
+
       const nodes = await firstValueFrom(
-        this.neo4jClient.send('neo4j.find-word-by-label', { word, toLabel })
+        this.neo4jClient.send('neo4j.find-word-by-label', {
+          word: cleanWord,
+          toLabel: cleanLabel
+        })
       );
+
+      // ✅ Kiểm tra kết quả
+      if (!nodes || nodes.length === 0) {
+        return {
+          success: false,
+          word: cleanWord,
+          toLabel: cleanLabel,
+          message: `Không tìm thấy từ "${cleanWord}" với label "${cleanLabel}"`,
+          nodes: [],
+        };
+      }
+
       return {
         success: true,
-        word,
-        toLabel,
+        word: cleanWord,
+        toLabel: cleanLabel,
+        totalResults: nodes.length,
         nodes,
       };
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Lỗi khi tìm từ theo label trong graph:', error);
-      throw new InternalServerErrorException('Không thể tìm từ theo label trong graph');
+      throw new InternalServerErrorException(`Không thể tìm từ theo label: ${error.message}`);
     }
   }
 
