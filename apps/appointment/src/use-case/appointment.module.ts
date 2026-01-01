@@ -71,6 +71,13 @@ import { Appointment, AppointmentSchema } from '../core/schema/Appointment.schem
           port: 3003,
         },
       },
+      {
+        name: 'SPECIALTY_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          port: 3009,
+        },
+      },
     ]),
   ],
   controllers: [AppointmentController],

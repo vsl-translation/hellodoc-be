@@ -4,7 +4,7 @@ import { ClassificationResult } from '../core/dto/underthesea.dto';
 
 @Injectable()
 export class UndertheseaService {
-  private colab_url = process.env.COLAB_URL || 'https://lorriane-noncongregative-benson.ngrok-free.dev';
+  private colab_url = process.env.COLAB_URL || 'https://myles-undeliverable-symbolically.ngrok-free.dev';
 
   async classifyPOS(text: string): Promise<ClassificationResult> {
     try {

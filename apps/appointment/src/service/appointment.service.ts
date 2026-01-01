@@ -18,6 +18,7 @@ export class AppointmentService {
     @InjectModel(Appointment.name, 'appointmentConnection') private appointmentModel: Model<Appointment>,
     @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
     @Inject('USERS_CLIENT') private usersClient: ClientProxy,
+    @Inject('SPECIALTY_CLIENT') private specialtyClient: ClientProxy,
     private cacheService: CacheService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
 
@@ -348,13 +349,13 @@ export class AppointmentService {
     }
 
     // --- cache ---
-    const cacheKey = 'all_patient_appointments_' + patientID;
-    const cached = await this.cacheManager.get(cacheKey);
-    if (cached) {
-      console.log('Cache HIT');
-      return cached;
-    }
-    console.log('Cache MISS - querying DB');
+    // const cacheKey = 'all_patient_appointments_' + patientID;
+    // const cached = await this.cacheManager.get(cacheKey);
+    // if (cached) {
+    //   console.log('Cache HIT');
+    //   return cached;
+    // }
+    // console.log('Cache MISS - querying DB');
     const appointmentsRaw = await this.appointmentModel.find({
       patient: new Types.ObjectId(patientID),
     });
@@ -376,12 +377,19 @@ export class AppointmentService {
             .pipe(timeout(10000))
         );
 
+        const specialty = await firstValueFrom(
+          this.specialtyClient
+            .send('specialty.get-by-id', doctor.specialty)
+            .pipe(timeout(10000))
+        );
+
         appointments.push({
           ...appt.toObject(),
           doctor: doctor
             ? {
               _id: doctor._id,
               name: doctor.name,
+              specialty: specialty.name,
               avatarURL: doctor.avatarURL,
             }
             : null,
@@ -410,7 +418,7 @@ export class AppointmentService {
       throw new NotFoundException('No appointments found for this patient');
     }
     // cache 30s
-    await this.cacheService.setCache(cacheKey, filterAppointments, 30 * 1000);
+    // await this.cacheService.setCache(cacheKey, filterAppointments, 30 * 1000);
 
     return filterAppointments;
   }
