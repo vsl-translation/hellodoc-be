@@ -40,17 +40,17 @@ export class NlpIntegrationController {
   async clearInvalidPronouns() {
     return this.nlpIntegrationService.cleanInvalidPronounNodes();
   }
-  // // Xây dựng knowledge graph từ nhiều văn bản
-  // @MessagePattern('nlp-integration.build-knowledge-graph')
-  // async buildKnowledgeGraph(@Payload() texts: string[]) {
-  //   if (!Array.isArray(texts)) {
-  //     return { error: 'texts phải là một mảng' };
-  //   }
-  //   if (texts.length === 0) {
-  //     return { error: 'texts không được rỗng' };
-  //   }
-  //   return this.nlpIntegrationService.buildKnowledgeGraph(texts);
-  // }
+  // Xây dựng knowledge graph từ nhiều văn bản
+  @MessagePattern('nlp-integration.build-knowledge-graph')
+  async buildKnowledgeGraph(@Payload() texts: string[]) {
+    if (!Array.isArray(texts)) {
+      return { error: 'texts phải là một mảng' };
+    }
+    if (texts.length === 0) {
+      return { error: 'texts không được rỗng' };
+    }
+    return this.nlpIntegrationService.buildKnowledgeGraph(texts);
+  }
 
 
 }

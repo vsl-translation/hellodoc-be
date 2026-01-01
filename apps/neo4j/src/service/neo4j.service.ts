@@ -169,7 +169,36 @@ export class Neo4jService {
       await session.close();
     }
   }
+  async updateRelationWeight(data: {
+    fromLabel: string;
+    fromName: string;
+    toLabel: string;
+    toName: string;
+    relationType: string;
+    weight: number;
+  }) {
+    const session = this.getSession();
+    try {
+      const query = `
+        MATCH (from:${data.fromLabel} {name: $fromName})-[r:${data.relationType}]->(to:${data.toLabel} {name: $toName})
+        SET r.weight = $weight
+        RETURN r
+      `;
 
+      await session.run(query, {
+        fromName: data.fromName,
+        toName: data.toName,
+        weight: data.weight,
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Lỗi khi update relation weight:', error);
+      throw new InternalServerErrorException('Lỗi khi update relation weight');
+    } finally {
+      await session.close();
+    }
+  }
   async getAll() {
     const session = this.getSession();
     try {

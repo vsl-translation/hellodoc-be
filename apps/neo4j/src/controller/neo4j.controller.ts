@@ -23,6 +23,17 @@ export class Neo4jController {
     return this.neo4jService.getSuggestions(word);
   }
 
+  @MessagePattern('neo4j.update-relation-weight')
+  async updateRelationWeight(data: {
+    fromLabel: string;
+    fromName: string;
+    toLabel: string;
+    toName: string;
+    relationType: string;
+    weight: number;
+  }) {
+    return this.neo4jService.updateRelationWeight(data);
+  }
 
   @MessagePattern('neo4j.get-all')
   async getAll() {
@@ -75,6 +86,7 @@ export class Neo4jController {
   async getRelationsToNode(@Payload() payload: { label: string; name: string }) {
     return this.neo4jService.getRelationsToNode(payload.label, payload.name);
   }
+  
   @MessagePattern('neo4j.get-relation')
   async getRelation(@Payload() payload: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string }) {
     return this.neo4jService.getRelation(

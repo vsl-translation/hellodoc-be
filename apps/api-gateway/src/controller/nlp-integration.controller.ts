@@ -56,22 +56,22 @@ export class NlpController {
      * - khó (A) --MODIFIES--> bài tập (N)
      */
 
-    // // 3. Thêm endpoint vào controller
-    // @Post('batch-process')
-    // async batchProcess(@Query('folder') folder?: string) {
-    //     const folderPath = folder || 'data_test/test/pos';
-    //     return await this.nlpService.processBatchFiles(folderPath);
-    // }
+    // 3. Thêm endpoint vào controller
+    @Post('batch-process')
+    async batchProcess(@Query('folder') folder?: string) {
+        const folderPath = folder || 'data_test/test/pos';
+        return await this.nlpService.processBatchFiles(folderPath);
+    }
 
-    // @Post('build-knowledge-graph')
-    // async buildKnowledgeGraph(@Body('texts') texts: string[]) {
-    //     if (!Array.isArray(texts)) {
-    //         return { error: 'texts phải là một mảng' };
-    //     }
-    //     if (texts.length === 0) {
-    //         return { error: 'texts không được rỗng' };
-    //     }
-    //     return await this.nlpService.buildKnowledgeGraph(texts);
-    // }
+    @Post('build-knowledge-graph')
+    async buildKnowledgeGraph(@Body('texts') texts: string[]) {
+        if (!Array.isArray(texts)) {
+            return { error: 'texts phải là một mảng' };
+        }
+        if (texts.length === 0) {
+            return { error: 'texts không được rỗng' };
+        }
+        return await this.nlpService.buildKnowledgeGraph(texts);
+    }
 
 }

@@ -13,6 +13,7 @@ export class UndertheseaController {
 
   @MessagePattern('underthesea.pos')
   async classifyPOS(@Payload() body: ClassifyRequest): Promise<ClassificationResult> {
+    console.log('Received text for POS classification:', body.text);
     return this.classificationService.classifyPOS(body.text);
   }
 
