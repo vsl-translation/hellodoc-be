@@ -12,8 +12,8 @@ export class Specialty extends Document {
     @Prop()
     description: string;
 
-    @Prop({ type: [String], default: [] })
-    doctors: string[]; // Danh sách bác sĩ thuộc chuyên khoa
+    @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId }], default: [] })
+    doctors: Types.ObjectId[]; // Danh sách bác sĩ thuộc chuyên khoa
 }
 
 export const SpecialtySchema = SchemaFactory.createForClass(Specialty);

@@ -857,7 +857,7 @@ export class DoctorService {
       if (pendingDoctor.specialty) {
         await lastValueFrom(
           this.specialtyClient.send('specialty.update-doctor-specialties', {
-            doctorId: userId,
+            doctorId: new Types.ObjectId(userId),
             specialtyIds: pendingDoctor.specialty
           }).pipe(timeout(5000))
         );
