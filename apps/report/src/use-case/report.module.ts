@@ -33,20 +33,20 @@ import config from 'apps/config/config';
       'reportConnection',
     ),
     ClientsModule.register([
-      {
-        name: 'USERS_CLIENT',
-        transport: Transport.TCP,
-        options: {
-          port: 3001,
-        },
-      },
-      {
-        name: 'DOCTOR_CLIENT',
-        transport: Transport.TCP,
-        options: {
-          port: 3003,
-        },
-      },
+      // {
+      //   name: 'USERS_CLIENT',
+      //   transport: Transport.TCP,
+      //   options: {
+      //     port: 3001,
+      //   },
+      // },
+      // {
+      //   name: 'DOCTOR_CLIENT',
+      //   transport: Transport.TCP,
+      //   options: {
+      //     port: 3003,
+      //   },
+      // },
     ]),
   ],
   controllers: [ReportController],

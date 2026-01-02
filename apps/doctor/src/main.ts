@@ -38,16 +38,12 @@ async function bootstrap() {
     credential: admin.credential.cert(serviceAccount),
   });
 
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    DoctorModule,
-    {
-      transport: Transport.TCP,
-      options: {
-        port: 3003,
-      },
-    },
-  );
-  await app.listen();
+  const app = await NestFactory.create(DoctorModule);
+
+
+  app.enableCors();
+  const port = 3003;
+  await app.listen(port);
   console.log('Doctor service is listening on port 3003');
 }
 bootstrap();

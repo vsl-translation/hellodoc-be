@@ -9,18 +9,20 @@ import { ClientProxy } from '@nestjs/microservices';
 import { PendingDoctor, PendingDoctorStatus } from '../core/schema/PendingDoctor.schema';
 import { Specialty } from 'apps/specialty/src/core/schema/specialty.schema';
 import { lastValueFrom, timeout } from 'rxjs';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class DoctorService {
   constructor(
     @InjectModel(Doctor.name, 'doctorConnection') private DoctorModel: Model<Doctor>,
     @InjectModel(PendingDoctor.name, 'doctorConnection') private pendingDoctorModel: Model<PendingDoctor>,
-    @Inject('USERS_CLIENT') private usersClient: ClientProxy,
+    // @Inject('USERS_CLIENT') private usersClient: ClientProxy,
     @Inject('SPECIALTY_CLIENT') private specialtyClient: ClientProxy,
     @Inject('APPOINTMENT_CLIENT') private appointmentClient: ClientProxy,
     @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
 
     private cacheService: CacheService,
+
   ) { }
   async getDoctorById(id: string) {
     //console.log('Received doctor ID:', id, typeof id);
@@ -232,9 +234,9 @@ export class DoctorService {
     return this.pendingDoctorModel.create({ ...data, status: PendingDoctorStatus.PENDING });
   }
 
-  async applyForDoctor(userId: string, applyData: any) {
-    return this.usersClient.send('user.apply-for-doctor', { userId, applyData });
-  }
+  // async applyForDoctor(userId: string, applyData: any) {
+  //   return this.usersClient.send('user.apply-for-doctor', { userId, applyData });
+  // }
 
   async delete(id: string) {
     if (!Types.ObjectId.isValid(id)) {
@@ -797,83 +799,83 @@ export class DoctorService {
 
 
 
-  async verifyDoctor(userId: string) {
-    console.log('userId: ', userId);
-    // 1. Check PendingDoctor
-    const pendingDoctor = await this.pendingDoctorModel.findOne({ userId });
-    if (!pendingDoctor)
-      throw new NotFoundException(
-        'Người dùng không tồn tại trong bảng chờ phê duyệt.',
-      );
+  // async verifyDoctor(userId: string) {
+  //   console.log('userId: ', userId);
+  //   // 1. Check PendingDoctor
+  //   const pendingDoctor = await this.pendingDoctorModel.findOne({ userId });
+  //   if (!pendingDoctor)
+  //     throw new NotFoundException(
+  //       'Người dùng không tồn tại trong bảng chờ phê duyệt.',
+  //     );
 
-    // 2. Fetch User data via usersClient
-    // Use lastValueFrom + timeout to handle microservice communication safely
-    let user;
-    try {
-      user = await lastValueFrom(
-        this.usersClient.send('user.getuserbyid', userId).pipe(timeout(5000))
-      );
-    } catch (e) {
-      console.error('Lỗi khi gọi user.getuserbyid:', e);
-      throw new NotFoundException('Không thể lấy thông tin người dùng từ service Users.');
-    }
+  //   // 2. Fetch User data via usersClient
+  //   // Use lastValueFrom + timeout to handle microservice communication safely
+  //   let user;
+  //   try {
+  //     user = await lastValueFrom(
+  //       this.usersClient.send('user.getuserbyid', userId).pipe(timeout(5000))
+  //     );
+  //   } catch (e) {
+  //     console.error('Lỗi khi gọi user.getuserbyid:', e);
+  //     throw new NotFoundException('Không thể lấy thông tin người dùng từ service Users.');
+  //   }
 
-    if (!user) throw new NotFoundException('Người dùng không tồn tại.');
+  //   if (!user) throw new NotFoundException('Người dùng không tồn tại.');
 
-    // 3. Create Doctor record
-    const newDoctor = await this.DoctorModel.create({
-      _id: userId,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      password: user.password,
-      verified: true,
-      cccd: pendingDoctor.CCCD,
-      avatarURL: pendingDoctor.avatarURL,
-      frontCccdUrl: pendingDoctor.frontCccdUrl,
-      backCccdUrl: pendingDoctor.backCccdUrl,
-      address: pendingDoctor.address,
-      licenseUrl: pendingDoctor.licenseUrl,
-      certificates: pendingDoctor.certificates,
-      experience: pendingDoctor.experience,
-      specialty: pendingDoctor.specialty,
-      isDeleted: pendingDoctor.isDeleted,
-    });
+  //   // 3. Create Doctor record
+  //   const newDoctor = await this.DoctorModel.create({
+  //     _id: userId,
+  //     name: user.name,
+  //     email: user.email,
+  //     phone: user.phone,
+  //     password: user.password,
+  //     verified: true,
+  //     cccd: pendingDoctor.CCCD,
+  //     avatarURL: pendingDoctor.avatarURL,
+  //     frontCccdUrl: pendingDoctor.frontCccdUrl,
+  //     backCccdUrl: pendingDoctor.backCccdUrl,
+  //     address: pendingDoctor.address,
+  //     licenseUrl: pendingDoctor.licenseUrl,
+  //     certificates: pendingDoctor.certificates,
+  //     experience: pendingDoctor.experience,
+  //     specialty: pendingDoctor.specialty,
+  //     isDeleted: pendingDoctor.isDeleted,
+  //   });
 
-    // 4. Delete PendingDoctor
-    await this.pendingDoctorModel.deleteOne({ userId });
+  //   // 4. Delete PendingDoctor
+  //   await this.pendingDoctorModel.deleteOne({ userId });
 
-    // 5. Delete User (Hard Delete) via usersClient
-    try {
-      await lastValueFrom(
-        this.usersClient.send('user.hard-delete', userId).pipe(timeout(5000))
-      );
-    } catch (e) {
-      console.warn('Lỗi khi gọi user.hard-delete (không ảnh hưởng luồng chính):', e);
-    }
+  //   // 5. Delete User (Hard Delete) via usersClient
+  //   try {
+  //     await lastValueFrom(
+  //       this.usersClient.send('user.hard-delete', userId).pipe(timeout(5000))
+  //     );
+  //   } catch (e) {
+  //     console.warn('Lỗi khi gọi user.hard-delete (không ảnh hưởng luồng chính):', e);
+  //   }
 
-    // 6. Update Specialty
-    try {
-      if (pendingDoctor.specialty) {
-        await lastValueFrom(
-          this.specialtyClient.send('specialty.update-doctor-specialties', {
-            doctorId: new Types.ObjectId(userId),
-            specialtyIds: pendingDoctor.specialty
-          }).pipe(timeout(5000))
-        );
-      }
-    } catch (e) {
-      console.warn('Lỗi khi cập nhật specialty (không ảnh hưởng luồng chính):', e);
-    }
+  //   // 6. Update Specialty
+  //   try {
+  //     if (pendingDoctor.specialty) {
+  //       await lastValueFrom(
+  //         this.specialtyClient.send('specialty.update-doctor-specialties', {
+  //           doctorId: new Types.ObjectId(userId),
+  //           specialtyIds: pendingDoctor.specialty
+  //         }).pipe(timeout(5000))
+  //       );
+  //     }
+  //   } catch (e) {
+  //     console.warn('Lỗi khi cập nhật specialty (không ảnh hưởng luồng chính):', e);
+  //   }
 
-    // Clear cache if needed
-    const cacheKey = 'pending_doctors';
-    await this.cacheService.deleteCache(cacheKey);
+  //   // Clear cache if needed
+  //   const cacheKey = 'pending_doctors';
+  //   await this.cacheService.deleteCache(cacheKey);
 
-    return {
-      message: 'Xác thực bác sĩ thành công!',
-    };
-  }
+  //   return {
+  //     message: 'Xác thực bác sĩ thành công!',
+  //   };
+  // }
 
   async rejectDoctor(userId: string, reason: string) {
     const pendingDoctor = await this.pendingDoctorModel.findOne({ userId });

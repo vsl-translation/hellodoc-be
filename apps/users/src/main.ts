@@ -1,6 +1,4 @@
 import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-
 import * as admin from 'firebase-admin';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -10,12 +8,10 @@ import { UsersModule } from './use-case/users.module';
 async function bootstrap() {
   dotenv.config();
 
-  // Check if running in Render environment
   const isProduction = process.env.NODE_ENV === 'production';
 
   let serviceAccount;
   if (isProduction) {
-    // Render environment - read from /etc/secrets
     try {
       const serviceAccountPath = '/etc/secrets/firebase-service-account.json';
       serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
@@ -24,7 +20,6 @@ async function bootstrap() {
       process.exit(1);
     }
   } else {
-    // Local development - read from project directory
     try {
       const serviceAccountPath = path.join(__dirname, '..', '..', '..', 'firebase-service-account.json');
       serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
@@ -38,16 +33,14 @@ async function bootstrap() {
     credential: admin.credential.cert(serviceAccount),
   });
 
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    UsersModule,
-    {
-      transport: Transport.TCP,
-      options: {
-        port: 3001,
-      },
-    },
-  );
-  await app.listen();
-  console.log('Users service is listening on port 3001');
+  // Thay đổi từ createMicroservice sang create
+  const app = await NestFactory.create(UsersModule);
+
+  // Enable CORS
+  app.enableCors();
+
+  const port = 3001;
+  await app.listen(port);
+  console.log(`Users service is listening on port ${port}`);
 }
 bootstrap();

@@ -17,28 +17,28 @@ export class UsersController {
     return this.usersService.getAllUsers();
   }
 
-  @Get('get-all-filtered')
-  getAllWithFilter(
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('searchText') searchText?: string,
-  ) {
-    return this.usersService.getAllWithFilter(limit, offset, searchText);
-  }
+  // @Get('get-all-filtered')
+  // getAllWithFilter(
+  //   @Query('limit') limit?: string,
+  //   @Query('offset') offset?: string,
+  //   @Query('searchText') searchText?: string,
+  // ) {
+  //   return this.usersService.getAllWithFilter(limit, offset, searchText);
+  // }
 
-  @Get('getuserbyid/:id')
-  getUserByID(@Param('id') id: string) {
-    return this.usersService.getUserById(id);
-  }
+  // @Get('getuserbyid/:id')
+  // getUserByID(@Param('id') id: string) {
+  //   return this.usersService.getUserById(id);
+  // }
 
-  @Put('updateUser/:id')
-  updateUser(@Param('id') id: string, @Body() data: any) {
-    return this.usersService.updateUser(id, data);
-  }
+  // @Put('updateUser/:id')
+  // updateUser(@Param('id') id: string, @Body() data: any) {
+  //   return this.usersService.updateUser(id, data);
+  // }
 
-  @Put(':id/fcm-token')
-  updateFcmToken(@Param('id') id: string, @Body() updateFcmDto: any) {
-    return this.usersService.updateFcmToken(id, updateFcmDto);
-  }
+  // @Put(':id/fcm-token')
+  // updateFcmToken(@Param('id') id: string, @Body() updateFcmDto: any) {
+  //   return this.usersService.updateFcmToken(id, updateFcmDto);
+  // }
 
 }

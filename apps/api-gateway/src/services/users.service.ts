@@ -1,36 +1,51 @@
+import { HttpService } from '@nestjs/axios';
 import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ClientProxy } from '@nestjs/microservices';
-import { lastValueFrom } from 'rxjs';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject('USERS_CLIENT') private usersClient: ClientProxy) { }
-
-  findAll() {
-    return this.usersClient.send('user.users', {});
+  private baseUrl = this.configService.get('USERS_SERVICE_URL') || 'http://localhost:3001';
+  constructor(
+    //@Inject('USERS_CLIENT') private usersClient: ClientProxy,
+    private httpService: HttpService,
+    private configService: ConfigService,
+  ) {
+    this.baseUrl = this.configService.get('USERS_SERVICE_URL') || 'http://localhost:3001';
   }
 
-  getAllUsers() {
-    return this.usersClient.send('user.getallusers', {});
+  async findAll() {
+    const response = await firstValueFrom(
+      this.httpService.get(`${this.baseUrl}/user`)
+    );
+    return response.data;
   }
 
-  async getAllWithFilter(limit?: string, offset?: string, searchText?: string) {
-    return lastValueFrom(this.usersClient.send('user.get-all-filtered', {
-      limit: limit ? parseInt(limit) : 10,
-      offset: offset ? parseInt(offset) : 0,
-      searchText
-    }));
+  async getAllUsers() {
+    const response = await firstValueFrom(
+      this.httpService.get(`${this.baseUrl}/user/getallusers`)
+    );
+    return response.data;
   }
 
-  getUserById(id: string) {
-    return this.usersClient.send('user.getuserbyid', id);
-  }
+  // async getAllWithFilter(limit?: string, offset?: string, searchText?: string) {
+  //   return lastValueFrom(this.usersClient.send('user.get-all-filtered', {
+  //     limit: limit ? parseInt(limit) : 10,
+  //     offset: offset ? parseInt(offset) : 0,
+  //     searchText
+  //   }));
+  // }
 
-  updateUser(id: string, data: any) {
-    return this.usersClient.send('user.update', { id, data });
-  }
+  // getUserById(id: string) {
+  //   return this.usersClient.send('user.getuserbyid', id);
+  // }
 
-  updateFcmToken(id: string, updateFcmDto: any) {
-    return this.usersClient.send('user.updateFcmToken', { id, token: updateFcmDto.token, userModel: updateFcmDto.userModel });
-  }
+  // updateUser(id: string, data: any) {
+  //   return this.usersClient.send('user.update', { id, data });
+  // }
+
+  // updateFcmToken(id: string, updateFcmDto: any) {
+  //   return this.usersClient.send('user.updateFcmToken', { id, token: updateFcmDto.token, userModel: updateFcmDto.userModel });
+  // }
 }

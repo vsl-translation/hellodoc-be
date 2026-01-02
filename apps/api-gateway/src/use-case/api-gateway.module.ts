@@ -33,6 +33,7 @@ import { ImageCaptionModule } from './image-caption.module';
 import { PhowhisperModule } from './phowhisper.module';
 import { SocketModule } from '../socket/socket.module';
 import { SignLanguageModule } from './sign-language.module';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -40,6 +41,14 @@ import { SignLanguageModule } from './sign-language.module';
       isGlobal: true,
       cache: true,
       load: [config],
+    }),
+    HttpModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        timeout: 10000,
+        maxRedirects: 5,
+      }),
+      inject: [ConfigService],
     }),
     JwtModule.register({ global: true, secret: "secretKey" }),
     MongooseModule.forRootAsync({

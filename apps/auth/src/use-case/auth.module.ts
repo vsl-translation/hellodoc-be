@@ -49,13 +49,13 @@ import KeyvRedis from '@keyv/redis';
 
     // Microservice client
     ClientsModule.register([
-      {
-        name: 'USERS_CLIENT',
-        transport: Transport.TCP,
-        options: {
-          port: 3001,
-        },
-      },
+      // {
+      //   name: 'USERS_CLIENT',
+      //   transport: Transport.TCP,
+      //   options: {
+      //     port: 3001,
+      //   },
+      // },
       {
         name: 'ADMIN_CLIENT',
         transport: Transport.TCP,

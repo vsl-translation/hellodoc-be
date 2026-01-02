@@ -2,27 +2,20 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { DoctorController } from '../controller/doctor.controller';
 import { DoctorService } from '../services/doctor.service';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
     imports: [
-        //ket noi gateway voi users service (ket noi dung giao thuc va port)
-        ClientsModule.register([
-            {
-                name: 'DOCTOR_CLIENT',
-                transport: Transport.TCP,
-                options: {
-                    port: 3003,
-                },
-            },
-            {
-                name: 'CLOUDINARY_CLIENT',
-                transport: Transport.TCP,
-                options: {
-                    host: 'localhost',
-                    port: 3006
-                }
-            }
-        ]),
+        HttpModule.registerAsync({
+            imports: [ConfigModule],
+            useFactory: async (configService: ConfigService) => ({
+                timeout: 5000,
+                maxRedirects: 5,
+                baseURL: configService.get('DOCTORS_SERVICE_URL') || 'http://localhost:3003',
+            }),
+            inject: [ConfigService],
+        }),
     ],
     controllers: [DoctorController],
     providers: [DoctorService],

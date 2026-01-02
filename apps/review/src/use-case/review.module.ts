@@ -31,13 +31,13 @@ import config from 'apps/config/config';
       'reviewConnection',
     ),
     ClientsModule.register([
-      {
-        name: 'USERS_CLIENT',
-        transport: Transport.TCP,
-        options: {
-          port: 3001,
-        },
-      },
+      // {
+      //   name: 'USERS_CLIENT',
+      //   transport: Transport.TCP,
+      //   options: {
+      //     port: 3001,
+      //   },
+      // },
     ]),
   ],
   controllers: [ReviewController],

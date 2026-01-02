@@ -9,6 +9,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { JwtModule } from '@nestjs/jwt';
 import { CacheModule } from '@nestjs/cache-manager';
 import KeyvRedis from '@keyv/redis';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -18,7 +19,14 @@ import KeyvRedis from '@keyv/redis';
       load: [config],
     }),
     JwtModule.register({ global: true, secret: "secretKey" }),
-    //khai bao ket noi voi mongodb
+    HttpModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        timeout: 10000,
+        maxRedirects: 5,
+      }),
+      inject: [ConfigService],
+    }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
@@ -26,28 +34,23 @@ import KeyvRedis from '@keyv/redis';
         const uri = isDev
           ? configService.get<string>('MONGO_URI_DEV')
           : configService.get<string>('MONGO_URI_USER');
-
         return { uri };
       },
       inject: [ConfigService],
       connectionName: 'userConnection',
     }),
 
-
-
     CacheModule.register({
       // @ts-ignore
       store: new KeyvRedis('rediss://red-d071mk9r0fns7383v3j0:DeNbSrFT3rDj2vhGDGoX4Pr2DgHUBP8H@singapore-keyvalue.render.com:6379'),
-      ttl: 3600 * 1000, // mặc định TTL
+      ttl: 3600 * 1000,
       isGlobal: true,
     }),
-    //khai bao model cho USER
+
     MongooseModule.forFeature(
       [{ name: User.name, schema: UserSchema }],
       'userConnection',
     ),
-
-
     ClientsModule.register([
       {
         name: 'DOCTOR_CLIENT',

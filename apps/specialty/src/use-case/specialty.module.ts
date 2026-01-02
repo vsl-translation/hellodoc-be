@@ -47,13 +47,13 @@ import { CacheService } from 'libs/cache.service';
       'specialtyConnection',
     ),
     ClientsModule.register([
-      {
-        name: 'DOCTOR_CLIENT',
-        transport: Transport.TCP,
-        options: {
-          port: 3003,
-        },
-      },
+      // {
+      //   name: 'DOCTOR_CLIENT',
+      //   transport: Transport.TCP,
+      //   options: {
+      //     port: 3003,
+      //   },
+      // },
       {
         name: 'CLOUDINARY_CLIENT',
         transport: Transport.TCP,

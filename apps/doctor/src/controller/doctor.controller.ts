@@ -7,7 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Doctor } from '../core/schema/doctor.schema';
 import { Model } from 'mongoose';
 
-@Controller()
+@Controller('doctor')
 export class DoctorController {
   constructor(
     @InjectModel(Doctor.name, 'doctorConnection') private DoctorModel: Model<Doctor>,
@@ -15,72 +15,72 @@ export class DoctorController {
     private readonly doctorService: DoctorService
   ) { }
 
-  @MessagePattern('doctor.get-by-id')
-  async getDoctorById(id: string) {
+  @Get('get-by-id/:id')
+  async getDoctorById(@Param('id') id: string) {
     return this.doctorService.getDoctorById(id);
   }
 
-  @MessagePattern('doctor.get-all')
+  @Get('get-all')
   async getAllDoctor() {
     return this.doctorService.getAllDoctor();
   }
 
-  @MessagePattern('doctor.get-all-filtered')
-  async getAllWithFilter(@Payload() data: { limit?: number; offset?: number; searchText?: string }) {
-    const limit = data.limit ?? 10;
-    const skip = data.offset ?? 0;
-    const searchText = data.searchText;
+  // @Get('get-all-filtered')
+  // async getAllWithFilter(@Payload() data: { limit?: number; offset?: number; searchText?: string }) {
+  //   const limit = data.limit ?? 10;
+  //   const skip = data.offset ?? 0;
+  //   const searchText = data.searchText;
 
-    return this.doctorService.getAllWithFilter(limit, skip, searchText);
-  }
+  //   return this.doctorService.getAllWithFilter(limit, skip, searchText);
+  // }
 
-  @MessagePattern('doctor.get-by-specialtyID')
-  async getDoctorBySpecialtyID(specialtyID: string) {
+  @Get('get-by-specialtyID/:specialtyID')
+  async getDoctorBySpecialtyID(@Param('specialtyID') specialtyID: string) {
     return this.doctorService.getDoctorBySpecialtyID(specialtyID);
   }
 
-  @MessagePattern('doctor.update-fcm-token')
-  async updateFcmToken(@Payload() data: any) {
-    const { id, token } = data;
-    return this.doctorService.updateFcmToken(id, token);
-  }
+  // @MessagePattern('doctor.update-fcm-token')
+  // async updateFcmToken(@Payload() data: any) {
+  //   const { id, token } = data;
+  //   return this.doctorService.updateFcmToken(id, token);
+  // }
 
-  @MessagePattern('doctor.updatePassword')
-  async updatePassword(@Payload() data: { email: string, password: string }) {
-    return this.doctorService.updatePassword(data.email, data.password);
-  }
+  // @MessagePattern('doctor.updatePassword')
+  // async updatePassword(@Payload() data: { email: string, password: string }) {
+  //   return this.doctorService.updatePassword(data.email, data.password);
+  // }
 
-  @MessagePattern('doctor.notify')
-  async notify(@Payload() data: { doctorID: string, message: string }) {
-    console.log('📨 Nhận message doctor.notify:', data);
+  // @MessagePattern('doctor.notify')
+  // async notify(@Payload() data: { doctorID: string, message: string }) {
+  //   console.log('📨 Nhận message doctor.notify:', data);
 
-    return this.doctorService.notify(data.doctorID, data.message);
-  }
+  //   return this.doctorService.notify(data.doctorID, data.message);
+  // }
 
-  @MessagePattern('doctor.get-pedingDoctor')
-  async getPendingDoctor() {
-    return this.doctorService.getPendingDoctors();
-  }
+  // @MessagePattern('doctor.get-pedingDoctor')
+  // async getPendingDoctor() {
+  //   return this.doctorService.getPendingDoctors();
+  // }
 
-  @MessagePattern('doctor.get-pedingDoctor-by-id')
-  async getPendingDoctorById(id: string) {
-    return this.doctorService.getPendingDoctorById(id);
-  }
+  // @MessagePattern('doctor.get-pedingDoctor-by-id')
+  // async getPendingDoctorById(id: string) {
+  //   return this.doctorService.getPendingDoctorById(id);
+  // }
 
-  @MessagePattern('doctor.get-rejected-doctor')
-  async getRejectedDoctors() {
-    return this.doctorService.getRejectedDoctors();
-  }
+  // @MessagePattern('doctor.get-rejected-doctor')
+  // async getRejectedDoctors() {
+  //   return this.doctorService.getRejectedDoctors();
+  // }
 
-  @MessagePattern('doctor.create-pending-doctor')
-  async createPendingDoctor(@Payload() data: any) {
-    return this.doctorService.createPendingDoctor(data);
-  }
+  // @MessagePattern('doctor.create-pending-doctor')
+  // async createPendingDoctor(@Payload() data: any) {
+  //   return this.doctorService.createPendingDoctor(data);
+  // }
 
-  @MessagePattern('doctor.apply-for-doctor')
-  async applyForDoctor(@Payload() payload: { userId: string, applyData: any }) {
-    return this.doctorService.applyForDoctor(payload.userId, payload.applyData);
-  }
+  // @MessagePattern('doctor.apply-for-doctor')
+  // async applyForDoctor(@Payload() payload: { userId: string, applyData: any }) {
+  //   return this.doctorService.applyForDoctor(payload.userId, payload.applyData);
+  // }
 
   @MessagePattern('doctor.delete')
   async delete(id: string) {
@@ -107,10 +107,10 @@ export class DoctorController {
     return this.doctorService.updateClinic(id, clinicData);
   }
 
-  @MessagePattern('doctor.verify-doctor')
-  async verifyDoctor(userId: string) {
-    return this.doctorService.verifyDoctor(userId);
-  }
+  // @MessagePattern('doctor.verify-doctor')
+  // async verifyDoctor(userId: string) {
+  //   return this.doctorService.verifyDoctor(userId);
+  // }
 
   @MessagePattern('doctor.reject-doctor')
   async rejectDoctor(@Payload() data: { userId: string, reason: string }) {
