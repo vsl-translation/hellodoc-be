@@ -4,7 +4,7 @@ import { Model, Types } from 'mongoose';
 import * as admin from 'firebase-admin';
 import { CacheService } from 'libs/cache.service';
 import { Appointment, AppointmentStatus, ExaminationMethod } from '../core/schema/Appointment.schema';
-import { BookAppointmentDto } from '../core/dto/appointment.dto';
+import { BookAppointmentDto, GetSuggestedAppointmentDto } from '../core/dto/appointment.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -552,5 +552,115 @@ export class AppointmentService {
       time: a.time,
     }));
 
+  }
+
+  async getSuggestedAppointment(data: GetSuggestedAppointmentDto) {
+    const { specialtyId, fromDate, toDate, fromHour, toHour } = data;
+
+    // 1. Lấy danh sách bác sĩ từ chuyên ngành
+    const doctors = await firstValueFrom(
+      this.doctorClient.send('doctor.get-by-specialtyID', specialtyId).pipe(timeout(10000))
+    );
+
+    console.log('doctors: ', doctors)
+
+    if (!doctors || doctors.length === 0) {
+      return [];
+    }
+
+    // Lấy thông tin specialty để lấy name
+    const specialty = await firstValueFrom(
+      this.specialtyClient.send('specialty.get-by-id', specialtyId).pipe(timeout(10000))
+    );
+    const specialtyName = specialty ? specialty.name : '';
+
+    const doctorIds = doctors.map(d => d._id.toString());
+
+    // 2. Lấy danh sách lịch hẹn của các bác sĩ này trong khoảng [fromDate, toDate]
+    const startDateObj = new Date(fromDate);
+    const endDateObj = new Date(toDate);
+    endDateObj.setHours(23, 59, 59, 999);
+
+    const appointments = await this.appointmentModel.find({
+      doctor: { $in: doctorIds },
+      date: { $gte: startDateObj, $lte: endDateObj },
+      status: { $in: [AppointmentStatus.PENDING, AppointmentStatus.DONE] }
+    }).lean();
+
+    const bookedMap = new Map<string, Set<string>>();
+    appointments.forEach(appt => {
+      const dateStr = new Date(appt.date).toISOString().split('T')[0];
+      const docId = appt.doctor.toString();
+      const key = `${docId}_${dateStr}`;
+      if (!bookedMap.has(key)) {
+        bookedMap.set(key, new Set());
+      }
+      bookedMap.get(key)!.add(appt.time as string);
+    });
+
+    // 3. Xét workingHours và gợi ý
+    const availableSlots = [];
+    const now = new Date();
+    const bufferTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 phút buffer
+
+    // Mapping JS day (0-6) sang user's day (2-8)
+    const dayMap = { 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 0: 8 };
+
+    const parseTime = (timeStr: string) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const fromMin = parseTime(fromHour);
+    const toMin = parseTime(toHour);
+
+    let currentDate = new Date(startDateObj);
+    while (currentDate <= endDateObj) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      const jsDay = currentDate.getUTCDay();
+      const userDay = dayMap[jsDay];
+
+      for (const doctor of doctors) {
+        if (!doctor.workingHours) continue;
+
+        const doctorWorkingHours = doctor.workingHours.filter(wh => wh.dayOfWeek === userDay);
+        const docBookedKey = `${doctor._id}_${dateStr}`;
+        const bookedTimes = bookedMap.get(docBookedKey) ?? new Set();
+
+        for (const wh of doctorWorkingHours) {
+          const slotMin = wh.hour * 60 + wh.minute;
+          const slotTimeStr = `${wh.hour.toString().padStart(2, '0')}:${wh.minute.toString().padStart(2, '0')}`;
+
+          // Kiểm tra trong khoảng hour range
+          if (slotMin < fromMin || slotMin > toMin) continue;
+
+          // Kiểm tra xem đã được đặt chưa
+          if (bookedTimes.has(slotTimeStr)) continue;
+
+          // Kiểm tra xem có trong tương lai không (nếu là ngày hôm nay)
+          const slotDateTime = new Date(currentDate);
+          slotDateTime.setHours(wh.hour, wh.minute, 0, 0);
+          if (slotDateTime < bufferTime) continue;
+
+          availableSlots.push({
+            doctorName: doctor.name,
+            doctorId: doctor._id,
+            specialtyId: specialtyId,
+            specialtyName: specialtyName,
+            date: dateStr,
+            time: slotTimeStr,
+            dayOfWeek: userDay,
+            dateTime: slotDateTime
+          });
+        }
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // 4. Sắp xếp theo thời gian gần nhất
+    availableSlots.sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
+
+    return availableSlots;
   }
 }

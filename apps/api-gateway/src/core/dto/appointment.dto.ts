@@ -51,3 +51,29 @@ export class BookAppointmentDto {
     @IsString()
     location?: string; // Địa chỉ khám bệnh (nếu có)
 }
+
+export class GetSuggestedAppointmentDto {
+    @IsNotEmpty()
+    @IsMongoId()
+    specialtyId: string;
+
+    @IsNotEmpty()
+    @IsString()
+    fromDate: string;
+
+    @IsNotEmpty()
+    @IsString()
+    toDate: string;
+
+    @IsNotEmpty()
+    @Matches(/^([0-1]\d|2[0-3]):([0-5]\d)$/, {
+        message: 'fromHour must be in HH:mm format',
+    })
+    fromHour: string;
+
+    @IsNotEmpty()
+    @Matches(/^([0-1]\d|2[0-3]):([0-5]\d)$/, {
+        message: 'toHour must be in HH:mm format',
+    })
+    toHour: string;
+}

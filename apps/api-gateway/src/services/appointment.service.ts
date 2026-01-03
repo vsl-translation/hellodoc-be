@@ -46,4 +46,8 @@ export class AppointmentService {
     async confirmAppointmentDone(id: string) {
         return this.appointmentClient.send('appointment.confirm', id);
     }
+
+    async getSuggestedAppointment(data: any) {
+        return this.appointmentClient.send('appointment.getSuggestedAppointment', data);
+    }
 }

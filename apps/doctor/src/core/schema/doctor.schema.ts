@@ -34,8 +34,8 @@ export class Doctor extends Document {
     @Prop({ default: 0 })
     ratingsCount: number;
 
-    @Prop({ type: String })
-    specialty: string; // Chuyên khoa
+    @Prop({ type: mongoose.Schema.Types.ObjectId, required: true })
+    specialty: Types.ObjectId;
 
     @Prop()
     @IsUrl()

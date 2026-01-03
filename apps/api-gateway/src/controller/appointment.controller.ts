@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from "@nestjs/common";
-import { BookAppointmentDto } from "../core/dto/appointment.dto";
+import { BookAppointmentDto, GetSuggestedAppointmentDto } from "../core/dto/appointment.dto";
 import { AppointmentService } from "../services/appointment.service";
 
 @Controller('appointments')
@@ -49,6 +49,11 @@ export class AppointmentController {
     @Patch('confirm/:id')
     async confirmAppoinentment(@Param('id') id: string) {
         return await this.appointmentService.confirmAppointmentDone(id);
+    }
+
+    @Post('suggested')
+    async getSuggestedAppointment(@Body() data: GetSuggestedAppointmentDto) {
+        return await this.appointmentService.getSuggestedAppointment(data);
     }
 
 }

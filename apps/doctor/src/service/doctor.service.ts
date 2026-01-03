@@ -156,7 +156,7 @@ export class DoctorService {
   }
 
   async getDoctorBySpecialtyID(specialtyId: string) {
-    return this.DoctorModel.find({ specialty: specialtyId });
+    return this.DoctorModel.find({ specialty: new Types.ObjectId(specialtyId) });
   }
 
   async updateFcmToken(doctorId: string, token: string) {
@@ -492,7 +492,7 @@ export class DoctorService {
     //DUYỆT TỪNG NGÀY 
     const currentDate = new Date(startDate);
     while (currentDate < endDate) {
-      const jsDay = currentDate.getDay(); // 0–6
+      const jsDay = currentDate.getUTCDay(); // 0–6
       const dateString = currentDate.toISOString().split('T')[0];
 
       // Bỏ qua ngày quá khứ (trừ khi chọn specificDate)
@@ -501,7 +501,7 @@ export class DoctorService {
         continue;
       }
 
-      const dbDayMap = { 0: 7, 1: 8, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
+      const dbDayMap = { 0: 8, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7 };
       const dbDay = dbDayMap[jsDay];
 
       const workingHoursForDay = doctor.workingHours
@@ -548,7 +548,7 @@ export class DoctorService {
       if (slots.length > 0) {
         availableSlots.push({
           date: dateString,
-          dayOfWeek: jsDay,
+          dayOfWeek: dbDay,
           dayName: this.getDayName(jsDay),
           displayDate: this.formatDisplayDate(currentDate),
           slots,
