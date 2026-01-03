@@ -6,7 +6,7 @@ import { UpdateReviewDto } from '../core/dto/update-review.dto';
 
 @Controller()
 export class ReviewController {
-  constructor(private readonly reviewService: ReviewService) {}
+  constructor(private readonly reviewService: ReviewService) { }
 
   @MessagePattern('create_review')
   async createReview(@Payload() data: CreateReviewDto) {
@@ -14,8 +14,10 @@ export class ReviewController {
   }
 
   @MessagePattern('get_reviews_by_doctor')
-  async getReviewsByDoctor(@Payload() doctorId: string) {
-    return this.reviewService.getReviewsByDoctor(doctorId);
+  async getReviewsByDoctor(@Payload() data: { doctorId: string }) {
+    //console.log('Doctor ID:', data.doctorId);
+    //console.log(typeof data.doctorId);
+    return this.reviewService.getReviewsByDoctor(data.doctorId);
   }
 
   @MessagePattern('update_review')

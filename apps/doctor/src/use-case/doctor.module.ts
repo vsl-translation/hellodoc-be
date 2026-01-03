@@ -68,8 +68,16 @@ import { PendingDoctor, PendingDoctorSchema } from '../core/schema/PendingDoctor
           host: 'localhost',
           port: 3006
         }
-      }
-    ]),
+      },
+      {
+        name: 'REVIEW_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',
+          port: 3018
+        },
+      },
+    ])
   ],
   controllers: [DoctorController],
   providers: [DoctorService, CacheService],

@@ -19,6 +19,7 @@ export class DoctorService {
     @Inject('SPECIALTY_CLIENT') private specialtyClient: ClientProxy,
     @Inject('APPOINTMENT_CLIENT') private appointmentClient: ClientProxy,
     @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
+    @Inject('REVIEW_CLIENT') private reviewClient: ClientProxy,
 
     private cacheService: CacheService,
   ) { }

@@ -8,7 +8,7 @@ import { firstValueFrom } from 'rxjs';
 export class ReviewService {
   constructor(
     @Inject('REVIEW_CLIENT') private readonly reviewClient: ClientProxy,
-  ) {}
+  ) { }
 
   async createReview(data: CreateReviewDto) {
     return firstValueFrom(
@@ -18,7 +18,7 @@ export class ReviewService {
 
   async getReviewsByDoctor(doctorId: string) {
     return firstValueFrom(
-      this.reviewClient.send('get_reviews_by_doctor', doctorId)
+      this.reviewClient.send('get_reviews_by_doctor', { doctorId })
     );
   }
 
