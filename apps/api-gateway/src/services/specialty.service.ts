@@ -43,4 +43,10 @@ export class SpecialtyService {
             this.specialtyClient.send('specialty.get-by-name', name)
         );
     }
+
+    async analyzeSpecialty(text: string, specialties?: string[]) {
+        return lastValueFrom(
+            this.specialtyClient.send('specialty.analyze', { text, specialties })
+        );
+    }
 }
