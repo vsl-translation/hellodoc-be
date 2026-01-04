@@ -289,4 +289,62 @@ export class SpecialtyService {
       _id: { $in: ids }
     }).select('_id name icon description doctors');
   }
+
+  analyzeSpecialty(text: string, specialtyNames?: string[]): number {
+    const specialties = [
+      {
+        index: 0,
+        name: 'Cơ xương khớp',
+        keywords: ['xương','khớp','cột sống','đốt sống','đau lưng','mỏi khớp','thoái hóa','gãy xương','nứt xương','vỡ xương','gãy kín','gãy hở','gãy tay','gãy chân','gãy đùi','gãy cẳng tay','gãy cẳng chân','gãy cổ tay','gãy cổ chân','gãy xương sườn','gãy xương đòn','gãy xương chậu','gãy cột sống','lún đốt sống']
+      },
+      {
+        index: 1,
+        name: 'Thần kinh',
+        keywords: ['thần kinh','dây thần kinh','não','tủy sống','sọ não','đau đầu','đau nửa đầu','chóng mặt','hoa mắt','choáng váng','mất thăng bằng','tê','tê bì','tê tay','tê chân','yếu tay','yếu chân','liệt','co giật','động kinh','run tay','run chân','rối loạn cảm giác','rối loạn vận động','đau dây thần kinh','đau thần kinh tọa','thoát vị đĩa đệm chèn ép thần kinh']
+      },
+      {
+        index: 2,
+        name: 'Tiêu hóa',
+        keywords: ['tiêu hóa', 'dạ dày', 'đại tràng', 'bụng', 'đau bụng', 'tiêu chảy', 'táo bón', 'nôn', 'buồn nôn']
+      },
+      {
+        index: 3,
+        name: 'Tim mạch',
+        keywords: ['tim', 'mạch', 'huyết áp', 'đau ngực', 'nhịp tim', 'đánh trống ngực', 'khó thở']
+      },
+      {
+        index: 4,
+        name: 'Tai mũi họng',
+        keywords: ['tai', 'mũi', 'họng', 'viêm họng', 'viêm xoang', 'amidan', 'đau họng', 'ho', 'ngạt mũi']
+      },
+    ];
+
+    console.log(specialtyNames);
+
+    const lowerText = text.toLowerCase().trim();
+    let detectedSpecialtyName = '';
+
+    for (const specialty of specialties) {
+      for (const keyword of specialty.keywords) {
+        if (lowerText.includes(keyword.toLowerCase())) {
+          detectedSpecialtyName = specialty.name;
+          break;
+        }
+      }
+      if (detectedSpecialtyName) break;
+    }
+
+    if (!detectedSpecialtyName) return -1;
+
+    // Nếu có truyền vào mảng specialty names, tìm index trong mảng đó
+    if (specialtyNames && specialtyNames.length > 0) {
+      const normalizedNames = specialtyNames.map(name => name.toLowerCase().trim());
+      const lowerDetectedName = detectedSpecialtyName.toLowerCase().trim();
+      return normalizedNames.indexOf(lowerDetectedName);
+    }
+
+    // Nếu không có mảng truyền vào, trả về index mặc định trong list cứng
+    const matched = specialties.find(s => s.name === detectedSpecialtyName);
+    return matched ? matched.index : -1;
+  }
 }

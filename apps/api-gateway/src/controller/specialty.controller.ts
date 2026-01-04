@@ -64,4 +64,9 @@ export class SpecialtyController {
     getSpecialtyByName(@Body() dto: GetSpecialtyByNameDto) {
         return this.specialtyService.getSpecialtyByName(dto.name);
     }
+
+    @Post('analyze')
+    analyzeSpecialty(@Body() data: { text: string; specialties?: string[] }) {
+        return this.specialtyService.analyzeSpecialty(data.text, data.specialties);
+    }
 }

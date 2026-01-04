@@ -5,10 +5,10 @@ export type ReviewDocument = Review & Document;
 
 @Schema({ timestamps: true })
 export class Review {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
+  @Prop({ required: true })
   user: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Doctor', required: true })
+  @Prop({ required: true })
   doctor: string;
 
   @Prop({ required: true })

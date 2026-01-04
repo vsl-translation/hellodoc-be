@@ -76,4 +76,9 @@ export class SpecialtyController {
   async getSpecialtyByName(name: string) {
     return this.specialtyService.getSpecialtyByName(name);
   }
+
+  @MessagePattern('specialty.analyze')
+  analyzeSpecialty(@Payload() data: { text: string; specialties?: string[] }) {
+    return this.specialtyService.analyzeSpecialty(data.text, data.specialties);
+  }
 }
