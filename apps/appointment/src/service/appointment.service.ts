@@ -19,6 +19,7 @@ export class AppointmentService {
     @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
     @Inject('USERS_CLIENT') private usersClient: ClientProxy,
     @Inject('SPECIALTY_CLIENT') private specialtyClient: ClientProxy,
+    @Inject('REVIEW_CLIENT') private reviewClient: ClientProxy,
     private cacheService: CacheService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
 
@@ -29,11 +30,10 @@ export class AppointmentService {
       status: 'done',
     });
 
-    // const ratingsCount = await this.reviewModel.countDocuments({
-    //     doctor: doctorID,
-    // });
+    const ratings = await firstValueFrom(this.reviewClient.send('get_reviews_by_doctor', { doctorId: doctorID }));
+    const ratingsCount = ratings.length;
 
-    return { patientsCount };
+    return { patientsCount, ratingsCount };
   }
 
   // 📌 Đặt lịch hẹn

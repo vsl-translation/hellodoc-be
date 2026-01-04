@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ClientProxy } from '@nestjs/microservices';
 import { Review, ReviewDocument } from '../core/schema/review.schema';
 import { CreateReviewDto } from '../core/dto/create-review.dto';
@@ -12,7 +12,7 @@ export class ReviewService {
   constructor(
     @InjectModel(Review.name, 'reviewConnection') private reviewModel: Model<ReviewDocument>,
     @Inject('USERS_CLIENT') private readonly usersClient: ClientProxy,
-  ) {}
+  ) { }
 
   async createReview(data: CreateReviewDto) {
     const review = new this.reviewModel({
@@ -59,9 +59,9 @@ export class ReviewService {
       { rating: data.rating, comment: data.comment },
       { new: true }
     );
-    
+
     if (!updatedReview) {
-        throw new NotFoundException('Review not found');
+      throw new NotFoundException('Review not found');
     }
     return updatedReview;
   }
@@ -69,7 +69,7 @@ export class ReviewService {
   async deleteReview(reviewId: string) {
     const result = await this.reviewModel.findByIdAndDelete(reviewId);
     if (!result) {
-        throw new NotFoundException('Review not found');
+      throw new NotFoundException('Review not found');
     }
     return result;
   }

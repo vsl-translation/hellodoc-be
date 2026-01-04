@@ -78,6 +78,14 @@ import { Appointment, AppointmentSchema } from '../core/schema/Appointment.schem
           port: 3009,
         },
       },
+      {
+        name: 'REVIEW_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',
+          port: 3018,
+        },
+      }
     ]),
   ],
   controllers: [AppointmentController],

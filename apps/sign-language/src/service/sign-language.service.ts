@@ -97,18 +97,24 @@ export class SignLanguageService {
       // --- STEP 2: Tokenize (Underthesea) ---
       this.logger.log(`Step 2: Tokenizing text...`);
 
-      const tokenizeRes = await firstValueFrom(
-        this.undertheseaClient.send('underthesea.tokenize', { text: subtitleText })
+      const postagRes = await firstValueFrom(
+        this.undertheseaClient.send('underthesea.pos', { text: subtitleText })
       );
 
-      console.log("tokenizeRes ", tokenizeRes);
+      console.log("postagRes ", postagRes);
 
-      // Response structure: { tokens: [...], success: true }
-      if (!tokenizeRes?.success || !Array.isArray(tokenizeRes?.tokens)) {
-        throw new Error("Tokenization failed or returned invalid response");
+      // Response structure: { pos_tags: [...], success: true, tokens: [...] }
+      if (!postagRes?.success || !Array.isArray(postagRes?.pos_tags)) {
+        throw new Error("POSTag failed or returned invalid response");
       }
 
-      const tokens = tokenizeRes.tokens;
+      // Lọc tokens dựa trên pos_tags
+      // Các POS tag cần giữ lại: N (noun), Np (proper noun), V (verb), A (adjective), R (adverb), M (numeral), Nc (classifier noun)
+      const validPosTags = ['N', 'Np', 'V', 'A', 'R', 'M', 'Nc'];
+
+      const tokens = postagRes.pos_tags
+        .filter(([word, tag]) => validPosTags.includes(tag))
+        .map(([word, tag]) => word);
 
       this.logger.debug(`Tokens: ${tokens.join(', ')}`);
       console.log("Step 2 completed - Tokens:", tokens);
@@ -118,46 +124,46 @@ export class SignLanguageService {
       this.logger.log(`Step 3: Getting synonyms...`);
 
       const synonymRes = await firstValueFrom(
-        this.httpService.post(synonymEndpoint, { query: tokens })
+        this.httpService.post(synonymEndpoint, { query: tokens, max_results_per_query: 1 })
       );
 
-      const synonyms = synonymRes.data;
-      //this.logger.debug(`Synonyms: ${JSON.stringify(synonyms)}`);
-      console.log("Step 3 completed - Synonyms:", synonyms);
+      const synonymsData = synonymRes.data;
+      this.logger.debug(`Synonyms response: ${JSON.stringify(synonymsData)}`);
+
 
       // --- STEP 4: Detect Gesture Code ---
-      const gestureEndpoint = `${this.SYNONISM_URL}/detectGestureCode/get`;
-      this.logger.log(`Step 4: Generating gesture codes...`);
+      // const gestureEndpoint = `${this.SYNONISM_URL}/detectGestureCode/get`;
+      // this.logger.log(`Step 4: Generating gesture codes...`);
 
-      const gestureRes = await firstValueFrom(
-        this.httpService.post(
-          gestureEndpoint,
-          { words: synonyms },
-          {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 600000,
-          }
-        )
-      );
+      // const gestureRes = await firstValueFrom(
+      //   this.httpService.post(
+      //     gestureEndpoint,
+      //     { words: synonyms },
+      //     {
+      //       headers: { 'Content-Type': 'application/json' },
+      //       timeout: 600000,
+      //     }
+      //   )
+      // );
 
-      const gestureCodes = gestureRes.data;
+      // const gestureCodes = gestureRes.data;
 
-      // --- STEP 5: Save to Database (Cache) ---
-      if (urlMedia && gestureCodes) {
-        this.logger.log("Saving result to database...");
-        const newRecord = new this.signLanguage({
-          urlMedia: urlMedia,
-          signLanguage: gestureCodes,
-          createdAt: new Date()
-        });
-        await newRecord.save();
-      }
+      // // --- STEP 5: Save to Database (Cache) ---
+      // if (urlMedia && gestureCodes) {
+      //   this.logger.log("Saving result to database...");
+      //   const newRecord = new this.signLanguage({
+      //     urlMedia: urlMedia,
+      //     signLanguage: gestureCodes,
+      //     createdAt: new Date()
+      //   });
+      //   await newRecord.save();
+      // }
 
       // Return final result
       return {
         cached: false,
         urlMedia: urlMedia,
-        signLanguage: gestureCodes
+        //signLanguage: gestureCodes
       };
 
     } catch (error) {
