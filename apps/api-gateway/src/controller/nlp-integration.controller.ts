@@ -13,20 +13,59 @@ export class NlpController {
         return await this.nlpService.analyzeAndCreateSemanticGraph(text);
     }
 
+
     @Get('find-word')
-    async findWord(@Query('word') word: string, @Query('label') label: string) {
+    async findWord(
+        @Query('word') word: string,
+        @Query('context') context?: string,
+        @Query('topK') topK?: number,
+    ) {
         if (!word) {
             return { error: 'Thiếu tham số word' };
         }
-        return await this.nlpService.findWord(word, label);
+        return await this.nlpService.findWord(
+            word,
+            context || '',
+            topK ? parseInt(topK.toString()) : 10
+        );
     }
 
     @Get('find-word-by-label')
-    async findWordByLabel(@Query('word') word: string, @Query('toLabel') toLabel: string) {
-        if (!word) {
-            return { error: 'Thiếu tham số word' };
+    async findWordByLabel(
+        @Query('word') word: string,
+        @Query('toLabel') toLabel: string,
+        @Query('context') context?: string,
+        @Query('topK') topK?: number,
+    ) {
+        if (!word || !toLabel) {
+            return { error: 'Thiếu tham số word hoặc toLabel' };
         }
-        return await this.nlpService.findWordByLabel(word, toLabel);
+        return await this.nlpService.findWordByLabel(
+            word,
+            toLabel,
+            context || '',
+            topK ? parseInt(topK.toString()) : 10
+        );
+    }
+
+    @Get('suggest-next-word')
+    async suggestNextWord(
+        @Query('word') word: string,
+        @Query('currentPosTag') currentPosTag: string,
+        @Query('context') context?: string,
+        @Query('targetPosTag') targetPosTag?: string,
+        @Query('topK') topK?: number,
+    ) {
+        if (!word || !currentPosTag) {
+            return { error: 'Thiếu tham số word hoặc currentPosTag' };
+        }
+        return await this.nlpService.suggestNextWord(
+            word,
+            currentPosTag,
+            context || '',
+            targetPosTag,
+            topK ? parseInt(topK.toString()) : 10
+        );
     }
 
     @Post('clear-invalid-pronouns')

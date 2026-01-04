@@ -20,15 +20,57 @@ export class NlpIntegrationController {
     console.log('Received text for semantic analysis:', text);
     return this.nlpIntegrationService.analyzeAndCreateSemanticGraph(text);
   }
+
+
   @MessagePattern('nlp-integration.find-word')
-  async findWord(@Payload() data: { word: string }) {
-    const { word } = data;
-    return this.nlpIntegrationService.findWord(word);
+  async findWord(@Payload() data: {
+    word: string;
+    context?: string;
+    topK?: number;
+  }) {
+    const { word, context = '', topK = 10 } = data;
+    return this.nlpIntegrationService.findWord(word, context, topK);
   }
 
   @MessagePattern('nlp-integration.find-word-by-label')
-  async findWordByLabel(@Payload() payload: { word: string, toLabel: string }) {
-    return this.nlpIntegrationService.findWordByLabel(payload.word, payload.toLabel);
+  async findWordByLabel(@Payload() payload: {
+    word: string;
+    toLabel: string;
+    context?: string;
+    topK?: number;
+  }) {
+    const { word, toLabel, context = '', topK = 10 } = payload;
+    return this.nlpIntegrationService.findWordByLabel(
+      word,
+      toLabel,
+      context,
+      topK
+    );
+  }
+
+  @MessagePattern('nlp-integration.suggest-next-word')
+  async suggestNextWord(@Payload() payload: {
+    word: string;
+    currentPosTag: string;
+    context?: string;
+    targetPosTag?: string;
+    topK?: number;
+  }) {
+    const {
+      word,
+      currentPosTag,
+      context = '',
+      targetPosTag,
+      topK = 10
+    } = payload;
+
+    return this.nlpIntegrationService.getNextWordSuggestion(
+      word,
+      currentPosTag,
+      context,
+      targetPosTag,
+      topK
+    );
   }
 
   @MessagePattern('nlp-integration.batch-process')

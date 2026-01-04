@@ -1,11 +1,23 @@
 import { Inject, Injectable, InternalServerErrorException,BadRequestException } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-
+import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 
+// ==================== PHOBERT CONFIG ====================
+const PHOBERT_API_URL = 'https://myles-undeliverable-symbolically.ngrok-free.dev'; // ⚠️ Thay bằng URL từ PhoBERT server
+const PHOBERT_HEALTH_CHECK = `${PHOBERT_API_URL}/health`;
+const PHOBERT_PREDICT_URL = `${PHOBERT_API_URL}/predict`;
+
+// ==================== WEIGHT COMBINING STRATEGIES ====================
+enum MergeStrategy {
+  WEIGHTED_SUM = 'weighted_sum',      // α*neo4j + β*phobert
+  MULTIPLY = 'multiply',               // neo4j * phobert
+  HARMONIC_MEAN = 'harmonic_mean',     // 2/(1/neo4j + 1/phobert)
+  MAX = 'max',                         // max(neo4j, phobert)
+}
 const readdir = promisify(fs.readdir);
 const readFile = promisify(fs.readFile);
 const stat = promisify(fs.stat);
@@ -51,175 +63,433 @@ const POS_TAG_INFO = {
 
 @Injectable()
 export class NlpIntegrationService {
+  // Cấu hình merge strategy
+  private readonly MERGE_STRATEGY = MergeStrategy.WEIGHTED_SUM;
+  private readonly NEO4J_WEIGHT = 0.4;  // α
+  private readonly PHOBERT_WEIGHT = 0.6; // β
+
   constructor(
     @Inject('UNDERTHESEA_CLIENT') private readonly undertheseaClient: ClientProxy,
     @Inject('NEO4J_CLIENT') private readonly neo4jClient: ClientProxy,
-  ) { }
+  ) {
+    this.checkPhoBERTHealth();
+  }
 
-  /*
-   Phân tích văn bản và tạo graph trong Neo4j
-   @param text - Văn bản cần phân tích
-   @param createRelations - Có tạo quan hệ giữa các từ liên tiếp không
+  // ==================== PHOBERT HEALTH CHECK ====================
+  private async checkPhoBERTHealth() {
+    try {
+      const response = await axios.get(PHOBERT_HEALTH_CHECK, { timeout: 5000 });
+      console.log('✅ PhoBERT server is healthy:', response.data);
+    } catch (error) {
+      console.error('⚠️  PhoBERT server is not available:', error.message);
+      console.error('    Make sure PhoBERT server is running!');
+    }
+  }
+
+  // ==================== PHOBERT SCORING ====================
+  /**
+   * Gọi PhoBERT API để tính score cho các từ ứng viên
+   * @param context - Ngữ cảnh hiện tại (câu đang nhập)
+   * @param candidates - Danh sách từ ứng viên từ Neo4j
+   * @param topK - Số lượng kết quả trả về
    */
-  // async analyzeAndCreateGraph(text: string, createRelations: boolean = true) {
-  //   try {
-  //     console.log('=== BẮT ĐẦU PHÂN TÍCH ===');
-  //     console.log('Text:', text);
-  //     console.log('Create Relations:', createRelations);
+  private async scoreWithPhoBERT(
+    context: string,
+    candidates: string[],
+    topK: number = 10,
+  ): Promise<Array<{ word: string; score: number; token_id: number }>> {
+    try {
+      if (!context || candidates.length === 0) {
+        return [];
+      }
 
-  //     // Bước 1: Phân tích POS
-  //     console.log('Đang gọi underthesea.pos...');
-  //     const posResult = await firstValueFrom(
-  //       this.undertheseaClient.send('underthesea.pos', { text: text })
-  //     );
+      const response = await axios.post(
+        PHOBERT_PREDICT_URL,
+        {
+          context: context.trim(),
+          candidates,
+          top_k: topK,
+        },
+        {
+          timeout: 10000,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
 
-  //     console.log('POS Result:', JSON.stringify(posResult, null, 2));
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'PhoBERT prediction failed');
+      }
 
-  //     if (!posResult || !posResult.success) {
-  //       console.error('POS analysis failed:', posResult);
-  //       throw new InternalServerErrorException('Không thể phân tích POS');
-  //     }
+      return response.data.predictions || [];
+    } catch (error) {
+      console.error('❌ Lỗi khi gọi PhoBERT API:', error.message);
+      
+      if (error.code === 'ECONNREFUSED') {
+        console.error('    PhoBERT server không khả dụng!');
+      }
+      
+      // Fallback: trả về empty array thay vì throw error
+      return [];
+    }
+  }
 
-  //     const { tokens, pos_tags } = posResult;
-  //     console.log('Tokens:', tokens);
-  //     console.log('POS Tags:', pos_tags);
+  // ==================== MERGE SCORES ====================
+  /**
+   * Kết hợp điểm từ Neo4j và PhoBERT
+   */
+  private mergeScores(
+    neo4jScore: number,
+    phobertScore: number,
+    strategy: MergeStrategy = this.MERGE_STRATEGY,
+  ): number {
+    // Normalize về [0, 1]
+    const n = Math.max(0, Math.min(1, neo4jScore));
+    const p = Math.max(0, Math.min(1, phobertScore));
 
-  //     if (!tokens || !pos_tags || tokens.length === 0) {
-  //       throw new InternalServerErrorException('POS result không có dữ liệu');
-  //     }
+    switch (strategy) {
+      case MergeStrategy.WEIGHTED_SUM:
+        return this.NEO4J_WEIGHT * n + this.PHOBERT_WEIGHT * p;
 
-  //     // ✅ Danh sách đầy đủ các đại từ nhân xưng và xưng hô trong tiếng Việt
-  //     const PRONOUNS = new Set([
-  //       // Đại từ ngôi thứ nhất
-  //       'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta', 'chúng mình',
+      case MergeStrategy.MULTIPLY:
+        return n * p;
 
-  //       // Đại từ ngôi thứ hai
-  //       'bạn', 'mày', 'cậu', 'các bạn', 'quý vị',
+      case MergeStrategy.HARMONIC_MEAN:
+        if (n === 0 || p === 0) return 0;
+        return 2 / (1 / n + 1 / p);
 
-  //       // Đại từ ngôi thứ ba
-  //       'họ', 'nó', 'hắn', 'y', 'chúng nó',
+      case MergeStrategy.MAX:
+        return Math.max(n, p);
 
-  //       // Đại từ xưng hô gia đình/thân tộc
-  //       'anh', 'chị', 'em', 'ông', 'bà', 'cháu',
-  //       'bố', 'ba', 'tía', 'con', 'mẹ', 'má',
-  //       'chú', 'bác', 'cô', 'dì'
-  //     ]);
+      default:
+        return this.NEO4J_WEIGHT * n + this.PHOBERT_WEIGHT * p;
+    }
+  }
 
-  //     // Trích xuất POS tag và override cho đại từ nhân xưng
-  //     const extractedPosTags = pos_tags.map((item, index) => {
-  //       let posTag;
+  // ==================== UPDATED: findWord ====================
+  /**
+   * Tìm từ tiếp theo dựa trên từ hiện tại (không chỉ định POS tag)
+   * Áp dụng Graph-Retrieve, BERT-Rank
+   */
+  async findWord(word: string, context: string = '', topK: number = 10) {
+    try {
+      // ✅ Validation
+      if (!word || typeof word !== 'string' || word.trim().length === 0) {
+        throw new BadRequestException('Từ tìm kiếm không hợp lệ');
+      }
 
-  //       // Lấy POS tag từ mảng 2 chiều hoặc string
-  //       if (Array.isArray(item)) {
-  //         posTag = item[1]; // Lấy phần tử thứ 2 (POS tag)
-  //       } else {
-  //         posTag = item; // Nếu đã là string thì giữ nguyên
-  //       }
+      const cleanWord = word.trim().toLowerCase();
 
-  //       // ✅ Kiểm tra nếu token là đại từ nhân xưng → gán label "P"
-  //       const currentToken = tokens[index].toLowerCase();
-  //       if (PRONOUNS.has(currentToken)) {
-  //         console.log(`Token "${tokens[index]}" được nhận dạng là đại từ nhân xưng → Label: P`);
-  //         return 'P';
-  //       }
+      console.log('\n' + '='.repeat(80));
+      console.log('🔍 FIND WORD - GRAPH-RETRIEVE + BERT-RANK');
+      console.log('='.repeat(80));
+      console.log(`📝 Word: "${cleanWord}"`);
+      console.log(`📝 Context: "${context}"`);
+      console.log(`🎯 Top-K: ${topK}`);
 
-  //       return posTag;
-  //     });
+      // ========== STEP 1: GRAPH RETRIEVE (Neo4j) ==========
+      console.log('\n📊 STEP 1: Graph Retrieve from Neo4j...');
+      
+      const neo4jCandidates = await firstValueFrom(
+        this.neo4jClient.send('neo4j.get-suggestions', { 
+          word: cleanWord,
+          limit: 20  // Lấy top 20 từ Neo4j
+        })
+      );
 
-  //     console.log('Extracted POS Tags:', extractedPosTags);
+      if (!neo4jCandidates || neo4jCandidates.length === 0) {
+        return {
+          success: false,
+          word: cleanWord,
+          message: 'Không tìm thấy từ trong graph',
+          results: [],
+        };
+      }
 
-  //     const createdNodes = [];
-  //     const createdRelations = [];
+      console.log(`✅ Found ${neo4jCandidates.length} candidates from Neo4j`);
 
-  //     // Bước 2: Tạo nodes cho mỗi token
-  //     console.log('=== BẮT ĐẦU TẠO NODES ===');
-  //     for (let i = 0; i < tokens.length; i++) {
-  //       const token = tokens[i];
-  //       const posTag = extractedPosTags[i];
+      // ========== STEP 2: BERT RANK (PhoBERT) ==========
+      console.log('\n🤖 STEP 2: BERT Ranking...');
 
-  //       console.log(`Đang tạo node ${i + 1}/${tokens.length}: "${token}" (${posTag})`);
+      // ✅ FIX: Handle different Neo4j response formats
+      const candidateWords = neo4jCandidates.map(c => {
+        // Neo4j có thể trả về: suggestion, word, toWord
+        const word = c.suggestion || c.word || c.toWord;
+        return typeof word === 'string' ? word : String(word);
+      }).filter(Boolean); // Loại bỏ undefined/null
+      
+      let phobertScores: Map<string, number> = new Map();
 
-  //       try {
-  //         const nodePayload = {
-  //           label: posTag,
-  //           name: token,
-  //         };
-  //         console.log('Node payload:', nodePayload);
+      if (context && context.trim().length > 0) {
+        const phobertResults = await this.scoreWithPhoBERT(context, candidateWords, topK);
+        
+        if (phobertResults.length > 0) {
+          phobertResults.forEach(item => {
+            phobertScores.set(item.word.toLowerCase(), item.score);
+          });
+          console.log(`✅ PhoBERT scored ${phobertResults.length} candidates`);
+        } else {
+          console.warn('⚠️  PhoBERT không khả dụng, chỉ dùng Neo4j scores');
+        }
+      } else {
+        console.log('ℹ️  No context provided, skip PhoBERT ranking');
+      }
 
-  //         const node = await firstValueFrom(
-  //           this.neo4jClient.send('neo4j.create-node', nodePayload)
-  //         );
+      // ========== STEP 3: MERGE SCORES ==========
+      console.log('\n🔀 STEP 3: Merge Scores...');
+      
+      const mergedResults = neo4jCandidates.map(candidate => {
+        // ✅ FIX: Handle different Neo4j response formats
+        const word = candidate.suggestion || candidate.word || candidate.toWord;
+        const candidateWord = (word || '').toString().toLowerCase();
+        
+        // ✅ FIX: Handle different score field names
+        const neo4jScore = candidate.score || candidate.weight || candidate.normalizedWeight || 0;
+        const phobertScore = phobertScores.get(candidateWord) || 0;
 
-  //         console.log('Node created:', node);
+        // Nếu không có context hoặc PhoBERT fail, dùng 100% Neo4j score
+        const finalScore = phobertScore > 0 
+          ? this.mergeScores(neo4jScore, phobertScore)
+          : neo4jScore;
 
-  //         createdNodes.push({
-  //           token,
-  //           posTag,
-  //           posInfo: this.getPosTagInfo(posTag),
-  //           node,
-  //         });
-  //       } catch (error) {
-  //         console.error(`LỖI tạo node cho token "${token}":`, error);
-  //         console.error('Error stack:', error.stack);
-  //         throw error;
-  //       }
-  //     }
+        // ✅ FIX: Handle label as array or string
+        let posTag = candidate.toLabel || candidate.label;
+        if (Array.isArray(posTag)) {
+          posTag = posTag[0] || 'Unknown'; // Lấy phần tử đầu tiên nếu là array
+        }
 
-  //     console.log(`Đã tạo ${createdNodes.length} nodes`);
+        return {
+          word: word || 'unknown',
+          posTag: posTag || 'Unknown',
+          neo4jScore,
+          phobertScore,
+          finalScore,
+          relationType: candidate.relationType || 'Related_To',
+        };
+      });
 
-  //     // Bước 3: Tạo relations giữa các từ liên tiếp
-  //     if (createRelations && tokens.length > 1) {
-  //       console.log('=== BẮT ĐẦU TẠO RELATIONS ===');
-  //       for (let i = 0; i < tokens.length - 1; i++) {
-  //         console.log(`Tạo relation ${i + 1}/${tokens.length - 1}: "${tokens[i]}" -> "${tokens[i + 1]}"`);
+      // Sort theo finalScore giảm dần
+      mergedResults.sort((a, b) => b.finalScore - a.finalScore);
 
-  //         try {
-  //           const relationPayload = {
-  //             fromLabel: extractedPosTags[i],
-  //             fromName: tokens[i],
-  //             toLabel: extractedPosTags[i + 1],
-  //             toName: tokens[i + 1],
-  //             relationType: 'PRECEDES',
-  //             weight: 1,
-  //           };
-  //           console.log('Relation payload:', relationPayload);
+      // Lấy top-K
+      const topResults = mergedResults.slice(0, topK);
 
-  //           const relation = await firstValueFrom(
-  //             this.neo4jClient.send('neo4j.create-relation', relationPayload)
-  //           );
+      console.log('\n📊 Top Results:');
+      topResults.slice(0, 5).forEach((r, idx) => {
+        console.log(
+          `  ${idx + 1}. "${r.word}" (${r.posTag}) - ` +
+          `Neo4j: ${r.neo4jScore.toFixed(4)}, ` +
+          `PhoBERT: ${r.phobertScore.toFixed(4)}, ` +
+          `Final: ${r.finalScore.toFixed(4)}`
+        );
+      });
 
-  //           console.log('Relation created:', relation);
-  //           createdRelations.push(relation);
-  //         } catch (error) {
-  //           console.error(`LỖI tạo relation: "${tokens[i]}" -> "${tokens[i + 1]}"`, error);
-  //           console.error('Error stack:', error.stack);
-  //         }
-  //       }
+      return {
+        success: true,
+        word: cleanWord,
+        context,
+        strategy: this.MERGE_STRATEGY,
+        totalCandidates: neo4jCandidates.length,
+        results: topResults,
+      };
 
-  //       console.log(`Đã tạo ${createdRelations.length} relations`);
-  //     }
+    } catch (error) {
+      console.error('❌ Lỗi trong findWord:', error);
+      throw new InternalServerErrorException(`Không thể tìm từ: ${error.message}`);
+    }
+  }
 
-  //     const result = {
-  //       success: true,
-  //       text,
-  //       totalNodes: createdNodes.length,
-  //       totalRelations: createdRelations.length,
-  //       nodes: createdNodes,
-  //       relations: createdRelations,
-  //     };
+  // ==================== UPDATED: findWordByLabel ====================
+  /**
+   * Tìm từ tiếp theo với POS tag cụ thể
+   * Áp dụng Graph-Retrieve, BERT-Rank
+   */
+  async findWordByLabel(
+    word: string, 
+    toLabel: string, 
+    context: string = '', 
+    topK: number = 10
+  ) {
+    try {
+      // ✅ Validation
+      if (!word || typeof word !== 'string' || word.trim().length === 0) {
+        throw new BadRequestException('Từ tìm kiếm không hợp lệ');
+      }
 
-  //     console.log('=== KẾT QUẢ CUỐI CÙNG ===');
-  //     console.log(JSON.stringify(result, null, 2));
+      if (!toLabel || typeof toLabel !== 'string' || toLabel.trim().length === 0) {
+        throw new BadRequestException('Label không hợp lệ');
+      }
 
-  //     return result;
-  //   } catch (error) {
-  //     console.error('LỖI NGHIÊM TRỌNG trong analyzeAndCreateGraph:', error);
-  //     console.error('Error message:', error.message);
-  //     console.error('Error stack:', error.stack);
-  //     throw new InternalServerErrorException(`Không thể tạo graph từ văn bản: ${error.message}`);
-  //   }
-  // }
+      const cleanWord = word.trim().toLowerCase();
+      const cleanLabel = toLabel.trim().toUpperCase();
 
+      console.log('\n' + '='.repeat(80));
+      console.log('🔍 FIND WORD BY LABEL - GRAPH-RETRIEVE + BERT-RANK');
+      console.log('='.repeat(80));
+      console.log(`📝 Word: "${cleanWord}"`);
+      console.log(`🏷️  Label: ${cleanLabel}`);
+      console.log(`📝 Context: "${context}"`);
+      console.log(`🎯 Top-K: ${topK}`);
+
+      // ========== STEP 1: GRAPH RETRIEVE (Neo4j) ==========
+      console.log('\n📊 STEP 1: Graph Retrieve from Neo4j...');
+      
+      const neo4jCandidates = await firstValueFrom(
+        this.neo4jClient.send('neo4j.find-word-by-label', {
+          word: cleanWord,
+          toLabel: cleanLabel,
+          limit: 20
+        })
+      );
+
+      if (!neo4jCandidates || neo4jCandidates.length === 0) {
+        return {
+          success: false,
+          word: cleanWord,
+          toLabel: cleanLabel,
+          message: `Không tìm thấy từ "${cleanWord}" với label "${cleanLabel}"`,
+          results: [],
+        };
+      }
+
+      console.log(`✅ Found ${neo4jCandidates.length} candidates with label ${cleanLabel}`);
+
+      // ========== STEP 2: BERT RANK ==========
+      console.log('\n🤖 STEP 2: BERT Ranking...');
+
+      // ✅ FIX: Handle different Neo4j response formats
+      const candidateWords = neo4jCandidates.map(c => {
+        const word = c.suggestion || c.word || c.toWord;
+        return typeof word === 'string' ? word : String(word);
+      }).filter(Boolean);
+      
+      let phobertScores: Map<string, number> = new Map();
+
+      if (context && context.trim().length > 0) {
+        const phobertResults = await this.scoreWithPhoBERT(context, candidateWords, topK);
+        
+        if (phobertResults.length > 0) {
+          phobertResults.forEach(item => {
+            phobertScores.set(item.word.toLowerCase(), item.score);
+          });
+          console.log(`✅ PhoBERT scored ${phobertResults.length} candidates`);
+        } else {
+          console.warn('⚠️  PhoBERT không khả dụng, chỉ dùng Neo4j scores');
+        }
+      } else {
+        console.log('ℹ️  No context provided, skip PhoBERT ranking');
+      }
+
+      // ========== STEP 3: MERGE SCORES ==========
+      console.log('\n🔀 STEP 3: Merge Scores...');
+
+      const mergedResults = neo4jCandidates.map(candidate => {
+        // ✅ FIX: Handle different Neo4j response formats
+        const word = candidate.suggestion || candidate.word || candidate.toWord;
+        const candidateWord = (word || '').toString().toLowerCase();
+        
+        // ✅ FIX: Handle different score field names
+        const neo4jScore = candidate.score || candidate.weight || candidate.normalizedWeight || 0;
+        const phobertScore = phobertScores.get(candidateWord) || 0;
+
+        const finalScore = phobertScore > 0
+          ? this.mergeScores(neo4jScore, phobertScore)
+          : neo4jScore;
+
+        // ✅ FIX: Handle label as array or string
+        let posTag = candidate.toLabel || candidate.label;
+        if (Array.isArray(posTag)) {
+          posTag = posTag[0] || 'Unknown';
+        }
+
+        return {
+          word: word || 'unknown',
+          posTag: posTag || 'Unknown',
+          neo4jScore,
+          phobertScore,
+          finalScore,
+          relationType: candidate.relationType || 'Related_To',
+        };
+      });
+
+      mergedResults.sort((a, b) => b.finalScore - a.finalScore);
+      const topResults = mergedResults.slice(0, topK);
+
+      console.log('\n📊 Top Results:');
+      topResults.slice(0, 5).forEach((r, idx) => {
+        console.log(
+          `  ${idx + 1}. "${r.word}" (${r.posTag}) - ` +
+          `Neo4j: ${r.neo4jScore.toFixed(4)}, ` +
+          `PhoBERT: ${r.phobertScore.toFixed(4)}, ` +
+          `Final: ${r.finalScore.toFixed(4)}`
+        );
+      });
+
+      return {
+        success: true,
+        word: cleanWord,
+        toLabel: cleanLabel,
+        context,
+        strategy: this.MERGE_STRATEGY,
+        totalCandidates: neo4jCandidates.length,
+        results: topResults,
+      };
+
+    } catch (error) {
+      console.error('❌ Lỗi trong findWordByLabel:', error);
+      throw new InternalServerErrorException(`Không thể tìm từ theo label: ${error.message}`);
+    }
+  }
+
+  // ==================== UPDATED: getNextWordSuggestion ====================
+  /**
+   * Lấy gợi ý từ tiếp theo (wrapper cho findWord/findWordByLabel)
+   * Áp dụng Graph-Retrieve, BERT-Rank
+   */
+  async getNextWordSuggestion(
+    word: string,
+    currentPosTag: string,
+    context: string = '',
+    targetPosTag?: string,
+    topK: number = 10,
+  ) {
+    try {
+      console.log('\n' + '='.repeat(80));
+      console.log('💡 GET NEXT WORD SUGGESTION');
+      console.log('='.repeat(80));
+
+      let result;
+
+      if (targetPosTag) {
+        // Tìm theo label cụ thể
+        result = await this.findWordByLabel(word, targetPosTag, context, topK);
+      } else {
+        // Tìm tất cả
+        result = await this.findWord(word, context, topK);
+      }
+
+      return {
+        success: result.success,
+        word,
+        currentPosTag,
+        currentPosInfo: this.getPosTagInfo(currentPosTag),
+        targetPosTag: targetPosTag || 'all',
+        context,
+        strategy: this.MERGE_STRATEGY,
+        weights: {
+          neo4j: this.NEO4J_WEIGHT,
+          phobert: this.PHOBERT_WEIGHT,
+        },
+        suggestions: result.results || [],
+        totalCandidates: result.totalCandidates,
+      };
+
+    } catch (error) {
+      console.error('❌ Lỗi trong getNextWordSuggestion:', error);
+      throw new InternalServerErrorException('Không thể lấy gợi ý');
+    }
+  }
+
+  // ==================== HELPER: getPosTagInfo ====================
   private getPosTagInfo(posTag: string) {
     const POS_TAG_INFO = {
       'N': { fullName: 'Noun', vnName: 'Danh từ' },
@@ -920,131 +1190,6 @@ export class NlpIntegrationService {
 
     return stats;
   }
-
-  // Lấy gợi ý từ tiếp theo dựa trên từ hiện tại và POS tag
-  async getNextWordSuggestion(
-    word: string,
-    currentPosTag: string,
-    targetPosTag?: string,
-  ) {
-    try {
-      let suggestions;
-
-      if (targetPosTag) {
-        // Tìm từ có POS tag cụ thể
-        suggestions = await this.neo4jClient.send('neo4j.get-suggestions', {
-          word,
-          currentPosTag,
-          targetPosTag,
-        }
-        );
-      } else {
-        // Tìm tất cả các từ có thể xuất hiện sau
-        suggestions = await this.neo4jClient.send('neo4j.get-suggestions', word);
-      }
-
-      return {
-        success: true,
-        word,
-        currentPosTag,
-        currentPosInfo: POS_TAG_INFO[currentPosTag] || null,
-        targetPosTag: targetPosTag || 'all',
-        suggestions,
-      };
-    } catch (error) {
-      console.error('Lỗi khi lấy gợi ý:', error);
-      throw new InternalServerErrorException('Không thể lấy gợi ý');
-    }
-  }
-// ========== FIXED: findWord với validation ==========
-  async findWord(word: string) {
-    try {
-      // ✅ Validation input
-      if (!word || typeof word !== 'string' || word.trim().length === 0) {
-        throw new BadRequestException('Từ tìm kiếm không hợp lệ');
-      }
-
-      const cleanWord = word.trim().toLowerCase();
-
-      const nodes = await firstValueFrom(
-        this.neo4jClient.send('neo4j.get-suggestions', { word: cleanWord })
-      );
-
-      // ✅ Kiểm tra kết quả
-      if (!nodes || nodes.length === 0) {
-        return {
-          success: false,
-          word: cleanWord,
-          message: 'Không tìm thấy từ trong graph',
-          nodes: [],
-        };
-      }
-      console.log(`Tìm thấy ${nodes.length} nodes cho từ "${cleanWord}"`);
-      console.log('Nodes:', nodes);
-      return {
-        success: true,
-        word: cleanWord,
-        totalResults: nodes.length,
-        nodes,
-      };
-    } catch (error) {
-      console.error('Lỗi khi tìm từ trong graph:', error);
-      throw new InternalServerErrorException(`Không thể tìm từ: ${error.message}`);
-    }
-  }
-
-  // ========== FIXED: findWordByLabel với validation ==========
-  async findWordByLabel(word: string, toLabel: string) {
-    try {
-      // ✅ Validation input
-      if (!word || typeof word !== 'string' || word.trim().length === 0) {
-        throw new BadRequestException('Từ tìm kiếm không hợp lệ');
-      }
-
-      if (!toLabel || typeof toLabel !== 'string' || toLabel.trim().length === 0) {
-        throw new BadRequestException('Label không hợp lệ');
-      }
-
-      const cleanWord = word.trim().toLowerCase();
-      const cleanLabel = toLabel.trim().toUpperCase();
-
-      // ✅ Validate label format (POS tags thường là 1-2 ký tự)
-      const validLabels = ['N', 'V', 'A', 'R', 'P', 'M', 'E', 'C', 'I', 'T', 'CH'];
-      if (!validLabels.includes(cleanLabel)) {
-        console.warn(`⚠️  Label không chuẩn: ${cleanLabel}`);
-      }
-
-      const nodes = await firstValueFrom(
-        this.neo4jClient.send('neo4j.find-word-by-label', {
-          word: cleanWord,
-          toLabel: cleanLabel
-        })
-      );
-
-      // ✅ Kiểm tra kết quả
-      if (!nodes || nodes.length === 0) {
-        return {
-          success: false,
-          word: cleanWord,
-          toLabel: cleanLabel,
-          message: `Không tìm thấy từ "${cleanWord}" với label "${cleanLabel}"`,
-          nodes: [],
-        };
-      }
-
-      return {
-        success: true,
-        word: cleanWord,
-        toLabel: cleanLabel,
-        totalResults: nodes.length,
-        nodes,
-      };
-    } catch (error) {
-      console.error('Lỗi khi tìm từ theo label trong graph:', error);
-      throw new InternalServerErrorException(`Không thể tìm từ theo label: ${error.message}`);
-    }
-  }
-
   //Phân tích cấu trúc câu cơ bản (S-V-O)
   async analyzeSentenceStructure(text: string) {
     try {
@@ -1221,107 +1366,6 @@ export class NlpIntegrationService {
 
     return increment;
   }
-
-  // ========== FIXED: normalizeAllWeights - Chuẩn hóa theo từng node ==========
-  private async normalizeAllWeights(): Promise<void> {
-    try {
-      console.log('🔄 Bắt đầu chuẩn hóa weight theo từng node...');
-
-      // Lấy tất cả relations
-      const allRelations = await firstValueFrom(
-        this.neo4jClient.send('neo4j.get-all-relations', {})
-      );
-
-      if (!allRelations || allRelations.length === 0) {
-        console.log('⚠️  Không có relation nào để chuẩn hóa');
-        return;
-      }
-
-      // ✅ Nhóm relations theo node gốc (fromLabel + fromName)
-      const relationsBySource = new Map<string, any[]>();
-
-      for (const rel of allRelations) {
-        if (rel.weight === undefined || rel.weight === null ||
-          isNaN(rel.weight) || !isFinite(rel.weight)) {
-          continue; // Bỏ qua weight không hợp lệ
-        }
-
-        const sourceKey = `${rel.fromLabel}:${rel.fromName}`;
-        if (!relationsBySource.has(sourceKey)) {
-          relationsBySource.set(sourceKey, []);
-        }
-        relationsBySource.get(sourceKey).push(rel);
-      }
-
-      console.log(`📊 Tìm thấy ${relationsBySource.size} nodes gốc cần chuẩn hóa`);
-
-      const updates = [];
-
-      // ✅ Chuẩn hóa từng nhóm riêng biệt
-      for (const [sourceKey, relations] of relationsBySource.entries()) {
-        if (relations.length === 0) continue;
-
-        // Lấy min/max trong nhóm này
-        const weights = relations.map(r => r.weight);
-        const minWeight = Math.min(...weights);
-        const maxWeight = Math.max(...weights);
-        const range = maxWeight - minWeight;
-
-        console.log(`  🔍 ${sourceKey}: ${relations.length} relations, range=[${minWeight.toFixed(4)}, ${maxWeight.toFixed(4)}]`);
-
-        // Nếu tất cả weight bằng nhau trong nhóm
-        if (range < 0.0001) {
-          for (const rel of relations) {
-            updates.push({
-              fromLabel: rel.fromLabel,
-              fromName: rel.fromName,
-              toLabel: rel.toLabel,
-              toName: rel.toName,
-              relationType: rel.relationType,
-              weight: 0.5, // Giá trị trung bình
-            });
-          }
-          continue;
-        }
-
-        // ✅ Chuẩn hóa Min-Max trong nhóm
-        for (const rel of relations) {
-          const normalizedWeight = (rel.weight - minWeight) / range;
-          const clampedWeight = Math.max(0, Math.min(1, normalizedWeight));
-
-          updates.push({
-            fromLabel: rel.fromLabel,
-            fromName: rel.fromName,
-            toLabel: rel.toLabel,
-            toName: rel.toName,
-            relationType: rel.relationType,
-            weight: Number(clampedWeight.toFixed(6)),
-          });
-        }
-      }
-
-      // Validation trước khi update
-      const invalidWeights = updates.filter(u => u.weight < 0 || u.weight > 1 || isNaN(u.weight));
-      if (invalidWeights.length > 0) {
-        console.error('❌ Phát hiện weight không hợp lệ:', invalidWeights.slice(0, 5));
-        throw new Error(`Có ${invalidWeights.length} weight nằm ngoài [0,1]`);
-      }
-
-      console.log(`🔄 Chuẩn bị cập nhật ${updates.length} relations`);
-
-      // Batch update
-      await firstValueFrom(
-        this.neo4jClient.send('neo4j.batch-update-weights', { updates })
-      );
-
-      console.log(`✅ Đã chuẩn hóa ${updates.length} relations theo ${relationsBySource.size} nodes`);
-
-    } catch (error) {
-      console.error('❌ Lỗi khi chuẩn hóa weight:', error.message);
-      throw error;
-    }
-  }
-
   
   /**
  * Duyệt qua tất cả các node có label "P" và xóa những node không phải đại từ hợp lệ

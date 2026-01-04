@@ -26,15 +26,48 @@ export class NlpIntegrationService {
         );
     }
 
-    async findWord(word: string, label: string) {
+
+    async findWord(word: string, context: string = '', topK: number = 10) {
         return firstValueFrom(
-            this.nlpClient.send('nlp-integration.find-word', { word, label })
+            this.nlpClient.send('nlp-integration.find-word', {
+                word,
+                context,
+                topK
+            })
         );
     }
 
-    async findWordByLabel(word: string, toLabel: string) {
+    async findWordByLabel(
+        word: string,
+        toLabel: string,
+        context: string = '',
+        topK: number = 10
+    ) {
         return firstValueFrom(
-            this.nlpClient.send('nlp-integration.find-word-by-label', { word, toLabel })
+            this.nlpClient.send('nlp-integration.find-word-by-label', {
+                word,
+                toLabel,
+                context,
+                topK
+            })
+        );
+    }
+
+    async suggestNextWord(
+        word: string,
+        currentPosTag: string,
+        context: string = '',
+        targetPosTag?: string,
+        topK: number = 10,
+    ) {
+        return firstValueFrom(
+            this.nlpClient.send('nlp-integration.suggest-next-word', {
+                word,
+                currentPosTag,
+                context,
+                targetPosTag,
+                topK,
+            })
         );
     }
 
