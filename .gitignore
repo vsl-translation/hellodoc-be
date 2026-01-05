@@ -4,6 +4,7 @@
 /build
 /data
 /data_test
+/fulldata
 # Logs
 logs
 *.log

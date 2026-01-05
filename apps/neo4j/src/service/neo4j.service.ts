@@ -199,44 +199,63 @@ export class Neo4jService {
       await session.close();
     }
   }
-  async getAll() {
+  
+async getAll() {
     const session = this.getSession();
     try {
+      console.log('Fetching entire graph...');
+      
+      // --- SỬA Ở ĐÂY ---
+      // Thay vì RETURN p, hãy RETURN n, r, m rõ ràng
+      // Sử dụng OPTIONAL MATCH để lấy cả những node đứng một mình (nếu muốn)
+      // Hoặc dùng MATCH (n)-[r]->(m) nếu chỉ muốn lấy các node có liên kết
+      
       const query = `
-        MATCH (n)
-        OPTIONAL MATCH (n)-[r]->(m)
+        MATCH (n)-[r]->(m)
         RETURN n, r, m
-        LIMIT 500
-      `;
-
+        LIMIT 1000 
+      `; 
+      // Lưu ý: Thêm LIMIT để tránh treo server nếu DB quá lớn
+      
       const result = await session.run(query);
 
       const nodesMap = new Map();
       const relationships: any[] = [];
 
       for (const record of result.records) {
+        // Bây giờ record đã có các key này
         const n = record.get('n');
         const r = record.get('r');
         const m = record.get('m');
 
         // ===== NODE N =====
         if (n) {
-          const nodeId = `${n.labels[0]}:${n.properties.name}`;
-          nodesMap.set(nodeId, {
-            id: nodeId,
-            labels: n.labels,
-            properties: n.properties
-          });
+          const label = n.labels ? n.labels[0] : 'Unknown'; // Safety check
+          const name = n.properties.name || 'NoName';
+          const nodeId = `${label}:${name}`;
+          
+          if (!nodesMap.has(nodeId)) { // Check trùng để tối ưu
+             nodesMap.set(nodeId, {
+                id: nodeId,
+                labels: n.labels,
+                properties: n.properties
+             });
+          }
         }
 
         // ===== NODE M =====
         if (m) {
-          const nodeId = `${m.labels[0]}:${m.properties.name}`;
-          nodesMap.set(nodeId, {
-            id: nodeId,
-            labels: m.labels,
-            properties: m.properties
-          });
+          const label = m.labels ? m.labels[0] : 'Unknown';
+          const name = m.properties.name || 'NoName';
+          const nodeId = `${label}:${name}`;
+          
+          if (!nodesMap.has(nodeId)) {
+             nodesMap.set(nodeId, {
+                id: nodeId,
+                labels: m.labels,
+                properties: m.properties
+             });
+          }
         }
 
         // ===== RELATION =====
@@ -250,6 +269,7 @@ export class Neo4jService {
           });
         }
       }
+      console.log('Returning full graph with nodes/relationships:', nodesMap.size, relationships.length);
 
       return {
         nodes: Array.from(nodesMap.values()),
@@ -262,7 +282,6 @@ export class Neo4jService {
       await session.close();
     }
   }
-
   async deleteAll() {
     const session = this.getSession();
     try {
