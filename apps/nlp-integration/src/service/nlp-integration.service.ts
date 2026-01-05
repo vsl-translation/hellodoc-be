@@ -7,7 +7,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 
 // ==================== PHOBERT CONFIG ====================
-const PHOBERT_API_URL = 'https://myles-undeliverable-symbolically.ngrok-free.dev'; // ⚠️ Thay bằng URL từ PhoBERT server
+const PHOBERT_API_URL = process.env.PHOBERT_API_URL || 'https://veinless-unslanderously-jordyn.ngrok-free.dev'; // ⚠️ Thay bằng URL từ PhoBERT server
 const PHOBERT_HEALTH_CHECK = `${PHOBERT_API_URL}/health`;
 const PHOBERT_PREDICT_URL = `${PHOBERT_API_URL}/predict`;
 

@@ -17,7 +17,7 @@ export class PhowhisperService {
     @InjectModel(VideoSubtitle.name, 'subtitleConnection') private videoSubtitleModel: Model<VideoSubtitle>,
     @Inject('CLOUDINARY_CLIENT') private readonly cloudinaryClient: ClientProxy,
   ) { }
-  private PHOWHISPER_URL = process.env.PHOWHISPER_URL || 'https://chummiest-raiden-unimmanent.ngrok-free.dev';
+  private PHOWHISPER_URL = process.env.PHOWHISPER_URL;
 
   async generateSubtitle(videoUrl?: string, file?: Express.Multer.File) {
     // 1. Chuẩn hóa input
