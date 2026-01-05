@@ -1,11 +1,11 @@
 import { Controller } from '@nestjs/common';
-import { CloudinaryService } from  '../service/cloudinary.service';
+import { CloudinaryService } from '../service/cloudinary.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { InternalServerErrorException } from '@nestjs/common';
 
 @Controller()
 export class CloudinaryController {
-  constructor(private readonly cloudinaryService: CloudinaryService) {}
+  constructor(private readonly cloudinaryService: CloudinaryService) { }
 
   /**
    * Pattern gốc - Upload từ buffer (base64)
@@ -14,12 +14,12 @@ export class CloudinaryController {
    */
   @MessagePattern('cloudinary.upload')
   async upload(
-    @Payload() payload: { 
+    @Payload() payload: {
       buffer?: string;    // base64 string (old field name)
       file?: string;      // base64 string (new field name) 
-      filename: string; 
-      mimetype?: string; 
-      folder: string 
+      filename: string;
+      mimetype?: string;
+      folder: string
     },
   ) {
     try {
@@ -52,10 +52,10 @@ export class CloudinaryController {
       let resourceType: 'auto' | 'raw' = 'auto';
       if (payload.mimetype) {
         // Nếu là text file hoặc application file → raw
-        if (payload.mimetype.startsWith('text/') || 
-            payload.mimetype.includes('json') ||
-            payload.mimetype.includes('xml') ||
-            payload.mimetype === 'application/octet-stream') {
+        if (payload.mimetype.startsWith('text/') ||
+          payload.mimetype.includes('json') ||
+          payload.mimetype.includes('xml') ||
+          payload.mimetype === 'application/octet-stream') {
           resourceType = 'raw';
         }
       } else {
@@ -93,9 +93,9 @@ export class CloudinaryController {
    */
   @MessagePattern('cloudinary.upload-raw')
   async uploadRaw(
-    @Payload() payload: { 
+    @Payload() payload: {
       file: string;      // base64 string
-      filename: string; 
+      filename: string;
       folder?: string;
     },
   ) {
@@ -140,8 +140,8 @@ export class CloudinaryController {
    */
   @MessagePattern('cloudinary.upload-file')
   async uploadFile(
-    @Payload() payload: { 
-      file: Express.Multer.File; 
+    @Payload() payload: {
+      file: Express.Multer.File;
       folder?: string;
     },
   ) {
@@ -171,9 +171,9 @@ export class CloudinaryController {
    */
   @MessagePattern('cloudinary.delete-file')
   async deleteFile(
-    @Payload() payload: { 
-      publicId: string; 
-      resourceType?: 'image' | 'video' | 'raw' 
+    @Payload() payload: {
+      publicId: string;
+      resourceType?: 'image' | 'video' | 'raw'
     },
   ) {
     try {
@@ -200,6 +200,118 @@ export class CloudinaryController {
         status: 'error',
         message: error.message || 'Delete failed',
       };
+    }
+  }
+
+  /**
+ * Upload JSON data từ Sign Language Detection
+ */
+  @MessagePattern('cloudinary.upload-json')
+  async uploadJson(
+    @Payload() payload: {
+      jsonData: any;        // JSON object hoặc string
+      publicId?: string;    // optional custom public_id
+      folder?: string;
+      tags?: string[];
+    },
+  ) {
+    try {
+      console.log(`📤 [cloudinary.upload-json] Uploading JSON data`);
+
+      // Validate input
+      if (!payload.jsonData) {
+        throw new Error('JSON data is required');
+      }
+
+      // Convert to string if object
+      const jsonString = typeof payload.jsonData === 'string'
+        ? payload.jsonData
+        : JSON.stringify(payload.jsonData, null, 2);
+
+      console.log(`📦 JSON size: ${jsonString.length} bytes`);
+
+      const result = await this.cloudinaryService.uploadJson(
+        jsonString,
+        {
+          folder: payload.folder || 'sign-language/gestures',
+          public_id: payload.publicId || `gesture_${Date.now()}`,
+          tags: payload.tags || ['sign-language', 'gesture'],
+          resource_type: 'raw'
+        }
+      );
+
+      console.log(`✅ [cloudinary.upload-json] Success: ${result.secure_url}`);
+
+      return {
+        success: true,
+        url: result.secure_url,
+        public_id: result.public_id,
+        format: result.format,
+        created_at: result.created_at,
+        bytes: result.bytes
+      };
+
+    } catch (error) {
+      console.error('❌ [cloudinary.upload-json] Error:', error.message);
+      throw new InternalServerErrorException(`Upload JSON failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Upload hình ảnh skeleton frame từ buffer
+   */
+  @MessagePattern('cloudinary.upload-gesture-image')
+  async uploadGestureImage(
+    @Payload() payload: {
+      buffer: Buffer;
+      publicId?: string;
+      folder?: string;
+      transformation?: any[];
+      tags?: string[];
+    },
+  ) {
+    try {
+      console.log(`📤 [cloudinary.upload-gesture-image] Uploading gesture image`);
+
+      if (!payload.buffer || !Buffer.isBuffer(payload.buffer)) {
+        throw new Error('Valid buffer is required');
+      }
+
+      console.log(`📦 Image buffer size: ${payload.buffer.length} bytes`);
+
+      // Default transformation cho skeleton frames
+      const defaultTransformations = [
+        { width: 800, crop: "limit" },
+        { quality: "auto" },
+        { fetch_format: "auto" }
+      ];
+
+      const result = await this.cloudinaryService.uploadBuffer(
+        payload.buffer,
+        {
+          folder: payload.folder || 'sign-language/frames',
+          public_id: payload.publicId || `frame_${Date.now()}`,
+          tags: payload.tags || ['sign-language', 'frame', 'skeleton'],
+          transformation: payload.transformation || defaultTransformations,
+          resource_type: 'image'
+        }
+      );
+
+      console.log(`✅ [cloudinary.upload-gesture-image] Success: ${result.secure_url}`);
+
+      return {
+        success: true,
+        url: result.secure_url,
+        public_id: result.public_id,
+        format: result.format,
+        width: result.width,
+        height: result.height,
+        bytes: result.bytes
+      };
+
+    } catch (error) {
+      console.error('❌ [cloudinary.upload-gesture-image] Error:', error.message);
+      throw new InternalServerErrorException(`Upload image failed: ${error.message}`);
     }
   }
 }
