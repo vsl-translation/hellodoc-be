@@ -1,4 +1,4 @@
-import { Inject, Injectable, InternalServerErrorException,BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import axios from 'axios';
@@ -123,11 +123,11 @@ export class NlpIntegrationService {
       return response.data.predictions || [];
     } catch (error) {
       console.error('❌ Lỗi khi gọi PhoBERT API:', error.message);
-      
+
       if (error.code === 'ECONNREFUSED') {
         console.error('    PhoBERT server không khả dụng!');
       }
-      
+
       // Fallback: trả về empty array thay vì throw error
       return [];
     }
@@ -170,7 +170,7 @@ export class NlpIntegrationService {
    * Tìm từ tiếp theo dựa trên từ hiện tại (không chỉ định POS tag)
    * Áp dụng Graph-Retrieve, BERT-Rank
    */
-  async findWord(word: string, context: string = '', topK: number = 10) {
+  async findWord(word: string, context: string = '', topK: number = 10): Promise<any> {
     try {
       // ✅ Validation
       if (!word || typeof word !== 'string' || word.trim().length === 0) {
@@ -188,9 +188,9 @@ export class NlpIntegrationService {
 
       // ========== STEP 1: GRAPH RETRIEVE (Neo4j) ==========
       console.log('\n📊 STEP 1: Graph Retrieve from Neo4j...');
-      
+
       const neo4jCandidates = await firstValueFrom(
-        this.neo4jClient.send('neo4j.get-suggestions', { 
+        this.neo4jClient.send('neo4j.get-suggestions', {
           word: cleanWord,
           limit: 20  // Lấy top 20 từ Neo4j
         })
@@ -216,12 +216,12 @@ export class NlpIntegrationService {
         const word = c.suggestion || c.word || c.toWord;
         return typeof word === 'string' ? word : String(word);
       }).filter(Boolean); // Loại bỏ undefined/null
-      
+
       let phobertScores: Map<string, number> = new Map();
 
       if (context && context.trim().length > 0) {
         const phobertResults = await this.scoreWithPhoBERT(context, candidateWords, topK);
-        
+
         if (phobertResults.length > 0) {
           phobertResults.forEach(item => {
             phobertScores.set(item.word.toLowerCase(), item.score);
@@ -236,18 +236,18 @@ export class NlpIntegrationService {
 
       // ========== STEP 3: MERGE SCORES ==========
       console.log('\n🔀 STEP 3: Merge Scores...');
-      
+
       const mergedResults = neo4jCandidates.map(candidate => {
         // ✅ FIX: Handle different Neo4j response formats
         const word = candidate.suggestion || candidate.word || candidate.toWord;
         const candidateWord = (word || '').toString().toLowerCase();
-        
+
         // ✅ FIX: Handle different score field names
         const neo4jScore = candidate.score || candidate.weight || candidate.normalizedWeight || 0;
         const phobertScore = phobertScores.get(candidateWord) || 0;
 
         // Nếu không có context hoặc PhoBERT fail, dùng 100% Neo4j score
-        const finalScore = phobertScore > 0 
+        const finalScore = phobertScore > 0
           ? this.mergeScores(neo4jScore, phobertScore)
           : neo4jScore;
 
@@ -304,11 +304,11 @@ export class NlpIntegrationService {
    * Áp dụng Graph-Retrieve, BERT-Rank
    */
   async findWordByLabel(
-    word: string, 
-    toLabel: string, 
-    context: string = '', 
+    word: string,
+    toLabel: string,
+    context: string = '',
     topK: number = 10
-  ) {
+  ): Promise<any> {
     try {
       // ✅ Validation
       if (!word || typeof word !== 'string' || word.trim().length === 0) {
@@ -332,7 +332,7 @@ export class NlpIntegrationService {
 
       // ========== STEP 1: GRAPH RETRIEVE (Neo4j) ==========
       console.log('\n📊 STEP 1: Graph Retrieve from Neo4j...');
-      
+
       const neo4jCandidates = await firstValueFrom(
         this.neo4jClient.send('neo4j.find-word-by-label', {
           word: cleanWord,
@@ -361,12 +361,12 @@ export class NlpIntegrationService {
         const word = c.suggestion || c.word || c.toWord;
         return typeof word === 'string' ? word : String(word);
       }).filter(Boolean);
-      
+
       let phobertScores: Map<string, number> = new Map();
 
       if (context && context.trim().length > 0) {
         const phobertResults = await this.scoreWithPhoBERT(context, candidateWords, topK);
-        
+
         if (phobertResults.length > 0) {
           phobertResults.forEach(item => {
             phobertScores.set(item.word.toLowerCase(), item.score);
@@ -386,7 +386,7 @@ export class NlpIntegrationService {
         // ✅ FIX: Handle different Neo4j response formats
         const word = candidate.suggestion || candidate.word || candidate.toWord;
         const candidateWord = (word || '').toString().toLowerCase();
-        
+
         // ✅ FIX: Handle different score field names
         const neo4jScore = candidate.score || candidate.weight || candidate.normalizedWeight || 0;
         const phobertScore = phobertScores.get(candidateWord) || 0;
@@ -451,7 +451,7 @@ export class NlpIntegrationService {
     context: string = '',
     targetPosTag?: string,
     topK: number = 10,
-  ) {
+  ): Promise<any> {
     try {
       console.log('\n' + '='.repeat(80));
       console.log('💡 GET NEXT WORD SUGGESTION');
@@ -741,7 +741,7 @@ export class NlpIntegrationService {
 
       // ✅ Dấu câu cần loại bỏ
       const PUNCTUATIONS = new Set([
-        '?', '!', '.', ',', ';', ':', '-', '–', '—', 
+        '?', '!', '.', ',', ';', ':', '-', '–', '—',
         '(', ')', '[', ']', '{', '}', '"', "'", '«', '»',
         '...', '…'
       ]);
@@ -756,7 +756,7 @@ export class NlpIntegrationService {
       for (let i = 0; i < tokens.length; i++) {
         const rawToken = tokens[i];
         const posTag = Array.isArray(pos_tags[i]) ? pos_tags[i][1] : pos_tags[i];
-        
+
         // Lowercase token
         const lowerToken = rawToken.toLowerCase().trim();
 
@@ -793,7 +793,7 @@ export class NlpIntegrationService {
           'mr', 'mrs', 'ms', 'dr', 'phd', 'ceo', 'cto', 'vp',
           'tp', 'hcm', 'hn', 'vn', 'usa', 'uk'
         ]);
-        
+
         if (/^[A-Z]{2,}$/.test(rawToken) && !commonAbbreviations.has(lowerToken)) {
           console.log(`  ❌ Skip abbreviation: "${rawToken}"`);
           continue;
@@ -813,7 +813,7 @@ export class NlpIntegrationService {
 
         // ✅ PASS: Token hợp lệ, xác định POS tag cuối cùng
         let finalPosTag = posTag;
-        
+
         // Override POS tag nếu là pronoun và ngăn chặn các node có tag là P nhưng không nằm trong set PRONOUNS
         if (PRONOUNS.has(lowerToken)) {
           finalPosTag = 'P';
@@ -965,7 +965,7 @@ export class NlpIntegrationService {
       for (const nodeKey of affectedNodes) {
         const [label, ...nameParts] = nodeKey.split(':');
         const name = nameParts.join(':'); // Handle case where name contains ':'
-        
+
         try {
           await this.normalizeWeightsForNode(label, name);
         } catch (error) {
@@ -1366,7 +1366,7 @@ export class NlpIntegrationService {
 
     return increment;
   }
-  
+
   /**
  * Duyệt qua tất cả các node có label "P" và xóa những node không phải đại từ hợp lệ
  * @returns Thống kê về số node đã kiểm tra và xóa
