@@ -9,6 +9,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { PendingDoctor, PendingDoctorStatus } from '../core/schema/PendingDoctor.schema';
 import { Specialty } from 'apps/specialty/src/core/schema/specialty.schema';
 import { lastValueFrom, timeout } from 'rxjs';
+import { UpdateClinicInfoDto } from '../core/dto/update-clinic-info.dto';
 
 @Injectable()
 export class DoctorService {
@@ -661,7 +662,7 @@ export class DoctorService {
 
   async updateClinic(
     doctorId: string,
-    updateData: any,
+    updateData: UpdateClinicInfoDto,
     files?: { serviceImage?: Express.Multer.File[] }
   ) {
     if (!Types.ObjectId.isValid(doctorId)) {
@@ -698,16 +699,17 @@ export class DoctorService {
     };
   }
 
-  private filterAllowedFields(data: any) {
-    const allowed = ['description', 'address', 'services', 'workingHours', 'oldService', 'oldWorkingHours', 'hasHomeService', 'isClinicPaused'];
+  private filterAllowedFields(data: UpdateClinicInfoDto) {
+    const allowed = ['description', 'address', 'services', 'specialty', 'workingHours', 'oldService', 'oldWorkingHours', 'hasHomeService', 'isClinicPaused'];
     const filtered: any = {};
     for (const key of allowed) {
       if (key in data) {
+        const value = (data as any)[key];
         if (key === 'hasHomeService' || key === 'isClinicPaused') {
           // Chuyển đổi sang boolean nếu là chuỗi
-          filtered[key] = data[key] === 'true' || data[key] === true;
+          filtered[key] = value === 'true' || value === true;
         } else {
-          filtered[key] = data[key];
+          filtered[key] = value;
         }
       }
     }

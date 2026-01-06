@@ -6,6 +6,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { InjectModel } from '@nestjs/mongoose';
 import { Doctor } from '../core/schema/doctor.schema';
 import { Model } from 'mongoose';
+import { UpdateClinicInfoDto } from '../core/dto/update-clinic-info.dto';
 
 @Controller()
 export class DoctorController {
@@ -103,7 +104,7 @@ export class DoctorController {
   }
 
   @MessagePattern('doctor.update-clinic-info')
-  async updateClinicInfo(@Payload() id: string, @Payload() clinicData: any) {
+  async updateClinicInfo(@Payload() id: string, @Payload() clinicData: UpdateClinicInfoDto) {
     return this.doctorService.updateClinic(id, clinicData);
   }
 

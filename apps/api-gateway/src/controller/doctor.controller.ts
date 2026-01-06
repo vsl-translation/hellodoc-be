@@ -4,6 +4,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtHybridAuthGuard } from 'libs/Guard/jwt-auth.guard';
 import { AdminGuard } from 'libs/Guard/AdminGuard.guard';
 import { ClientProxy } from '@nestjs/microservices';
+import { UpdateClinicInfoDto } from '../core/dto/update-clinic-info.dto';
 
 @Controller('doctor')
 export class DoctorController {
@@ -169,9 +170,9 @@ export class DoctorController {
     updateClinicInfo(
         @Param('id') id: string,
         @UploadedFiles() files: { images?: Express.Multer.File[] },
-        @Body() updateData: any) {
+        @Body() updateData: UpdateClinicInfoDto) {
         if (files?.images?.[0]) {
-            updateData.images = files.images[0];
+            (updateData as any).images = files.images[0];
         }
         return this.doctorService.updateClinicInfo(id, updateData);
     }

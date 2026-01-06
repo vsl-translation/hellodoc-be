@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import { lastValueFrom } from "rxjs";
+import { UpdateClinicInfoDto } from "../core/dto/update-clinic-info.dto";
 
 @Injectable()
 export class DoctorService {
@@ -48,7 +49,7 @@ export class DoctorService {
         return this.doctorClient.send('doctor.update', { id, profileData })
     }
 
-    async updateClinicInfo(id: string, clinicData: any) {
+    async updateClinicInfo(id: string, clinicData: UpdateClinicInfoDto) {
         return this.doctorClient.send('doctor.update-clinic-info', { id, clinicData })
     }
 
