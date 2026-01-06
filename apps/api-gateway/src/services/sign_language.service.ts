@@ -3,21 +3,28 @@ import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
-export class SignLanguageService{
+export class SignLanguageService {
     private readonly logger = new Logger(SignLanguageService.name)
 
     constructor(
         @Inject('SIGNLANGUAGE_CLIENT') private readonly signClient: ClientProxy
-    ){}
+    ) { }
 
-    async getGestureCode(urlMedia: string){
+    async postVideoUrl(urlMedia: string) {
         console.log("urlMedia ", urlMedia)
-        if (!urlMedia){
+        if (!urlMedia) {
             throw new BadRequestException('Cần cung cấp url');
         }
         console.log("Chạy được service")
-       
-        return this.signClient.send('gesture_code.getGestureCode', urlMedia)
-            
+
+        return this.signClient.send('gesture_code.postUrlMedia', urlMedia)
+
+    }
+
+    async getGestureWordCode(videoUrl: string) {
+        if (!videoUrl) {
+            throw new BadRequestException('Cần cung cấp url');
+        }
+        return this.signClient.send('gesture_code.getGestureWordCode', videoUrl)
     }
 }

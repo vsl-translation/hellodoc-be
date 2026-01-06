@@ -7,8 +7,8 @@ export class Video extends Document {
   @Prop({ required: true, unique: true, index: true })
   videoUrl: string;
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'Word' }] })
-  wordCodes: Types.ObjectId[]; // References to Word collection
+  @Prop({ type: String })
+  wordCodes: string;
 
   @Prop({ type: [String] })
   processedWords: string[]; // Original words for quick reference
