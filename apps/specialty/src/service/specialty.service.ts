@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Specialty } from '../core/schema/specialty.schema';
 import { CacheService } from 'libs/cache.service';
+import { DiscordLoggerService } from 'libs/discord-logger.service';
 import { CreateSpecialtyDto } from '../core/dto/create-specialty.dto';
 import { UpdateSpecialtyDto } from '../core/dto/update-specialty.dto';
 import { ClientProxy } from '@nestjs/microservices';
@@ -17,103 +18,116 @@ export class SpecialtyService {
     @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
     @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
     private cacheService: CacheService,
+    private discordLoggerService: DiscordLoggerService,
   ) { }
 
   async getSpecialties() {
-    // const cacheKey = 'all_specialties';
-    // //console.log('Trying to get specialties from cache...');
+    try {
+      // const cacheKey = 'all_specialties';
+      // //console.log('Trying to get specialties from cache...');
 
-    // const cached = await this.cacheService.getCache(cacheKey);
-    // if (cached) {
-    //   //console.log('Cache specialty HIT');
-    //   return cached;
-    // }
+      // const cached = await this.cacheService.getCache(cacheKey);
+      // if (cached) {
+      //   //console.log('Cache specialty HIT');
+      //   return cached;
+      // }
 
-    //console.log('Cache MISS - querying DB');
-    const data = await this.SpecialtyModel.find();
+      //console.log('Cache MISS - querying DB');
+      const data = await this.SpecialtyModel.find();
 
-    // Lấy thông tin bác sĩ cho mỗi specialty
-    const specialtiesWithDoctors = await Promise.all(
-      data.map(async (specialty) => {
-        // Lấy thông tin chi tiết của từng bác sĩ
-        const doctorDetails = await Promise.all(
-          specialty.doctors.map(async (doctorId) => {
-            try {
-              const doctorObjId = new Types.ObjectId(doctorId);
-              const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
-              return {
-                _id: doctor._id,
-                name: doctor.name,
-                avatarURL: doctor.avatarURL
+      // Lấy thông tin bác sĩ cho mỗi specialty
+      const specialtiesWithDoctors = await Promise.all(
+        data.map(async (specialty) => {
+          // Lấy thông tin chi tiết của từng bác sĩ
+          const doctorDetails = await Promise.all(
+            specialty.doctors.map(async (doctorId) => {
+              try {
+                const doctorObjId = new Types.ObjectId(doctorId);
+                const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
+                return {
+                  _id: doctor._id,
+                  name: doctor.name,
+                  avatarURL: doctor.avatarURL
+                }
+              } catch (error) {
+                console.error(`Error fetching doctor ${doctorId}:`, error);
+                return null;
               }
-            } catch (error) {
-              console.error(`Error fetching doctor ${doctorId}:`, error);
-              return null;
-            }
-          })
-        );
+            })
+          );
 
-        // Lọc bỏ các doctor null (trường hợp lỗi)
-        const validDoctors = doctorDetails.filter(doc => doc !== null);
+          // Lọc bỏ các doctor null (trường hợp lỗi)
+          const validDoctors = doctorDetails.filter(doc => doc !== null);
 
-        return {
-          ...specialty.toObject(), // hoặc specialty._doc nếu dùng Mongoose
-          doctors: validDoctors
-        };
-      })
-    );
+          return {
+            ...specialty.toObject(), // hoặc specialty._doc nếu dùng Mongoose
+            doctors: validDoctors
+          };
+        })
+      );
 
-    //console.log('Setting cache...');
-    //await this.cacheService.setCache(cacheKey, specialtiesWithDoctors, 30 * 1000);
-    return specialtiesWithDoctors;
+      //console.log('Setting cache...');
+      //await this.cacheService.setCache(cacheKey, specialtiesWithDoctors, 30 * 1000);
+
+      return specialtiesWithDoctors;
+    } catch (error) {
+      // Log error to Discord
+      await this.discordLoggerService.sendError(error, 'SpecialtyService - getSpecialties');
+      throw error;
+    }
   }
 
   async getAllWithFilter(limit: number, skip: number, searchText?: string) {
-    let filter: any = {};
-    if (searchText && searchText.trim() !== '') {
-      filter.$or = [
-        { name: { $regex: searchText, $options: 'i' } },
-        { description: { $regex: searchText, $options: 'i' } },
-      ];
-    }
-
-    const total = await this.SpecialtyModel.countDocuments(filter);
-
-    const data = await this.SpecialtyModel.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    // Lấy thông tin bác sĩ (tái sử dụng logic từ getSpecialties)
-    const specialtiesWithDoctors = await Promise.all(
-      data.map(async (specialty) => {
-        const doctorDetails = await Promise.all(
-          specialty.doctors.map(async (doctorId) => {
-            try {
-              const doctorObjId = new Types.ObjectId(doctorId);
-              const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
-              return {
-                _id: doctor._id,
-                name: doctor.name,
-                avatarURL: doctor.avatarURL
+    try {
+      let filter: any = {};
+      if (searchText && searchText.trim() !== '') {
+        filter.$or = [
+          { name: { $regex: searchText, $options: 'i' } },
+          { description: { $regex: searchText, $options: 'i' } },
+        ];
+      }
+  
+      const total = await this.SpecialtyModel.countDocuments(filter);
+  
+      const data = await this.SpecialtyModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+  
+      // Lấy thông tin bác sĩ (tái sử dụng logic từ getSpecialties)
+      const specialtiesWithDoctors = await Promise.all(
+        data.map(async (specialty) => {
+          const doctorDetails = await Promise.all(
+            specialty.doctors.map(async (doctorId) => {
+              try {
+                const doctorObjId = new Types.ObjectId(doctorId);
+                const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
+                return {
+                  _id: doctor._id,
+                  name: doctor.name,
+                  avatarURL: doctor.avatarURL
+                }
+              } catch (error) {
+                console.error(`Error fetching doctor ${doctorId}:`, error);
+                return null;
               }
-            } catch (error) {
-              console.error(`Error fetching doctor ${doctorId}:`, error);
-              return null;
-            }
-          })
-        );
-
-        const validDoctors = doctorDetails.filter(doc => doc !== null);
-
-        return {
-          ...specialty.toObject(),
-          doctors: validDoctors
-        };
-      })
-    );
-
-    return { data: specialtiesWithDoctors, total };
+            })
+          );
+  
+          const validDoctors = doctorDetails.filter(doc => doc !== null);
+  
+          return {
+            ...specialty.toObject(),
+            doctors: validDoctors
+          };
+        })
+      );
+  
+      return { data: specialtiesWithDoctors, total };
+    } catch (error) {
+      this.discordLoggerService.sendError(error, 'SpecialtyService - getAllWithFilter');
+      throw error;
+    }
   }
 
   async create(createSpecialtyDto: CreateSpecialtyDto) {
@@ -123,7 +137,7 @@ export class SpecialtyService {
         name: createSpecialtyDto.name,
       });
       if (existingSpecialty) {
-        throw new BadRequestException('Chuyên khoa này đã tồn tại');
+        throw new BadRequestException(`Specialty ${createSpecialtyDto.name} existed`);
       }
 
       let uploadedMediaUrl: string = '';
@@ -165,93 +179,111 @@ export class SpecialtyService {
       });
 
       if (!specialty) {
-        throw new BadRequestException('Tạo chuyên khoa không thành công');
+        throw new BadRequestException(`Specialty ${createSpecialtyDto.name} create failed`);
       }
 
       //console.log('Specialty created with ID:', specialty._id);
+      await this.discordLoggerService.sendSuccess(`Specialty Created: ${specialty.name}`, 'SpecialtyService - create');
       return specialty;
     } catch (error) {
       //console.error('Error in SpecialtyService.create:', error);
+      await this.discordLoggerService.sendError(error, 'SpecialtyService - create');
       throw new InternalServerErrorException(error.message);
     }
   }
 
   async update(id: string, updateSpecialtyDto: UpdateSpecialtyDto) {
-
-    const specialty = await this.SpecialtyModel.findById(id);
-    if (!specialty) {
-      throw new BadRequestException('Chuyên khoa không tồn tại');
+    try {
+      const specialty = await this.SpecialtyModel.findById(id);
+      if (!specialty) {
+        throw new BadRequestException(`Specialty with id ${id} does not exist`);
+      }
+  
+      let uploadedMediaUrl: string = '';
+  
+      if (updateSpecialtyDto.image) {
+        const uploadResult = await this.cloudinaryClient
+          .send('cloudinary.upload', {
+            buffer: updateSpecialtyDto.image.buffer, // Base64 string
+            filename: updateSpecialtyDto.image.originalname,
+            mimetype: updateSpecialtyDto.image.mimetype,
+            folder: `Specialty/${updateSpecialtyDto.name}/Icon`,
+          })
+          .toPromise();
+        uploadedMediaUrl = uploadResult.secure_url;
+      }
+  
+      const updatedSpecialty = await this.SpecialtyModel.findByIdAndUpdate(
+        id,
+        {
+          name: updateSpecialtyDto.name,
+          description: updateSpecialtyDto.description,
+          icon: uploadedMediaUrl || specialty.icon,
+          doctors: updateSpecialtyDto.doctors,
+        },
+        { new: true }
+      );
+      if (!updatedSpecialty) {
+        throw new BadRequestException(`Specialty with id ${id} update failed`);
+      }
+  
+      await this.discordLoggerService.sendSuccess(`Specialty Updated: ${updatedSpecialty.name}`, 'SpecialtyService - update');
+      return updatedSpecialty;
+    } catch (error) {
+      await this.discordLoggerService.sendError(error, 'SpecialtyService - update');
+      throw error;
     }
-
-    let uploadedMediaUrl: string = '';
-
-    if (updateSpecialtyDto.image) {
-      const uploadResult = await this.cloudinaryClient
-        .send('cloudinary.upload', {
-          buffer: updateSpecialtyDto.image.buffer, // Base64 string
-          filename: updateSpecialtyDto.image.originalname,
-          mimetype: updateSpecialtyDto.image.mimetype,
-          folder: `Specialty/${updateSpecialtyDto.name}/Icon`,
-        })
-        .toPromise();
-      uploadedMediaUrl = uploadResult.secure_url;
-    }
-
-    const updatedSpecialty = await this.SpecialtyModel.findByIdAndUpdate(
-      id,
-      {
-        name: updateSpecialtyDto.name,
-        description: updateSpecialtyDto.description,
-        icon: uploadedMediaUrl || specialty.icon,
-        doctors: updateSpecialtyDto.doctors,
-      },
-      { new: true }
-    );
-    if (!updatedSpecialty) {
-      throw new BadRequestException('Cập nhật chuyên khoa không thành công');
-    }
-
-    return updatedSpecialty;
   }
 
   async remove(id: string) {
-    const specialty = await this.SpecialtyModel.findByIdAndDelete(id);
-    if (!specialty) {
-      throw new BadRequestException('Chuyên khoa không tồn tại');
+    try {
+      const specialty = await this.SpecialtyModel.findByIdAndDelete(id);
+      if (!specialty) {
+        throw new BadRequestException(`Specialty with id ${id} does not exist`);
+      }
+  
+      await this.discordLoggerService.sendSuccess(`Specialty Removed: ${specialty.name}`, 'SpecialtyService - remove');
+      return specialty;
+    } catch (error) {
+      await this.discordLoggerService.sendError(error, 'SpecialtyService - remove');
+      throw error;
     }
-
-    return specialty;
   }
 
   async getSpecialtyById(id: string) {
-    const specialty = await this.SpecialtyModel.findById(id);
-
-    const doctorDetails = await Promise.all(
-      specialty.doctors.map(async (doctorId) => {
-        try {
-          const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorId));
-          return {
-            _id: doctor._id,
-            name: doctor.name,
-            specialty: doctor.specialty,
-            address: doctor.address,
-            avatarURL: doctor.avatarURL,
-            isClinicPaused: doctor.isClinicPaused
+    try {
+      const specialty = await this.SpecialtyModel.findById(id);
+  
+      const doctorDetails = await Promise.all(
+        specialty.doctors.map(async (doctorId) => {
+          try {
+            const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorId));
+            return {
+              _id: doctor._id,
+              name: doctor.name,
+              specialty: doctor.specialty,
+              address: doctor.address,
+              avatarURL: doctor.avatarURL,
+              isClinicPaused: doctor.isClinicPaused
+            }
+          } catch (error) {
+            console.error(`Error fetching doctor ${doctorId}:`, error);
+            return null;
           }
-        } catch (error) {
-          console.error(`Error fetching doctor ${doctorId}:`, error);
-          return null;
-        }
-      })
-    );
-
-    // Lọc bỏ các doctor null (trường hợp lỗi)
-    const validDoctors = doctorDetails.filter(doc => doc !== null);
-
-    return {
-      ...specialty.toObject(), // hoặc specialty._doc nếu dùng Mongoose
-      doctors: validDoctors
-    };
+        })
+      );
+  
+      // Lọc bỏ các doctor null (trường hợp lỗi)
+      const validDoctors = doctorDetails.filter(doc => doc !== null);
+  
+      return {
+        ...specialty.toObject(), // hoặc specialty._doc nếu dùng Mongoose
+        doctors: validDoctors
+      };
+    } catch (error) {
+      await this.discordLoggerService.sendError(error, 'SpecialtyService - getSpecialtyById');
+      throw error;
+    }
   }
 
   async getSpecialtyByName(name: string) {
@@ -259,35 +291,45 @@ export class SpecialtyService {
       throw new Error(`name must be string, got ${typeof name}`);
     }
 
-    const specialty = await this.SpecialtyModel.findOne({ name });
-
-    if (!specialty) {
-      return null;
-    }
-
-    // Gọi 1 lần duy nhất thay vì loop
     try {
-      const validDoctors = await firstValueFrom(
-        this.doctorClient.send('doctor.get-by-ids-with-home-service', specialty.doctors)
-      );
+      const specialty = await this.SpecialtyModel.findOne({ name });
 
-      return {
-        ...specialty.toObject(),
-        doctors: validDoctors,
-      };
+      if (!specialty) {
+        return null;
+      }
+
+      // Gọi 1 lần duy nhất thay vì loop
+      try {
+        const validDoctors = await firstValueFrom(
+          this.doctorClient.send('doctor.get-by-ids-with-home-service', specialty.doctors)
+        );
+
+        return {
+          ...specialty.toObject(),
+          doctors: validDoctors,
+        };
+      } catch (error) {
+        console.error('Error fetching doctors with home service:', error);
+        return {
+          ...specialty.toObject(),
+          doctors: [],
+        };
+      }
     } catch (error) {
-      console.error('Error fetching doctors with home service:', error);
-      return {
-        ...specialty.toObject(),
-        doctors: [],
-      };
+      await this.discordLoggerService.sendError(error, 'SpecialtyService - getSpecialtyByName');
+      throw error;
     }
   }
 
   async findByIds(ids: string[]) {
-    return this.SpecialtyModel.find({
-      _id: { $in: ids }
-    }).select('_id name icon description doctors');
+    try {
+      return await this.SpecialtyModel.find({
+        _id: { $in: ids }
+      }).select('_id name icon description doctors');
+    } catch (error) {
+      await this.discordLoggerService.sendError(error, 'SpecialtyService - findByIds');
+      throw error;
+    }
   }
 
   analyzeSpecialty(text: string, specialtyNames?: string[]): number {

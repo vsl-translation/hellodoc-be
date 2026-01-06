@@ -10,6 +10,7 @@ import { Specialty, SpecialtySchema } from '../core/schema/specialty.schema';
 import { SpecialtyController } from '../controller/specialty.controller';
 import { SpecialtyService } from '../service/specialty.service';
 import { CacheService } from 'libs/cache.service';
+import { DiscordLoggerService } from 'libs/discord-logger.service';
 //import { CloudinaryService } from 'libs/cloudinary/src/service/cloudinary.service';
 
 @Module({
@@ -65,6 +66,6 @@ import { CacheService } from 'libs/cache.service';
 
   ],
   controllers: [SpecialtyController],
-  providers: [SpecialtyService, CacheService],
+  providers: [SpecialtyService, CacheService, DiscordLoggerService],
 })
 export class SpecialtyModule { }
