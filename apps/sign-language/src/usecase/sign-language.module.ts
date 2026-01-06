@@ -4,9 +4,10 @@ import { SignLanguageService } from '../service/sign-language.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from 'apps/config/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { SignLanguage, SignLanguageSchema } from 'apps/sign-language/core/sign_language.schema';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { HttpModule } from '@nestjs/axios';
+import { Word, WordSchema } from 'apps/sign-language/core/schema/word.schema';
+import { Video, VideoSchema } from 'apps/sign-language/core/schema/sign_language.schema';
 
 @Module({
   imports: [
@@ -29,7 +30,9 @@ import { HttpModule } from '@nestjs/axios';
       connectionName: 'signLanguageConnection',
     }),
     MongooseModule.forFeature([
-      { name: SignLanguage.name, schema: SignLanguageSchema }], 'signLanguageConnection'),
+      { name: Word.name, schema: WordSchema },
+      { name: Video.name, schema: VideoSchema },
+    ], 'signLanguageConnection'),
     ClientsModule.register([
       {
         name: 'CLOUDINARY_CLIENT',

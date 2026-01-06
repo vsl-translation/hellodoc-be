@@ -1,23 +1,24 @@
 import { Inject, Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { SignLanguage } from 'apps/sign-language/core/sign_language.schema';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { HttpService } from '@nestjs/axios';
 import { ClientProxy } from '@nestjs/microservices';
-import { text } from 'express';
+import { Word } from 'apps/sign-language/core/schema/word.schema';
+import { Video } from 'apps/sign-language/core/schema/sign_language.schema';
 
 @Injectable()
 export class SignLanguageService {
   private readonly logger = new Logger(SignLanguageService.name);
-  private SYNONISM_URL = process.env.SYNNONISM_URL;
+  private SYNONISM_URL = "https://demoded-lourie-unpoulticed.ngrok-free.dev";
   private PHOWHISPER_URL = process.env.PHOWHISPER_URL;
-  private DETECT_URL = process.env.DETECT_URL;
+  private DETECT_URL = "https://cherise-unrebated-silly.ngrok-free.dev";
 
   constructor(
     private readonly httpService: HttpService,
-    @InjectModel(SignLanguage.name, "signLanguageConnection") private signLanguage: Model<SignLanguage>,
+    @InjectModel(Word.name, "signLanguageConnection") private wordModel: Model<Word>,
+    @InjectModel(Video.name, "signLanguageConnection") private videoModel: Model<Video>,
     @Inject("PHOWHISPER_CLIENT") private phowhisperClient: ClientProxy,
     @Inject("UNDERTHESEA_CLIENT") private undertheseaClient: ClientProxy,
     @Inject("CLOUDINARY_CLIENT") private cloudinaryService: ClientProxy,
@@ -30,56 +31,64 @@ export class SignLanguageService {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
 
-      // Skip empty lines, sequence numbers, and timestamp lines
       if (!line ||
         /^\d+$/.test(line) ||
         /^\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}$/.test(line)) {
         continue;
       }
 
-      // This is subtitle text
       textLines.push(line);
     }
 
     return textLines.join(' ').trim();
   }
 
-  async getGestureCode(urlMedia: string) {
-    this.logger.log(`Processing gesture code for URL: ${urlMedia}`);
+  async getGestureCode(videoUrl: string) {
+    this.logger.log(`Processing gesture code for video URL: ${videoUrl}`);
+    const startTime = Date.now();
 
-    // 1. Kiểm tra Cache trong DB
-    if (urlMedia) {
-      const existed = await this.signLanguage.findOne({ urlMedia });
-      if (existed) {
-        this.logger.log("Found cached data for urlMedia");
-        return {
-          cached: true,
-          urlMedia: existed.urlMedia,
-          signLanguage: existed.signLanguage
-        };
-      }
+    // 1. Kiểm tra cache trong Video collection
+    const cachedVideo = await this.videoModel.findOne({ videoUrl }).populate('wordCodes');
+
+    if (cachedVideo && cachedVideo.wordCodes.length > 0) {
+      this.logger.log("Found cached data for video");
+      const wordCodes = await Promise.all(
+        cachedVideo.wordCodes.map(async (wordId) => {
+          const word = await this.wordModel.findById(wordId);
+          return {
+            word: word?.word,
+            code: word?.code,
+            originalVideoUrl: word?.originalVideoUrl,
+            accuracy: word?.accuracy,
+            gross: word?.gross
+          };
+        })
+      );
+
+      return {
+        cached: true,
+        videoUrl: cachedVideo.videoUrl,
+        subtitleText: cachedVideo.subtitleText,
+        processedWords: cachedVideo.processedWords,
+        wordCodes: wordCodes,
+        totalProcessingTime: cachedVideo.totalProcessingTime
+      };
     }
 
     try {
       // --- STEP 1: Get Subtitle ---
       this.logger.log(`Step 1: Fetching subtitle from phowhisper`);
-
       const subtitleRes = await firstValueFrom(
         this.phowhisperClient.send(
           "subtitle.getSubtitle",
-          { videoUrl: urlMedia }
+          { videoUrl }
         )
       );
 
-      console.log("subtitleRes", subtitleRes);
-
-      // Kiểm tra xem có subtitleUrl không
       if (!subtitleRes?.subtitleUrl) {
         throw new Error("No subtitle URL returned from phowhisper");
       }
 
-      // Tải nội dung file SRT từ subtitleUrl
-      //this.logger.log(`Downloading SRT file from: ${subtitleRes.subtitleUrl}`);
       const srtResponse = await firstValueFrom(
         this.httpService.get(subtitleRes.subtitleUrl, {
           responseType: 'text'
@@ -87,317 +96,407 @@ export class SignLanguageService {
       );
 
       const srtContent = srtResponse.data;
-      //this.logger.debug(`SRT Content received: ${srtContent.substring(0, 200)}...`);
-
-      // Parse nội dung SRT để lấy text
       const subtitleText = this.parseSRTContent(srtContent);
 
       if (!subtitleText) throw new Error("Subtitle extraction failed - no text found");
       this.logger.debug(`Subtitle text extracted: ${subtitleText}`);
-      console.log("Step 1 completed - Subtitle text:", subtitleText);
 
       // --- STEP 2: Tokenize (Underthesea) ---
       this.logger.log(`Step 2: Tokenizing text...`);
-
       const postagRes = await firstValueFrom(
         this.undertheseaClient.send('underthesea.pos', { text: subtitleText })
       );
 
-      console.log("postagRes ", postagRes);
-
-      // Response structure: { pos_tags: [...], success: true, tokens: [...] }
       if (!postagRes?.success || !Array.isArray(postagRes?.pos_tags)) {
         throw new Error("POSTag failed or returned invalid response");
       }
 
-      // Lọc tokens dựa trên pos_tags
-      // Các POS tag cần giữ lại: N (noun), Np (proper noun), V (verb), A (adjective), R (adverb), M (numeral), Nc (classifier noun)
       const validPosTags = ['N', 'Np', 'V', 'A', 'R', 'M', 'Nc'];
-
       const tokens = postagRes.pos_tags
         .filter(([word, tag]) => validPosTags.includes(tag))
-        .map(([word, tag]) => word);
+        .map(([word, tag]) => word.trim());
 
       this.logger.debug(`Tokens: ${tokens.join(', ')}`);
-      console.log("Step 2 completed - Tokens:", tokens);
 
-      // --- STEP 3: Get Synonyms ---
+      // --- STEP 3: Get Synonyms (FIXED - Call API individually) ---
       const synonymEndpoint = `${this.SYNONISM_URL}/search`;
-      this.logger.log(`Step 3: Getting synonyms...`);
+      this.logger.log(`Step 3: Getting synonyms for ${tokens.length} words...`);
 
-      const synonymRes = await firstValueFrom(
-        this.httpService.post(synonymEndpoint, { query: tokens, max_results_per_query: 1 })
-      );
+      const synonymMap: Map<string, any[]> = new Map();
+      const BATCH_SIZE = 3; // Process 3 words at a time to avoid overwhelming the API
 
-      const synonymsData = synonymRes.data;
-      this.logger.debug(`Synonyms response: ${JSON.stringify(synonymsData)}`);
+      for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+        const batch = tokens.slice(i, i + BATCH_SIZE);
+        this.logger.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tokens.length / BATCH_SIZE)}`);
 
+        // Call API for each token in parallel within batch
+        const batchPromises = batch.map(async (token) => {
+          try {
+            this.logger.debug(`Fetching synonyms for: "${token}"`);
 
-      // --- STEP 4: Detect Gesture Code ---
-      this.logger.log(`Step 4: Processing videos through Google Colab API...`);
+            const synonymRes = await firstValueFrom(
+              this.httpService.post(synonymEndpoint, {
+                query: token, // ✅ Send STRING, not ARRAY
+                max_results_per_query: 3 // ✅ Get top 3 results
+              })
+            );
 
-      const results = await this.processSynonymsThroughColabAPI(synonymsData);
-      console.log("Step 4 completed - Colab results:", results);
+            const results = synonymRes.data?.results;
 
-
-      // --- STEP 5: Upload to Cloudinary and Save to Database ---
-      this.logger.log(`Step 5: Uploading results to Cloudinary and saving to DB...`);
-
-      const cloudinaryResults = await this.uploadResultsToCloudinary(results);
-      console.log("Step 5 completed - Cloudinary URLs:", cloudinaryResults);
-
-      // --- Save to Database (Cache) ---
-      if (urlMedia && cloudinaryResults) {
-        this.logger.log("Saving result to database...");
-        const newRecord = new this.signLanguage({
-          urlMedia: urlMedia,
-          signLanguage: cloudinaryResults,
-          createdAt: new Date()
+            if (results && Array.isArray(results) && results.length > 0) {
+              this.logger.debug(`Found ${results.length} synonyms for "${token}"`);
+              return { token, data: results };
+            } else {
+              this.logger.warn(`No synonyms found for "${token}"`);
+              return { token, data: [] };
+            }
+          } catch (error) {
+            this.logger.error(`Error fetching synonyms for "${token}": ${error.message}`);
+            return { token, data: [], error: error.message };
+          }
         });
-        await newRecord.save();
+
+        const batchResults = await Promise.all(batchPromises);
+
+        // Store results in map
+        batchResults.forEach(({ token, data }) => {
+          synonymMap.set(token, data || []);
+        });
+
+        // Small delay between batches to avoid rate limiting
+        if (i + BATCH_SIZE < tokens.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
 
-      // Return final result
+      this.logger.log(`Synonym map created with ${synonymMap.size} entries`);
+
+      // --- STEP 4: Process Each Word ---
+      this.logger.log(`Step 4: Processing words through Google Colab API...`);
+
+      const wordObjectIds: Types.ObjectId[] = [];
+      const processedWordsInfo: any[] = [];
+      const skippedWords: string[] = [];
+
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+
+        try {
+          console.log(`\n=== PROCESSING WORD ${i + 1}/${tokens.length}: "${token}" ===`);
+
+          // Kiểm tra nếu từ đã tồn tại trong database
+          let existingWord = await this.wordModel.findOne({ word: token });
+
+          if (existingWord) {
+            console.log(`✅ Found in cache: "${token}"`);
+
+            existingWord.usageCount += 1;
+            await existingWord.save();
+            wordObjectIds.push(existingWord._id as Types.ObjectId);
+
+            processedWordsInfo.push({
+              word: token,
+              code: existingWord.code,
+              cached: true,
+              accuracy: existingWord.accuracy,
+              gross: existingWord.gross
+            });
+
+            this.logger.log(`Word "${token}" found in cache, reusing existing data`);
+            continue;
+          }
+
+          console.log(`📝 Not in cache, need to process: "${token}"`);
+
+          // ✅ Get synonym data from map
+          const synonymArray = synonymMap.get(token) || [];
+
+          console.log(`Synonym data found: ${synonymArray.length} results`);
+
+          if (synonymArray.length === 0) {
+            this.logger.warn(`⚠️ Skipping word "${token}" - no synonym data found`);
+            skippedWords.push(token);
+            processedWordsInfo.push({
+              word: token,
+              code: null,
+              cached: false,
+              skipped: true,
+              reason: 'No synonym data found'
+            });
+            continue;
+          }
+
+          // Log all available synonyms with their accuracy
+          console.log(`Available synonyms for "${token}":`);
+          synonymArray.forEach((syn, idx) => {
+            console.log(`  ${idx + 1}. ${syn.gross || 'N/A'} - Accuracy: ${syn.accuracy}%`);
+          });
+
+          // Process word with synonym array (will select best match inside)
+          const wordData = await this.processSingleWord(token, synonymArray);
+
+          if (wordData?.code) {
+            console.log(`💾 Saving word "${token}" to database...`);
+
+            const newWord = new this.wordModel({
+              word: token,
+              code: wordData.code,
+              originalVideoUrl: wordData.originalVideoUrl,
+              accuracy: wordData.accuracy,
+              gross: wordData.gross,
+              tags: ['auto-generated'],
+              usageCount: 1
+            });
+
+            const savedWord = await newWord.save();
+            wordObjectIds.push(savedWord._id as Types.ObjectId);
+
+            processedWordsInfo.push({
+              word: token,
+              code: wordData.code,
+              cached: false,
+              accuracy: wordData.accuracy,
+              gross: wordData.gross
+            });
+
+            this.logger.log(`✅ Successfully processed and saved word: "${token}"`);
+          } else {
+            this.logger.warn(`⚠️ No code returned for word "${token}"`);
+            processedWordsInfo.push({
+              word: token,
+              code: null,
+              cached: false,
+              skipped: true,
+              reason: 'Processing failed - no code returned'
+            });
+          }
+
+        } catch (wordError) {
+          this.logger.error(`❌ Error processing word "${token}": ${wordError.message}`);
+          processedWordsInfo.push({
+            word: token,
+            code: null,
+            cached: false,
+            skipped: true,
+            reason: wordError.message
+          });
+        }
+      }
+
+      // --- STEP 5: Save video info ---
+      const processingTime = Date.now() - startTime;
+
+      console.log('\n=== PROCESSING SUMMARY ===');
+      console.log('Total tokens:', tokens.length);
+      console.log('Successfully processed:', processedWordsInfo.filter(w => !w.skipped).length);
+      console.log('Skipped words:', skippedWords.length);
+      if (skippedWords.length > 0) {
+        console.log('Skipped word list:', skippedWords.join(', '));
+      }
+      console.log('Total processing time:', processingTime, 'ms');
+
+      let videoRecord = await this.videoModel.findOne({ videoUrl });
+
+      if (videoRecord) {
+        videoRecord.wordCodes = wordObjectIds;
+        videoRecord.processedWords = tokens;
+        videoRecord.subtitleText = subtitleText;
+        videoRecord.totalProcessingTime = processingTime;
+        await videoRecord.save();
+        this.logger.log('Updated existing video record');
+      } else {
+        videoRecord = new this.videoModel({
+          videoUrl: videoUrl,
+          wordCodes: wordObjectIds,
+          processedWords: tokens,
+          subtitleText: subtitleText,
+          totalProcessingTime: processingTime
+        });
+        await videoRecord.save();
+        this.logger.log('Created new video record');
+      }
+
       return {
         cached: false,
-        urlMedia: urlMedia,
-        signLanguage: cloudinaryResults
+        videoUrl: videoUrl,
+        subtitleText: subtitleText,
+        processedWords: tokens,
+        wordCodes: processedWordsInfo,
+        skippedWords: skippedWords,
+        totalProcessingTime: processingTime,
+        stats: {
+          total: tokens.length,
+          processed: processedWordsInfo.filter(w => !w.skipped).length,
+          cached: processedWordsInfo.filter(w => w.cached).length,
+          skipped: skippedWords.length
+        }
       };
-
 
     } catch (error) {
       this.handleError(error);
     }
   }
 
-  private async processSynonymsThroughColabAPI(synonymsData: any): Promise<any[]> {
-    const results = [];
-    const colabApiUrl = this.DETECT_URL; // Thay bằng URL Google Colab của bạn
+  private async processSingleWord(word: string, synonymData: any[]): Promise<any> {
+    if (!synonymData || !Array.isArray(synonymData) || synonymData.length === 0) {
+      throw new Error(`No synonym data found for word: ${word}`);
+    }
 
-    // Lặp qua tất cả các từ trong synonyms
-    for (const [word, data] of Object.entries(synonymsData.results)) {
-      if (Array.isArray(data) && data.length > 0 && data[0].url) {
-        const videoUrl = data[0].url;
-        const accuracy = data[0].accuracy;
-        const gross = data[0].gross;
+    // ✅ Sort by accuracy descending and select best match
+    const sortedSynonyms = [...synonymData].sort((a, b) => {
+      const accA = parseFloat(a.accuracy) || 0;
+      const accB = parseFloat(b.accuracy) || 0;
+      return accB - accA;
+    });
 
-        this.logger.log(`Processing word: "${word}" - URL: ${videoUrl}`);
+    const bestMatch = sortedSynonyms[0];
+    const videoUrl = bestMatch.url;
+    const accuracy = bestMatch.accuracy;
+    const gross = bestMatch.gross;
 
-        try {
-          // Gửi yêu cầu đến API Google Colab
-          const jobResponse = await firstValueFrom(
-            this.httpService.post(
-              `${colabApiUrl}/api/detect`,
-              {
-                video_url: videoUrl,
-                frames_per_minute: 1
-              },
-              {
-                timeout: 300000 // 5 phút timeout
-              }
-            )
+    this.logger.log(`Processing word: "${word}"`);
+    this.logger.log(`  ✅ Selected best match: "${gross}" (Accuracy: ${accuracy}%)`);
+    this.logger.log(`  📹 Video URL: ${videoUrl}`);
+
+    try {
+      const colabApiUrl = this.DETECT_URL;
+      const jobResponse = await firstValueFrom(
+        this.httpService.post(
+          `${colabApiUrl}/api/detect`,
+          {
+            video_url: videoUrl,
+            frames_per_minute: 1
+          },
+          { timeout: 300000 }
+        )
+      );
+
+      const jobId = jobResponse.data.job_id;
+      this.logger.log(`Job created: ${jobId} for word: ${word}`);
+
+      const gestureData = await this.pollForJobCompletion(colabApiUrl, jobId, word);
+
+      if (!gestureData) {
+        throw new Error(`Failed to get gesture data for word: ${word}`);
+      }
+
+      const cloudinaryUrl = await this.uploadGestureToCloudinary(word, gestureData);
+
+      return {
+        word: word,
+        code: cloudinaryUrl,
+        originalVideoUrl: videoUrl,
+        accuracy: accuracy,
+        gross: gross,
+        gestureData: gestureData
+      };
+
+    } catch (error) {
+      this.logger.error(`Error processing word "${word}": ${error.message}`);
+      throw error;
+    }
+  }
+
+  private async pollForJobCompletion(colabApiUrl: string, jobId: string, word: string): Promise<any> {
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      try {
+        const statusResponse = await firstValueFrom(
+          this.httpService.get(`${colabApiUrl}/api/job/${jobId}`)
+        );
+
+        const jobStatus = statusResponse.data;
+
+        if (jobStatus.status === 'completed') {
+          this.logger.log(`Job ${jobId} completed for word: ${word}`);
+
+          const downloadResponse = await firstValueFrom(
+            this.httpService.get(`${colabApiUrl}/api/job/${jobId}/download`, {
+              responseType: 'json'
+            })
           );
 
-          const jobId = jobResponse.data.job_id;
-          this.logger.log(`Job created: ${jobId} for word: ${word}`);
+          return downloadResponse.data;
 
-          // Chờ job hoàn thành (polling)
-          let jobStatus = null;
-          let attempts = 0;
-          const maxAttempts = 60; // Tối đa 5 phút (60 * 5 giây)
-
-          while (attempts < maxAttempts) {
-            attempts++;
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Chờ 5 giây
-
-            try {
-              const statusResponse = await firstValueFrom(
-                this.httpService.get(`${colabApiUrl}/api/job/${jobId}`)
-              );
-
-              jobStatus = statusResponse.data;
-
-              if (jobStatus.status === 'completed') {
-                this.logger.log(`Job ${jobId} completed for word: ${word}`);
-
-                // Tải kết quả JSON
-                const downloadResponse = await firstValueFrom(
-                  this.httpService.get(`${colabApiUrl}/api/job/${jobId}/download`, {
-                    responseType: 'json'
-                  })
-                );
-
-                results.push({
-                  word: word,
-                  original_video_url: videoUrl,
-                  accuracy: accuracy,
-                  gross: gross,
-                  job_id: jobId,
-                  gesture_data: downloadResponse.data,
-                  processed_at: new Date()
-                });
-
-                break;
-              } else if (jobStatus.status === 'failed') {
-                this.logger.error(`Job ${jobId} failed for word: ${word}`);
-                results.push({
-                  word: word,
-                  original_video_url: videoUrl,
-                  accuracy: accuracy,
-                  gross: gross,
-                  error: `Job failed: ${jobStatus.message}`,
-                  processed_at: new Date()
-                });
-                break;
-              }
-            } catch (error) {
-              this.logger.error(`Error checking job status: ${error.message}`);
-              if (attempts >= maxAttempts) {
-                results.push({
-                  word: word,
-                  original_video_url: videoUrl,
-                  accuracy: accuracy,
-                  gross: gross,
-                  error: 'Timeout waiting for job completion',
-                  processed_at: new Date()
-                });
-                break;
-              }
-            }
-          }
-
-        } catch (error) {
-          this.logger.error(`Error processing word "${word}": ${error.message}`);
-          results.push({
-            word: word,
-            original_video_url: videoUrl,
-            accuracy: accuracy,
-            gross: gross,
-            error: error.message,
-            processed_at: new Date()
-          });
+        } else if (jobStatus.status === 'failed') {
+          throw new Error(`Job failed: ${jobStatus.message}`);
         }
-
-        // Thêm delay giữa các request để tránh quá tải API
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } else {
-        this.logger.warn(`No video URL found for word: "${word}"`);
-        results.push({
-          word: word,
-          original_video_url: null,
-          accuracy: null,
-          gross: null,
-          error: 'No video URL available',
-          processed_at: new Date()
-        });
+      } catch (error) {
+        if (attempts >= maxAttempts) {
+          throw new Error('Timeout waiting for job completion');
+        }
       }
     }
 
-    return results;
+    throw new Error('Max polling attempts reached');
   }
 
-  private async uploadResultsToCloudinary(results: any[]): Promise<any[]> {
-    const cloudinaryResults = [];
+  private async uploadGestureToCloudinary(word: string, gestureData: any): Promise<string> {
+    try {
+      const jsonString = JSON.stringify(gestureData, null, 2);
 
-    for (const result of results) {
-      if (result.error || !result.gesture_data) {
-        cloudinaryResults.push({
-          word: result.word,
-          error: result.error || 'No gesture data available',
-          cloudinary_url: null
-        });
-        continue;
-      }
-
-      try {
-        // 1. Convert gesture data to JSON string
-        const jsonString = JSON.stringify(result.gesture_data, null, 2);
-
-        // 2. Upload JSON to Cloudinary
-        const uploadResponse = await firstValueFrom(this.cloudinaryService.send(
+      const uploadResponse = await firstValueFrom(
+        this.cloudinaryService.send(
           'cloudinary.upload-json',
           {
             jsonData: jsonString,
-            publicId: `gesture_${result.word}_${Date.now()}`,
+            publicId: `gesture_${word}_${Date.now()}`,
             folder: 'sign-language/gestures',
-            tags: ['sign-language', 'gesture'],
+            tags: ['sign-language', 'gesture', word],
             resource_type: 'raw'
           }
-        ));
-
-
-        // 3. Tải và upload hình ảnh skeleton frames nếu có
-        const imageUrls = [];
-        if (Array.isArray(result.gesture_data) && result.gesture_data.length > 0) {
-          for (const frame of result.gesture_data.slice(0, 3)) { // Lấy 3 frame đầu tiên
-            if (frame.skeleton_image) {
-              try {
-                // Tải hình ảnh từ server Colab
-                const imageBuffer = await this.downloadImage(frame.skeleton_image);
-
-                // Upload lên Cloudinary
-                const imageUpload = await firstValueFrom(this.cloudinaryService.send(
-                  'cloudinary.upload-gesture-image',
-                  {
-                    buffer: imageBuffer,
-                    folder: 'sign-language/frames',
-                    publicId: `frame_${frame.frame}_${Date.now()}`,
-                    tags: ['sign-language', 'frame'],
-                    transformation: [
-                      { width: 640, height: 480, crop: 'limit' }
-                    ]
-                  }
-                ));
-
-                imageUrls.push(imageUpload);
-
-              } catch (imageError) {
-                this.logger.error(`Error uploading image for frame ${frame.frame}: ${imageError.message}`);
-              }
-            }
-          }
-        }
-
-        cloudinaryResults.push({
-          word: result.word,
-          accuracy: result.accuracy,
-          gross: result.gross,
-          original_video_url: result.original_video_url,
-          cloudinary_json_url: uploadResponse,
-          cloudinary_json_public_id: uploadResponse,
-          sample_frames: imageUrls,
-          processed_at: result.processed_at
-        });
-
-        this.logger.log(`Uploaded gesture data for "${result.word}" to Cloudinary`);
-
-      } catch (error) {
-        this.logger.error(`Error uploading to Cloudinary for word "${result.word}": ${error.message}`);
-        cloudinaryResults.push({
-          word: result.word,
-          error: `Cloudinary upload failed: ${error.message}`,
-          cloudinary_url: null
-        });
-      }
-    }
-
-    return cloudinaryResults;
-  }
-
-  private async downloadImage(imageUrl: string): Promise<Buffer> {
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get(imageUrl, {
-          responseType: 'arraybuffer'
-        })
+        )
       );
 
-      return Buffer.from(response.data);
+      return uploadResponse.secure_url || uploadResponse.url;
+
     } catch (error) {
-      throw new Error(`Failed to download image: ${error.message}`);
+      this.logger.error(`Error uploading to Cloudinary for word "${word}": ${error.message}`);
+      throw error;
     }
   }
 
+  async getWordByWord(word: string) {
+    return await this.wordModel.findOne({ word });
+  }
+
+  async getVideoByUrl(videoUrl: string) {
+    return await this.videoModel.findOne({ videoUrl }).populate('wordCodes');
+  }
+
+  async getAllWords(skip = 0, limit = 50) {
+    return await this.wordModel.find()
+      .sort({ usageCount: -1, word: 1 })
+      .skip(skip)
+      .limit(limit);
+  }
+
+  async getAllVideos(skip = 0, limit = 20) {
+    return await this.videoModel.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('wordCodes');
+  }
+
+  async updateWordCode(word: string, newCode: string) {
+    return await this.wordModel.findOneAndUpdate(
+      { word },
+      { code: newCode, $inc: { usageCount: 1 } },
+      { new: true }
+    );
+  }
+
+  async searchWords(query: string) {
+    return await this.wordModel.find({
+      word: { $regex: query, $options: 'i' }
+    }).limit(20);
+  }
 
   private handleError(error: any) {
     if (error instanceof AxiosError) {

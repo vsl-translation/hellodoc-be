@@ -1,22 +1,29 @@
-import { Prop, SchemaFactory, Schema } from "@nestjs/mongoose";
+// apps/sign-language/core/schema/word.schema.ts
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
 
-@Schema({ collection: 'words', timestamps: true })
+@Schema({ timestamps: true, collection: 'words' })
 export class Word extends Document {
-    @Prop({ required: true, unique: true })
+    @Prop({ required: true, unique: true, index: true })
     word: string;
 
     @Prop({ required: true })
-    gestureCode: string;
+    code: string; // Cloudinary JSON URL
 
-    @Prop({ type: Object })
-    gestures: Record<string, any>; // Lưu gesture data từ Colab
+    @Prop()
+    originalVideoUrl: string;
 
-    @Prop({ type: [String], default: [] })
-    synonyms: string[];
+    @Prop()
+    accuracy: number;
+
+    @Prop()
+    gross: string;
+
+    @Prop({ type: [String] })
+    tags: string[];
 
     @Prop({ default: 0 })
     usageCount: number;
 }
 
-export const WordSchema =
-    SchemaFactory.createForClass(Word);
+export const WordSchema = SchemaFactory.createForClass(Word);
