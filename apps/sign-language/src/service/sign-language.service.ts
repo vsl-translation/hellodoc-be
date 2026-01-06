@@ -7,6 +7,7 @@ import { HttpService } from '@nestjs/axios';
 import { ClientProxy } from '@nestjs/microservices';
 import { Word } from 'apps/sign-language/core/schema/word.schema';
 import { Video } from 'apps/sign-language/core/schema/sign_language.schema';
+import { get } from 'http';
 
 @Injectable()
 export class SignLanguageService {
@@ -69,6 +70,7 @@ export class SignLanguageService {
     try {
       // --- STEP 1: Get Subtitle ---
       this.logger.log(`Step 1: Fetching subtitle from phowhisper`);
+      this.logger.log(`Checking videoUrl before sending: ${videoUrl}`); // <-- Thêm dòng này
       const subtitleRes = await firstValueFrom(
         this.phowhisperClient.send(
           "subtitle.getSubtitle",
@@ -331,6 +333,7 @@ export class SignLanguageService {
         this.logger.log('Created new video record');
       }
 
+
       return allGestureCodes;
 
     } catch (error) {
@@ -366,7 +369,7 @@ export class SignLanguageService {
           `${colabApiUrl}/api/detect`,
           {
             video_url: videoUrl,
-            frames_per_minute: 1
+            frames_per_minute: 0.1  
           },
           { timeout: 300000 }
         )
@@ -566,5 +569,7 @@ export class SignLanguageService {
     if (video && video.wordCodes) {
       return { wordCodes: video.wordCodes };
     }
+    console.log("Chua co video trong db, goi getGestureCode với videoUrl: ", videoUrl)
+    return this.getGestureCode(videoUrl);
   }
 }
