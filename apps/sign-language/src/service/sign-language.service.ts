@@ -44,7 +44,7 @@ export class SignLanguageService {
     return textLines.join(' ').trim();
   }
 
-  async getGestureCode(videoUrl: string) {
+  async getGestureCode(videoUrl: string) { 
     this.logger.log(`Processing gesture code for video URL: ${videoUrl}`);
     const startTime = Date.now();
 
@@ -334,7 +334,7 @@ export class SignLanguageService {
       }
 
 
-      return allGestureCodes;
+      return this.getGestureCode(videoUrl);
 
     } catch (error) {
       this.handleError(error);
