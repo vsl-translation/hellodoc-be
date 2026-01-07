@@ -41,7 +41,7 @@ export class PhowhisperService {
         };
       }
     }
-
+    console.log('❌ No cached subtitle found. Proceeding to generate new subtitle.');
     // ==============================
     // 2️⃣ GỌI PYTHON API (COLAB)
     // ==============================

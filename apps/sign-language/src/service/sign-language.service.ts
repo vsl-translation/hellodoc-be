@@ -7,6 +7,7 @@ import { HttpService } from '@nestjs/axios';
 import { ClientProxy } from '@nestjs/microservices';
 import { Word } from 'apps/sign-language/core/schema/word.schema';
 import { Video } from 'apps/sign-language/core/schema/sign_language.schema';
+import { get } from 'http';
 
 @Injectable()
 export class SignLanguageService {
@@ -78,6 +79,7 @@ export class SignLanguageService {
     try {
       // --- STEP 1: Get Subtitle ---
       this.logger.log(`Step 1: Fetching subtitle from phowhisper`);
+      this.logger.log(`Checking videoUrl before sending: ${videoUrl}`); // <-- Thêm dòng này
       const subtitleRes = await firstValueFrom(
         this.phowhisperClient.send(
           "subtitle.getSubtitle",
@@ -388,22 +390,8 @@ export class SignLanguageService {
         this.logger.log('Created new video record');
       }
 
-      // Return final result
-      return {
-        cached: false,
-        videoUrl: videoUrl,
-        subtitleText: subtitleText,
-        processedWords: tokens,
-        wordCodes: processedWordsInfo,
-        skippedWords: skippedWords,
-        totalProcessingTime: processingTime,
-        stats: {
-          total: tokens.length,
-          processed: processedWordsInfo.filter(w => !w.skipped).length,
-          cached: processedWordsInfo.filter(w => w.cached).length,
-          skipped: skippedWords.length
-        }
-      };
+
+      return this.getGestureCode(videoUrl);
 
     } catch (error) {
       this.handleError(error);
@@ -429,7 +417,7 @@ export class SignLanguageService {
           `${colabApiUrl}/api/detect`,
           {
             video_url: videoUrl,
-            frames_per_minute: 1
+            frames_per_minute: 0.1
           },
           { timeout: 300000 }
         )
@@ -579,5 +567,14 @@ export class SignLanguageService {
 
     this.logger.error('Internal Server Error', error);
     throw new HttpException(error.message || 'Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+
+  async getGestureWordCode(videoUrl: string) {
+    const video = await this.videoModel.findOne({ videoUrl: videoUrl });
+    if (video && video.wordCodes) {
+      return { wordCodes: video.wordCodes };
+    }
+    console.log("Chua co video trong db, goi getGestureCode với videoUrl: ", videoUrl)
+    return this.getGestureCode(videoUrl);
   }
 }

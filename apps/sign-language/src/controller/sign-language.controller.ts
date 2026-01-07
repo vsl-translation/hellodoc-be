@@ -13,8 +13,10 @@ export class SignLanguageController {
     return this.signLanguageService.getGestureCode(urlMedia)
   }
 
-  // @MessagePattern('gesture_code.getGestureWordCode')
-  // async getGestureWordCode(@Payload() payload: { videoUrl: string }) {
-  //   return this.signLanguageService.getGestureWordCode(payload.videoUrl);
-  // }
+  @MessagePattern('gesture_code.getGestureWordCode')
+  async getGestureWordCode(@Payload() payload: { videoUrl: string }) {
+    var videoUrl = payload.videoUrl
+    console.log("videoUrl trong controller ", videoUrl)
+    return this.signLanguageService.getGestureWordCode(videoUrl);
+  }
 }

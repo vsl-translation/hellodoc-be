@@ -17,14 +17,15 @@ export class SignLanguageService {
         }
         console.log("Chạy được service")
 
-        return this.signClient.send('gesture_code.postUrlMedia', urlMedia)
+        return this.signClient.send('gesture_code.postUrlMedia', {urlMedia: urlMedia})
 
     }
 
     async getGestureWordCode(videoUrl: string) {
+        console.log("videoUrl trong service ", videoUrl)
         if (!videoUrl) {
             throw new BadRequestException('Cần cung cấp url');
         }
-        return this.signClient.send('gesture_code.getGestureWordCode', videoUrl)
+        return this.signClient.send('gesture_code.getGestureWordCode', {videoUrl: videoUrl})
     }
 }

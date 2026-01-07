@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, Res, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Res, HttpStatus, Param } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { Response } from 'express';
 import { SignLanguageService } from '../services/sign_language.service';
@@ -12,8 +12,9 @@ export class SignLanguageController {
     return this.signLanguageService.postVideoUrl(urlMedia);
   }
 
-  @Get('get_gesture_code')
-  async getGestureWordCode(@Body() videoUrl: string) {
+  @Get('get_gesture_code') 
+  async getGestureWordCode(@Query('videoUrl') videoUrl: string) {
+    console.log("videoUrl nhận được là", videoUrl);
     return this.signLanguageService.getGestureWordCode(videoUrl);
   }
 
