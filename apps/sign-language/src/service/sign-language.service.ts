@@ -11,9 +11,9 @@ import { Video } from 'apps/sign-language/core/schema/sign_language.schema';
 @Injectable()
 export class SignLanguageService {
   private readonly logger = new Logger(SignLanguageService.name);
-  private SYNONISM_URL = process.env.SYNNONISM_URL;
+  private SYNONISM_URL = "https://demoded-lourie-unpoulticed.ngrok-free.dev";
   private PHOWHISPER_URL = process.env.PHOWHISPER_URL;
-  private DETECT_URL = process.env.DETECT_URL;
+  private DETECT_URL = "https://lorriane-noncongregative-benson.ngrok-free.dev";
 
   constructor(
     private readonly httpService: HttpService,
@@ -48,22 +48,31 @@ export class SignLanguageService {
     const startTime = Date.now();
 
     // 1. Kiểm tra cache trong Video collection
-    const cachedVideo = await this.videoModel.findOne({ videoUrl });
+    const cachedVideo = await this.videoModel.findOne({ videoUrl }).populate('wordCodes');
 
-    if (cachedVideo && cachedVideo.wordCodes) {
+    if (cachedVideo && cachedVideo.wordCodes.length > 0) {
       this.logger.log("Found cached data for video");
+      const wordCodes = await Promise.all(
+        cachedVideo.wordCodes.map(async (wordId) => {
+          const word = await this.wordModel.findById(wordId);
+          return {
+            word: word?.word,
+            code: word?.code,
+            originalVideoUrl: word?.originalVideoUrl,
+            accuracy: word?.accuracy,
+            gross: word?.gross
+          };
+        })
+      );
 
-      // Fetch gesture codes from URL
-      try {
-        const gestureResponse = await firstValueFrom(
-          this.httpService.get(cachedVideo.wordCodes)
-        );
-
-        return gestureResponse.data
-      } catch (error) {
-        this.logger.warn(`Failed to fetch cached gesture codes: ${error.message}`);
-        // Continue to reprocess if cache fetch fails
-      }
+      return {
+        cached: true,
+        videoUrl: cachedVideo.videoUrl,
+        subtitleText: cachedVideo.subtitleText,
+        processedWords: cachedVideo.processedWords,
+        wordCodes: wordCodes,
+        totalProcessingTime: cachedVideo.totalProcessingTime
+      };
     }
 
     try {
@@ -111,58 +120,59 @@ export class SignLanguageService {
 
       // --- STEP 3: Get Synonyms ---
       const synonymEndpoint = `${this.SYNONISM_URL}/search`;
-      this.logger.log(`Step 3: Getting synonyms for ${tokens.length} words...`);
+      this.logger.log(`Step 3: Getting synonyms...`);
+      console.log('=== TOKENS TO SEARCH ===');
+      console.log('Token list:', tokens);
+      console.log('Token count:', tokens.length);
 
-      const synonymMap: Map<string, any[]> = new Map();
-      const BATCH_SIZE = 3;
+      const synonymRes = await firstValueFrom(
+        this.httpService.post(synonymEndpoint, {
+          query: tokens,
+          max_results_per_query: 1
+        })
+      );
 
-      for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
-        const batch = tokens.slice(i, i + BATCH_SIZE);
-        this.logger.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tokens.length / BATCH_SIZE)}`);
+      const synonymsData = synonymRes.data;
 
-        const batchPromises = batch.map(async (token) => {
-          try {
-            this.logger.debug(`Fetching synonyms for: "${token}"`);
+      // Debug synonym response
+      console.log('=== SYNONYM API RESPONSE ===');
+      console.log('Response type:', typeof synonymsData.results);
+      console.log('Is array:', Array.isArray(synonymsData.results));
 
-            const synonymRes = await firstValueFrom(
-              this.httpService.post(synonymEndpoint, {
-                query: token,
-                max_results_per_query: 3
-              })
-            );
+      // ✅ KIỂM TRA CẤU TRÚC RESPONSE
+      let synonymMap: Map<string, any[]> = new Map();
 
-            const results = synonymRes.data?.results;
+      if (Array.isArray(synonymsData.results)) {
+        console.log('Results is an ARRAY with length:', synonymsData.results.length);
+        console.log('Tokens length:', tokens.length);
 
-            if (results && Array.isArray(results) && results.length > 0) {
-              this.logger.debug(`Found ${results.length} synonyms for "${token}"`);
-              return { token, data: results };
-            } else {
-              this.logger.warn(`No synonyms found for "${token}"`);
-              return { token, data: [] };
-            }
-          } catch (error) {
-            this.logger.error(`Error fetching synonyms for "${token}": ${error.message}`);
-            return { token, data: [], error: error.message };
-          }
-        });
-
-        const batchResults = await Promise.all(batchPromises);
-
-        batchResults.forEach(({ token, data }) => {
-          synonymMap.set(token, data || []);
-        });
-
-        if (i + BATCH_SIZE < tokens.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        // Nếu API trả về array theo thứ tự tương ứng với tokens
+        if (synonymsData.results.length === tokens.length) {
+          console.log('✅ Mapping results by index');
+          tokens.forEach((token, index) => {
+            synonymMap.set(token, synonymsData.results[index]);
+          });
+        } else {
+          console.error('❌ Mismatch: tokens count !== results count');
+          console.log('This might cause issues in mapping');
         }
+
+      } else if (typeof synonymsData.results === 'object') {
+        console.log('Results is an OBJECT');
+        // Nếu là object với key là từ
+        Object.keys(synonymsData.results).forEach(key => {
+          synonymMap.set(key, synonymsData.results[key]);
+        });
+      } else {
+        throw new Error('Unexpected synonym response structure');
       }
 
-      this.logger.log(`Synonym map created with ${synonymMap.size} entries`);
+      console.log('Synonym map created with', synonymMap.size, 'entries');
 
       // --- STEP 4: Process Each Word ---
       this.logger.log(`Step 4: Processing words through Google Colab API...`);
 
-      const allGestureCodes: any[] = [];
+      const wordObjectIds: Types.ObjectId[] = [];
       const processedWordsInfo: any[] = [];
       const skippedWords: string[] = [];
 
@@ -172,76 +182,121 @@ export class SignLanguageService {
         try {
           console.log(`\n=== PROCESSING WORD ${i + 1}/${tokens.length}: "${token}" ===`);
 
-          // Kiểm tra cache trong Word collection
+          // Kiểm tra nếu từ đã tồn tại trong database
           let existingWord = await this.wordModel.findOne({ word: token });
 
-          if (existingWord && existingWord.code) {
+          if (existingWord) {
             console.log(`✅ Found in cache: "${token}"`);
 
             existingWord.usageCount += 1;
             await existingWord.save();
+            wordObjectIds.push(existingWord._id as Types.ObjectId);
 
-            // Fetch gesture code from cached URL
-            try {
-              const gestureResponse = await firstValueFrom(
-                this.httpService.get(existingWord.code)
-              );
+            processedWordsInfo.push({
+              word: token,
+              code: existingWord.code,
+              cached: true,
+              accuracy: existingWord.accuracy,
+              gross: existingWord.gross
+            });
 
-              allGestureCodes.push({
-                word: token,
-                gestureData: gestureResponse.data,
-                cached: true,
-                accuracy: existingWord.accuracy,
-                gross: existingWord.gross
-              });
-
-              processedWordsInfo.push({
-                word: token,
-                cached: true,
-                accuracy: existingWord.accuracy,
-                gross: existingWord.gross
-              });
-
-              this.logger.log(`Word "${token}" found in cache, reusing existing data`);
-              continue;
-            } catch (fetchError) {
-              this.logger.warn(`Failed to fetch cached gesture for "${token}", reprocessing...`);
-            }
+            this.logger.log(`Word "${token}" found in cache, reusing existing data`);
+            continue;
           }
 
           console.log(`📝 Not in cache, need to process: "${token}"`);
 
-          const synonymArray = synonymMap.get(token) || [];
+          // ✅ LẤY SYNONYM DATA TỪ MAP
+          let synonymForToken = synonymMap.get(token);
 
-          console.log(`Synonym data found: ${synonymArray.length} results`);
+          // Nếu không tìm thấy, thử với normalized token
+          if (!synonymForToken) {
+            const normalizedToken = token.trim().toLowerCase();
+            synonymForToken = synonymMap.get(normalizedToken);
+            console.log(`Tried normalized token "${normalizedToken}":`, !!synonymForToken);
+          }
 
-          if (synonymArray.length === 0) {
+          // Nếu vẫn không có, thử lấy theo index (fallback)
+          if (!synonymForToken && Array.isArray(synonymsData.results) && i < synonymsData.results.length) {
+            console.log(`⚠️ Falling back to index-based access for token "${token}"`);
+            synonymForToken = synonymsData.results[i];
+          }
+
+          console.log('Synonym data found:', !!synonymForToken);
+
+          if (synonymForToken) {
+            console.log('Synonym data type:', typeof synonymForToken);
+            console.log('Is array:', Array.isArray(synonymForToken));
+            console.log('Data preview:', JSON.stringify(synonymForToken).substring(0, 200));
+          }
+
+          // Validation
+          if (!synonymForToken) {
             this.logger.warn(`⚠️ Skipping word "${token}" - no synonym data found`);
+
             skippedWords.push(token);
             processedWordsInfo.push({
               word: token,
+              code: null,
               cached: false,
               skipped: true,
               reason: 'No synonym data found'
             });
+
             continue;
           }
 
-          console.log(`Available synonyms for "${token}":`);
-          synonymArray.forEach((syn, idx) => {
-            console.log(`  ${idx + 1}. ${syn.gross || 'N/A'} - Accuracy: ${syn.accuracy}%`);
-          });
+          // ✅ CHUẨN HÓA SYNONYM DATA
+          // Nếu synonymForToken không phải array, wrap nó thành array
+          let synonymArray: any[];
 
-          // Process word
+          if (Array.isArray(synonymForToken)) {
+            synonymArray = synonymForToken;
+          } else if (typeof synonymForToken === 'object' && synonymForToken !== null) {
+            // Nếu là object đơn, wrap thành array
+            synonymArray = [synonymForToken];
+          } else {
+            this.logger.warn(`⚠️ Invalid synonym data type for "${token}"`);
+            skippedWords.push(token);
+            processedWordsInfo.push({
+              word: token,
+              code: null,
+              cached: false,
+              skipped: true,
+              reason: 'Invalid synonym data type'
+            });
+            continue;
+          }
+
+          // Kiểm tra array có rỗng không
+          if (synonymArray.length === 0) {
+            this.logger.warn(`⚠️ Empty synonym array for "${token}"`);
+            skippedWords.push(token);
+            processedWordsInfo.push({
+              word: token,
+              code: null,
+              cached: false,
+              skipped: true,
+              reason: 'Empty synonym array'
+            });
+            continue;
+          }
+
+          console.log(`✅ Valid synonym data found for "${token}"`);
+          console.log('Synonym array length:', synonymArray.length);
+          console.log('First synonym:', synonymArray[0]);
+
+          // Tiếp tục xử lý từ qua Colab API
           const wordData = await this.processSingleWord(token, synonymArray);
 
-          if (wordData?.code && wordData?.gestureData) {
+          console.log('wordData returned:', wordData ? 'Success' : 'Failed');
+
+          if (wordData?.code) {
             console.log(`💾 Saving word "${token}" to database...`);
 
-            // Save to Word collection for caching
             const newWord = new this.wordModel({
               word: token,
-              code: wordData.code, // URL to gesture data
+              code: wordData.code,
               originalVideoUrl: wordData.originalVideoUrl,
               accuracy: wordData.accuracy,
               gross: wordData.gross,
@@ -249,29 +304,26 @@ export class SignLanguageService {
               usageCount: 1
             });
 
-            await newWord.save();
-
-            // Add to gesture codes array
-            allGestureCodes.push({
-              word: token,
-              gestureData: wordData.gestureData,
-              cached: false,
-              accuracy: wordData.accuracy,
-              gross: wordData.gross
-            });
+            const savedWord = await newWord.save();
+            wordObjectIds.push(savedWord._id as Types.ObjectId);
 
             processedWordsInfo.push({
               word: token,
+              code: wordData.code,
               cached: false,
               accuracy: wordData.accuracy,
               gross: wordData.gross
             });
 
             this.logger.log(`✅ Successfully processed and saved word: "${token}"`);
+            console.log(`✅ Word "${token}" saved with ID: ${savedWord._id}`);
           } else {
             this.logger.warn(`⚠️ No code returned for word "${token}"`);
+            console.log(`⚠️ wordData:`, wordData);
+
             processedWordsInfo.push({
               word: token,
+              code: null,
               cached: false,
               skipped: true,
               reason: 'Processing failed - no code returned'
@@ -280,8 +332,11 @@ export class SignLanguageService {
 
         } catch (wordError) {
           this.logger.error(`❌ Error processing word "${token}": ${wordError.message}`);
+          console.error('Full error details:', wordError);
+
           processedWordsInfo.push({
             word: token,
+            code: null,
             cached: false,
             skipped: true,
             reason: wordError.message
@@ -289,15 +344,7 @@ export class SignLanguageService {
         }
       }
 
-      // --- STEP 5: Upload combined gesture codes to Cloudinary ---
-      this.logger.log(`Step 5: Uploading combined gesture codes to Cloudinary...`);
-
-      const combinedGestureCodesUrl = await this.uploadCombinedGestureCodes(
-        videoUrl,
-        allGestureCodes
-      );
-
-      // --- STEP 6: Save video info ---
+      // --- STEP 5: Lưu thông tin video ---
       const processingTime = Date.now() - startTime;
 
       console.log('\n=== PROCESSING SUMMARY ===');
@@ -308,58 +355,74 @@ export class SignLanguageService {
         console.log('Skipped word list:', skippedWords.join(', '));
       }
       console.log('Total processing time:', processingTime, 'ms');
-      console.log('Combined gesture codes URL:', combinedGestureCodesUrl);
 
+      // ✅ SỬA: Kiểm tra và update hoặc tạo mới
       let videoRecord = await this.videoModel.findOne({ videoUrl });
 
       if (videoRecord) {
-        videoRecord.wordCodes = combinedGestureCodesUrl; // ✅ Store single URL
+        // Nếu đã tồn tại, update thông tin
+        console.log('Video already exists, updating...');
+
+        videoRecord.wordCodes = wordObjectIds;
         videoRecord.processedWords = tokens;
         videoRecord.subtitleText = subtitleText;
         videoRecord.totalProcessingTime = processingTime;
+
         await videoRecord.save();
+
         this.logger.log('Updated existing video record');
       } else {
+        // Nếu chưa tồn tại, tạo mới
+        console.log('Creating new video record...');
+
         videoRecord = new this.videoModel({
           videoUrl: videoUrl,
-          wordCodes: combinedGestureCodesUrl, // ✅ Store single URL
+          wordCodes: wordObjectIds,
           processedWords: tokens,
           subtitleText: subtitleText,
           totalProcessingTime: processingTime
         });
+
         await videoRecord.save();
+
         this.logger.log('Created new video record');
       }
 
-      return allGestureCodes;
+      // Return final result
+      return {
+        cached: false,
+        videoUrl: videoUrl,
+        subtitleText: subtitleText,
+        processedWords: tokens,
+        wordCodes: processedWordsInfo,
+        skippedWords: skippedWords,
+        totalProcessingTime: processingTime,
+        stats: {
+          total: tokens.length,
+          processed: processedWordsInfo.filter(w => !w.skipped).length,
+          cached: processedWordsInfo.filter(w => w.cached).length,
+          skipped: skippedWords.length
+        }
+      };
 
     } catch (error) {
       this.handleError(error);
     }
   }
 
-  private async processSingleWord(word: string, synonymData: any[]): Promise<any> {
+  private async processSingleWord(word: string, synonymData: any): Promise<any> {
     if (!synonymData || !Array.isArray(synonymData) || synonymData.length === 0) {
       throw new Error(`No synonym data found for word: ${word}`);
     }
 
-    // Sort by accuracy and select best match
-    const sortedSynonyms = [...synonymData].sort((a, b) => {
-      const accA = parseFloat(a.accuracy) || 0;
-      const accB = parseFloat(b.accuracy) || 0;
-      return accB - accA;
-    });
+    const videoUrl = synonymData[0].url;
+    const accuracy = synonymData[0].accuracy;
+    const gross = synonymData[0].gross;
 
-    const bestMatch = sortedSynonyms[0];
-    const videoUrl = bestMatch.url;
-    const accuracy = bestMatch.accuracy;
-    const gross = bestMatch.gross;
-
-    this.logger.log(`Processing word: "${word}"`);
-    this.logger.log(`  ✅ Selected best match: "${gross}" (Accuracy: ${accuracy}%)`);
-    this.logger.log(`  📹 Video URL: ${videoUrl}`);
+    this.logger.log(`Processing word: "${word}" - URL: ${videoUrl}`);
 
     try {
+      // Gửi yêu cầu đến API Google Colab
       const colabApiUrl = this.DETECT_URL;
       const jobResponse = await firstValueFrom(
         this.httpService.post(
@@ -375,18 +438,19 @@ export class SignLanguageService {
       const jobId = jobResponse.data.job_id;
       this.logger.log(`Job created: ${jobId} for word: ${word}`);
 
+      // Polling cho job completion
       const gestureData = await this.pollForJobCompletion(colabApiUrl, jobId, word);
 
       if (!gestureData) {
         throw new Error(`Failed to get gesture data for word: ${word}`);
       }
 
-      // Upload individual gesture data
+      // Upload gesture data lên Cloudinary
       const cloudinaryUrl = await this.uploadGestureToCloudinary(word, gestureData);
 
       return {
         word: word,
-        code: cloudinaryUrl, // URL to individual gesture
+        code: cloudinaryUrl,
         originalVideoUrl: videoUrl,
         accuracy: accuracy,
         gross: gross,
@@ -463,58 +527,13 @@ export class SignLanguageService {
     }
   }
 
-  // ✅ NEW: Upload combined gesture codes for entire video
-  private async uploadCombinedGestureCodes(videoUrl: string, gestureCodes: any[]): Promise<string> {
-    try {
-      const videoId = Buffer.from(videoUrl).toString('base64').substring(0, 20);
-      const jsonString = JSON.stringify(gestureCodes, null, 2);
-
-      const uploadResponse = await firstValueFrom(
-        this.cloudinaryService.send(
-          'cloudinary.upload-json',
-          {
-            jsonData: jsonString,
-            publicId: `video_gestures_${videoId}_${Date.now()}`,
-            folder: 'sign-language/videos',
-            tags: ['sign-language', 'video-gestures', 'combined'],
-            resource_type: 'raw'
-          }
-        )
-      );
-
-      return uploadResponse.secure_url || uploadResponse.url;
-
-    } catch (error) {
-      this.logger.error(`Error uploading combined gesture codes: ${error.message}`);
-      throw error;
-    }
-  }
-
+  // Các helper methods cho việc query dữ liệu
   async getWordByWord(word: string) {
     return await this.wordModel.findOne({ word });
   }
 
   async getVideoByUrl(videoUrl: string) {
-    const video = await this.videoModel.findOne({ videoUrl });
-
-    if (video && video.wordCodes) {
-      // Fetch gesture codes from URL
-      try {
-        const gestureResponse = await firstValueFrom(
-          this.httpService.get(video.wordCodes)
-        );
-
-        return {
-          ...video.toObject(),
-          gestureCodes: gestureResponse.data
-        };
-      } catch (error) {
-        this.logger.error(`Failed to fetch gesture codes: ${error.message}`);
-        return video;
-      }
-    }
-
-    return video;
+    return await this.videoModel.findOne({ videoUrl }).populate('wordCodes');
   }
 
   async getAllWords(skip = 0, limit = 50) {
@@ -528,7 +547,8 @@ export class SignLanguageService {
     return await this.videoModel.find()
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .populate('wordCodes');
   }
 
   async updateWordCode(word: string, newCode: string) {
@@ -559,12 +579,5 @@ export class SignLanguageService {
 
     this.logger.error('Internal Server Error', error);
     throw new HttpException(error.message || 'Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
-  }
-
-  async getGestureWordCode(videoUrl: string) {
-    const video = await this.videoModel.findOne({ videoUrl: videoUrl });
-    if (video && video.wordCodes) {
-      return { wordCodes: video.wordCodes };
-    }
   }
 }
