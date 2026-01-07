@@ -104,7 +104,7 @@ export class SignLanguageService {
         throw new Error("POSTag failed or returned invalid response");
       }
 
-      const validPosTags = ['N', 'Np', 'V', 'A', 'R', 'M', 'Nc'];
+      const validPosTags = ['N', 'Np', 'Nc', 'Nu', 'Ny', 'Nb', 'V', 'Vb', 'Vy', 'L', 'E', 'A', 'R', 'M', 'P', 'FW', 'B'];
       const tokens = postagRes.pos_tags
         .filter(([word, tag]) => validPosTags.includes(tag))
         .map(([word, tag]) => word.trim());
@@ -116,50 +116,94 @@ export class SignLanguageService {
       this.logger.log(`Step 3: Getting synonyms for ${tokens.length} words...`);
 
       const synonymMap: Map<string, any[]> = new Map();
-      const BATCH_SIZE = 3;
 
-      for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
-        const batch = tokens.slice(i, i + BATCH_SIZE);
-        this.logger.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tokens.length / BATCH_SIZE)}`);
+      // Kiểm tra nếu có quá nhiều tokens, chia batch
+      const MAX_BATCH_SIZE = 100;  // Giới hạn để tránh timeout
+      const batches: string[][] = [];
 
-        const batchPromises = batch.map(async (token) => {
-          try {
-            this.logger.debug(`Fetching synonyms for: "${token}"`);
+      for (let i = 0; i < tokens.length; i += MAX_BATCH_SIZE) {
+        batches.push(tokens.slice(i, i + MAX_BATCH_SIZE));
+      }
 
-            const synonymRes = await firstValueFrom(
-              this.httpService.post(synonymEndpoint, {
-                query: token,
-                max_results_per_query: 3
-              })
-            );
+      this.logger.log(`Processing ${batches.length} batch(es)...`);
 
-            const results = synonymRes.data?.results;
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        
+        try {
+          this.logger.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} tokens)...`);
+          
+          const synonymRes = await firstValueFrom(
+            this.httpService.post(
+              synonymEndpoint,
+              { queries: batch },  // ✅ Gửi array
+              { timeout: 30000 }   // 30s timeout
+            )
+          );
 
-            if (results && Array.isArray(results) && results.length > 0) {
-              this.logger.debug(`Found ${results.length} synonyms for "${token}"`);
-              return { token, data: results };
-            } else {
-              this.logger.warn(`No synonyms found for "${token}"`);
-              return { token, data: [] };
-            }
-          } catch (error) {
-            this.logger.error(`Error fetching synonyms for "${token}": ${error.message}`);
-            return { token, data: [], error: error.message };
+          const results = synonymRes.data?.results;
+
+          if (results && typeof results === 'object') {
+            let foundCount = 0;
+            let notFoundCount = 0;
+
+            Object.entries(results).forEach(([token, data]: [string, any]) => {
+              if (data.found && data.url) {  // ✅ Giờ chỉ có 1 URL
+                synonymMap.set(token, [{
+                  gross: data.synonym,
+                  url: data.url,  // ✅ Không phải data.urls[0] nữa
+                  accuracy: data.accuracy
+                }]);
+                
+                foundCount++;
+                this.logger.debug(`✅ "${token}" → "${data.synonym}" (${data.accuracy}%)`);
+              } else {
+                synonymMap.set(token, []);
+                notFoundCount++;
+                this.logger.debug(`❌ No synonym for "${token}"`);
+              }
+            });
+            this.logger.log(`Batch ${batchIndex + 1}: Found ${foundCount}, Not found ${notFoundCount}`);
+            
+          } else {
+            this.logger.error(`Invalid response format for batch ${batchIndex + 1}`);
+            
+            // Fallback: đánh dấu tất cả tokens trong batch này là không tìm thấy
+            batch.forEach(token => {
+              if (!synonymMap.has(token)) {
+                synonymMap.set(token, []);
+              }
+            });
           }
-        });
 
-        const batchResults = await Promise.all(batchPromises);
+          // Delay nhẹ giữa các batch để tránh quá tải server
+          if (batchIndex < batches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
 
-        batchResults.forEach(({ token, data }) => {
-          synonymMap.set(token, data || []);
-        });
-
-        if (i + BATCH_SIZE < tokens.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          this.logger.error(`❌ Error processing batch ${batchIndex + 1}: ${error.message}`);
+          
+          // Fallback: đánh dấu tất cả tokens trong batch này là không tìm thấy
+          batch.forEach(token => {
+            if (!synonymMap.has(token)) {
+              synonymMap.set(token, []);
+            }
+          });
         }
       }
 
-      this.logger.log(`Synonym map created with ${synonymMap.size} entries`);
+      // Đảm bảo tất cả tokens đều có entry trong map
+      tokens.forEach(token => {
+        if (!synonymMap.has(token)) {
+          synonymMap.set(token, []);
+        }
+      });
+
+      const totalFound = Array.from(synonymMap.values()).filter(arr => arr.length > 0).length;
+      const totalNotFound = tokens.length - totalFound;
+
+      this.logger.log(`✅ Synonym map created: ${totalFound} found, ${totalNotFound} not found`);
 
       // --- STEP 4: Process Each Word ---
       this.logger.log(`Step 4: Processing words through Google Colab API...`);
@@ -404,7 +448,7 @@ export class SignLanguageService {
 
   private async pollForJobCompletion(colabApiUrl: string, jobId: string, word: string): Promise<any> {
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 100000;
 
     while (attempts < maxAttempts) {
       attempts++;
@@ -567,6 +611,7 @@ export class SignLanguageService {
   async getGestureWordCode(videoUrl: string) {
     const video = await this.videoModel.findOne({ videoUrl: videoUrl });
     if (video && video.wordCodes) {
+      console.log("Da co video trong db, tra ve wordCodes");
       return { wordCodes: video.wordCodes };
     }
     console.log("Chua co video trong db, goi getGestureCode với videoUrl: ", videoUrl)
