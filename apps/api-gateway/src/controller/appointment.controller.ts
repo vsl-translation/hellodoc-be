@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from "@nestjs/common";
-import { BookAppointmentDto, GetSuggestedAppointmentDto } from "../core/dto/appointment.dto";
+import { BookAppointmentDto, GetSuggestedAppointmentDto, FilterAppointmentDto } from "../core/dto/appointment.dto";
 import { AppointmentService } from "../services/appointment.service";
 
 @Controller('appointments')
@@ -54,6 +54,11 @@ export class AppointmentController {
     @Post('suggested')
     async getSuggestedAppointment(@Body() data: GetSuggestedAppointmentDto) {
         return await this.appointmentService.getSuggestedAppointment(data);
+    }
+
+    @Post('get-all-filtered')
+    async getAllWithFilter(@Body() filter: FilterAppointmentDto) {
+        return await this.appointmentService.getAllWithFilter(filter);
     }
 
 }

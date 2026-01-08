@@ -50,4 +50,8 @@ export class AppointmentService {
     async getSuggestedAppointment(data: any) {
         return this.appointmentClient.send('appointment.getSuggestedAppointment', data);
     }
+
+    async getAllWithFilter(filter: any) {
+        return this.appointmentClient.send('appointment.getAllWithFilter', filter);
+    }
 }

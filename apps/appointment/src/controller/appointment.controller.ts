@@ -1,7 +1,7 @@
 import { Body, Controller, Get, UseGuards } from '@nestjs/common';
 import { AppointmentService } from '../service/appointment.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { BookAppointmentDto, GetSuggestedAppointmentDto } from '../core/dto/appointment.dto';
+import { BookAppointmentDto, GetSuggestedAppointmentDto, FilterAppointmentDto } from '../core/dto/appointment.dto';
 
 @Controller()
 export class AppointmentController {
@@ -80,5 +80,10 @@ export class AppointmentController {
   @MessagePattern('appointment.cancel')
   async cancelAppointment(id: string) {
     return await this.appointmentService.cancelAppointment(id);
+  }
+
+  @MessagePattern('appointment.getAllWithFilter')
+  async getAllWithFilter(@Payload() data: FilterAppointmentDto) {
+    return this.appointmentService.getAllWithFilter(data);
   }
 }

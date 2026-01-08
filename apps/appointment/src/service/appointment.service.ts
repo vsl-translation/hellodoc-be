@@ -4,7 +4,7 @@ import { Model, Types } from 'mongoose';
 import * as admin from 'firebase-admin';
 import { CacheService } from 'libs/cache.service';
 import { Appointment, AppointmentStatus, ExaminationMethod } from '../core/schema/Appointment.schema';
-import { BookAppointmentDto, GetSuggestedAppointmentDto } from '../core/dto/appointment.dto';
+import { BookAppointmentDto, GetSuggestedAppointmentDto, FilterAppointmentDto } from '../core/dto/appointment.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -662,5 +662,98 @@ export class AppointmentService {
     availableSlots.sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
 
     return availableSlots;
+  }
+
+  async getAllWithFilter(filter: FilterAppointmentDto) {
+    const { limit = 10, offset = 0, status, examinationMethod, bookingDate, doctorName } = filter;
+    const query: any = {};
+
+    if (status) {
+      query.status = status;
+    }
+
+    if (examinationMethod) {
+      query.examinationMethod = examinationMethod;
+    }
+
+    if (doctorName) {
+      const doctorResponse = await firstValueFrom(
+        this.doctorClient.send('doctor.get-all-filtered', { searchText: doctorName, limit: 100 })
+      );
+      const doctors = doctorResponse?.data || [];
+      const doctorIds = doctors.map(d => new Types.ObjectId(d._id));
+      query.doctor = { $in: doctorIds };
+    }
+
+    if (bookingDate) {
+      const dateParts = bookingDate.split('&');
+      const fromDate = dateParts[0];
+      const toDate = dateParts[1];
+
+      if (fromDate || toDate) {
+        query.date = {};
+        if (fromDate) {
+          query.date.$gte = new Date(fromDate);
+        }
+        if (toDate) {
+          const toDateObj = new Date(toDate);
+          toDateObj.setHours(23, 59, 59, 999);
+          query.date.$lte = toDateObj;
+        }
+      }
+    }
+
+    const appointmentsRaw = await this.appointmentModel.find(query)
+      .sort({ date: -1, time: -1 }) // Sort by date and time descending
+      .skip(offset)
+      .limit(limit);
+
+    const appointments = [];
+
+    for (const appt of appointmentsRaw) {
+      try {
+        const doctor = await firstValueFrom(
+          this.doctorClient
+            .send('doctor.get-by-id', appt.doctor.toString())
+            .pipe(timeout(10000))
+        );
+
+        const patient = await firstValueFrom(
+          this.usersClient
+            .send('user.getuserbyid', appt.patient.toString())
+            .pipe(timeout(10000))
+        );
+
+        const specialty = await firstValueFrom(
+          this.specialtyClient
+            .send('specialty.get-by-id', doctor.specialty)
+            .pipe(timeout(10000))
+        );
+
+        appointments.push({
+          ...appt.toObject(),
+          doctor: doctor
+            ? {
+              _id: doctor._id,
+              name: doctor.name,
+              specialty: specialty?.name,
+              avatarURL: doctor.avatarURL,
+            }
+            : null,
+          patient: patient
+            ? {
+              _id: patient._id,
+              name: patient.name,
+              avatarURL: patient.avatarURL,
+            }
+            : null,
+        });
+      } catch (err) {
+        console.error('Populate error for appointment:', appt._id, err);
+        appointments.push(appt.toObject());
+      }
+    }
+
+    return appointments.filter(appt => appt.doctor && appt.patient);
   }
 }
