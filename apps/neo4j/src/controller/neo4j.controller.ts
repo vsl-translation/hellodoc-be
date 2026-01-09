@@ -86,7 +86,7 @@ export class Neo4jController {
   async getRelationsToNode(@Payload() payload: { label: string; name: string }) {
     return this.neo4jService.getRelationsToNode(payload.label, payload.name);
   }
-  
+
   @MessagePattern('neo4j.get-relation')
   async getRelation(@Payload() payload: { fromLabel: string; fromName: string; toLabel: string; toName: string; relationType: string }) {
     return this.neo4jService.getRelation(
@@ -122,4 +122,24 @@ export class Neo4jController {
   async nodeExists(@Payload() payload: { label: string; name: string }) {
     return this.neo4jService.nodeExists(payload.label, payload.name);
   }
+
+  @MessagePattern('neo4j.get-node')
+  async getNode(@Payload() payload: { label: string; name: string }) {
+    return this.neo4jService.getNode(payload.label, payload.name);
+  }
+
+  @MessagePattern('neo4j.update-node-properties')
+  async updateNodeProperties(@Payload() payload: {
+    label: string;
+    name: string;
+    properties: Record<string, any>
+  }) {
+    return this.neo4jService.updateNodeProperties(
+      payload.label,
+      payload.name,
+      payload.properties
+    );
+  }
+
+
 }

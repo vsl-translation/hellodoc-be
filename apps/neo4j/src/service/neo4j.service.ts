@@ -199,24 +199,24 @@ export class Neo4jService {
       await session.close();
     }
   }
-  
-async getAll() {
+
+  async getAll() {
     const session = this.getSession();
     try {
       console.log('Fetching entire graph...');
-      
+
       // --- SỬA Ở ĐÂY ---
       // Thay vì RETURN p, hãy RETURN n, r, m rõ ràng
       // Sử dụng OPTIONAL MATCH để lấy cả những node đứng một mình (nếu muốn)
       // Hoặc dùng MATCH (n)-[r]->(m) nếu chỉ muốn lấy các node có liên kết
-      
+
       const query = `
         MATCH (n)-[r]->(m)
         RETURN n, r, m
         LIMIT 1000 
-      `; 
+      `;
       // Lưu ý: Thêm LIMIT để tránh treo server nếu DB quá lớn
-      
+
       const result = await session.run(query);
 
       const nodesMap = new Map();
@@ -233,13 +233,13 @@ async getAll() {
           const label = n.labels ? n.labels[0] : 'Unknown'; // Safety check
           const name = n.properties.name || 'NoName';
           const nodeId = `${label}:${name}`;
-          
+
           if (!nodesMap.has(nodeId)) { // Check trùng để tối ưu
-             nodesMap.set(nodeId, {
-                id: nodeId,
-                labels: n.labels,
-                properties: n.properties
-             });
+            nodesMap.set(nodeId, {
+              id: nodeId,
+              labels: n.labels,
+              properties: n.properties
+            });
           }
         }
 
@@ -248,13 +248,13 @@ async getAll() {
           const label = m.labels ? m.labels[0] : 'Unknown';
           const name = m.properties.name || 'NoName';
           const nodeId = `${label}:${name}`;
-          
+
           if (!nodesMap.has(nodeId)) {
-             nodesMap.set(nodeId, {
-                id: nodeId,
-                labels: m.labels,
-                properties: m.properties
-             });
+            nodesMap.set(nodeId, {
+              id: nodeId,
+              labels: m.labels,
+              properties: m.properties
+            });
           }
         }
 
@@ -636,6 +636,129 @@ async getAll() {
     } catch (error) {
       console.error('Lỗi khi kiểm tra node:', error);
       return false;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+ * Lấy node theo label và name
+ */
+  async getNode(label: string, name: string): Promise<any> {
+    const session = this.getSession();
+    try {
+      console.log(`📝 Getting node: ${label}:${name}`);
+
+      const query = `
+        MATCH (n:${label} {name: $name})
+        RETURN n, labels(n) as labels
+      `;
+
+      const result = await session.run(query, { name });
+
+      if (result.records.length === 0) {
+        console.log(`⚠️ Node không tồn tại: ${label}:${name}`);
+        return null;
+      }
+
+      const record = result.records[0];
+      const node = record.get('n');
+      const labels = record.get('labels');
+
+      const nodeData = {
+        id: node.identity.toString(),
+        labels: labels,
+        label: label,
+        name: node.properties.name,
+        properties: node.properties,
+      };
+
+      console.log(`✅ Tìm thấy node:`, nodeData);
+      return nodeData;
+
+    } catch (error) {
+      console.error(`❌ Lỗi khi lấy node ${label}:${name}:`, error);
+      throw new InternalServerErrorException(`Lỗi khi lấy node: ${error.message}`);
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Cập nhật properties của node
+   */
+  async updateNodeProperties(
+    label: string,
+    name: string,
+    properties: Record<string, any>
+  ): Promise<any> {
+    const session = this.getSession();
+    try {
+      console.log(`📝 Updating node properties: ${label}:${name}`, properties);
+
+      // Tạo chuỗi SET clause
+      const setClauses = Object.keys(properties)
+        .map(key => `n.${key} = $properties.${key}`)
+        .join(', ');
+
+      const query = `
+        MATCH (n:${label} {name: $name})
+        SET ${setClauses}
+        RETURN n, labels(n) as labels
+      `;
+
+      const result = await session.run(query, {
+        name,
+        properties
+      });
+
+      if (result.records.length === 0) {
+        console.log(`⚠️ Node không tồn tại để cập nhật: ${label}:${name}`);
+
+        // Fallback: Tạo node mới nếu không tồn tại
+        const createQuery = `
+          CREATE (n:${label} {name: $name})
+          SET n += $properties
+          RETURN n, labels(n) as labels
+        `;
+
+        const createResult = await session.run(createQuery, {
+          name,
+          properties
+        });
+
+        const createdNode = createResult.records[0].get('n');
+        const createdLabels = createResult.records[0].get('labels');
+
+        return {
+          id: createdNode.identity.toString(),
+          labels: createdLabels,
+          label: label,
+          name: createdNode.properties.name,
+          properties: createdNode.properties,
+          wasCreated: true,
+        };
+      }
+
+      const record = result.records[0];
+      const node = record.get('n');
+      const labels = record.get('labels');
+
+      const updatedNode = {
+        id: node.identity.toString(),
+        labels: labels,
+        label: label,
+        name: node.properties.name,
+        properties: node.properties,
+        wasCreated: false,
+      };
+
+      console.log(`✅ Đã cập nhật node:`, updatedNode);
+      return updatedNode;
+
+    } catch (error) {
+      console.error(`❌ Lỗi khi cập nhật node properties ${label}:${name}:`, error);
+      throw new InternalServerErrorException(`Lỗi khi cập nhật node: ${error.message}`);
     } finally {
       await session.close();
     }

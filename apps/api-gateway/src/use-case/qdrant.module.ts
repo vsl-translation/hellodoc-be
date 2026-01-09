@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { QdrantController } from '../controller/qdrant.controller';
+import { QdrantService } from '../services/qdrant.service';
 
 @Module({
     imports: [
@@ -14,7 +16,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
             },
         ]),
     ],
-    controllers: [],
-    providers: [],
+    controllers: [QdrantController],
+    providers: [QdrantService],
 })
 export class QdrantModule { }
