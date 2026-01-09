@@ -14,7 +14,7 @@ async function bootstrap() {
     },
   );
   await app.listen();
-  console.log('Qdrant service is listening on port 3003');
+  console.log('Qdrant service is listening on port 3013');
 }
 bootstrap();
 

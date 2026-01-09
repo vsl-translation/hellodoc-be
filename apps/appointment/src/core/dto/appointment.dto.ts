@@ -77,3 +77,31 @@ export class GetSuggestedAppointmentDto {
     })
     toHour: string;
 }
+
+export class FilterAppointmentDto {
+    @IsOptional()
+    limit?: number;
+
+    @IsOptional()
+    offset?: number;
+
+    @IsOptional()
+    @IsEnum(['pending', 'done', 'cancelled'], {
+        message: 'Status must be pending, done, or cancelled',
+    })
+    status?: string;
+
+    @IsOptional()
+    @IsEnum(['at_clinic', 'at_home'], {
+        message: 'Consultation method must be at_clinic or at_home',
+    })
+    examinationMethod?: string;
+
+    @IsOptional()
+    @IsString()
+    bookingDate?: string; // Format: yyyy-mm-dd&yyyy-mm-dd
+
+    @IsOptional()
+    @IsString()
+    doctorName?: string;
+}

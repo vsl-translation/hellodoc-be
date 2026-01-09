@@ -8,7 +8,7 @@ export class Video extends Document {
   videoUrl: string;
 
   @Prop({ type: String })
-  wordCodes: string; // References to Word documents
+  wordCodes: string;
 
   @Prop({ type: [String] })
   processedWords: string[]; // Original words for quick reference

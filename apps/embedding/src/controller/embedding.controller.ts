@@ -15,4 +15,5 @@ export class EmbeddingController {
   async getModelName(): Promise<string> {
     return this.embeddingService.getModelName();
   }
+
 }

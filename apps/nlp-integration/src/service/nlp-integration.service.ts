@@ -1,6 +1,6 @@
 import { Inject, Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -71,6 +71,8 @@ export class NlpIntegrationService {
   constructor(
     @Inject('UNDERTHESEA_CLIENT') private readonly undertheseaClient: ClientProxy,
     @Inject('NEO4J_CLIENT') private readonly neo4jClient: ClientProxy,
+    @Inject('EMBEDDING_CLIENT') private readonly embeddingClient: ClientProxy,
+    @Inject('QDRANT_CLIENT') private readonly qdrantClient: ClientProxy,
   ) {
     this.checkPhoBERTHealth();
   }
@@ -534,12 +536,12 @@ export class NlpIntegrationService {
 
     // Phó từ + Động từ: bổ nghĩa
     if (currentTag === 'R' && nextTag.startsWith('V')) {
-      return 'Adverb-Verb';
+      return 'Adverb_Verb';
     }
 
     // Phó từ + Tính từ: bổ nghĩa
     if (currentTag === 'R' && currentTag.startsWith('A')) {
-      return 'Adverb-Adjective';
+      return 'Adverb_Adjective';
     }
 
     // Giới từ + Danh từ: cụm giới từ
@@ -709,12 +711,87 @@ export class NlpIntegrationService {
     }
   }
 
+
   // Phân tích văn bản và cập nhật weight tích lũy
   // ========== CẬP NHẬT analyzeAndCreateSemanticGraph ==========
+  /**
+ * Phân tích văn bản và tạo Semantic Graph theo luồng:
+ * 1. Gọi câu hỏi
+ * 2. Tạo embedding (BAAI/bge-m3)
+ * 3. So sánh trong VectorDB
+ * 4. Query các thực thể được lấy từ Neo4j
+ * 5. Lấy re-rank hợp tiếp theo cho câu (PhoBERT)
+ * 6. Phân bố các từ liên quan vào 5 nút
+ * 7. Gợi câu hỏi
+ * 8. Tách từ, phân loại từ (Underthesea)
+ * 9. Lưu và cập nhật vào Neo4j
+ */
   async analyzeAndCreateSemanticGraph(text: string) {
     try {
+      console.log('\n' + '='.repeat(80));
+      console.log('🔍 SEMANTIC GRAPH ANALYSIS - Graph-Retrieve + BERT-Rank');
+      console.log('='.repeat(80));
+      console.log(`📝 Input: "${text}"`);
+
+      // ========== BƯỚC 1: GỌI CÂU HỎI (Input) ==========
+      console.log('\n=== BƯỚC 1: GỌI CÂU HỎI ===');
+      if (!text || text.trim().length === 0) {
+        throw new BadRequestException('Câu hỏi không được để trống');
+      }
+      const normalizedText = text.trim();
+      console.log(`✅ Câu hỏi: "${normalizedText}"`);
+
+      // ========== BƯỚC 2: TẠO EMBEDDING (BAAI/bge-m3) ==========
+      console.log('\n=== BƯỚC 2: TẠO EMBEDDING ===');
+      let questionEmbedding = null;
+
+      try {
+        questionEmbedding = await firstValueFrom(
+          this.embeddingClient.send('embedding.generate', normalizedText)
+        );
+        console.log('✅ Generated embedding vector');
+      } catch (error) {
+        console.warn('⚠️  Embedding service không khả dụng:', error.message);
+      }
+
+      // ========== BƯỚC 3: SO SÁNH TRONG VECTORDB (Qdrant) ==========
+      console.log('\n=== BƯỚC 3: SO SÁNH TRONG VECTORDB ===');
+      let cachedResult = null;
+
+      if (questionEmbedding) {
+        try {
+          const searchResult = await firstValueFrom(
+            this.qdrantClient.send('qdrant.find-similar-questions', {
+              queryVector: questionEmbedding,
+              limit: 1,
+              minSimilarity: 0.85,
+            })
+          );
+
+          if (searchResult && searchResult.length > 0 && searchResult[0].similarity >= 0.85) {
+            cachedResult = searchResult[0];
+            console.log(`✅ Tìm thấy cache với similarity: ${cachedResult.similarity.toFixed(4)}`);
+
+            return {
+              success: true,
+              fromCache: true,
+              similarity: cachedResult.similarity,
+              ...cachedResult.payload,
+            };
+          }
+
+          console.log('❌ Không tìm thấy cache phù hợp');
+        } catch (error) {
+          console.warn('⚠️  Qdrant search failed:', error.message);
+        }
+      }
+
+      // ========== BƯỚC 4: QUERY CÁC THỰC THỂ TỪ NEO4J ==========
+      console.log('\n=== BƯỚC 4: QUERY CÁC THỰC THỂ ĐƯỢC LẤY ===');
+
+      // 4.1: Tách từ và POS tagging bằng Underthesea
       const posResult = await firstValueFrom(
-        this.undertheseaClient.send('underthesea.pos', { text: text })
+        this.undertheseaClient.send('underthesea.pos', { text: normalizedText })
       );
 
       if (!posResult.success) {
@@ -722,279 +799,925 @@ export class NlpIntegrationService {
       }
 
       const { tokens, pos_tags } = posResult;
+      console.log(`✅ POS Tagging: ${tokens.length} tokens`);
 
-      const PRONOUNS = new Set([
-        'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta', 'chúng mình',
-        'bạn', 'mày', 'cậu', 'các bạn', 'quý vị',
-        'họ', 'nó', 'hắn', 'y', 'chúng nó',
-        'anh', 'chị', 'em', 'ông', 'bà', 'cháu',
-        'bố', 'ba', 'tía', 'con', 'mẹ', 'má',
-        'chú', 'bác', 'cô', 'dì'
-      ]);
+      // 4.2: Lọc và chuẩn hóa tokens
+      const { processedTokens, processedPosTags } = this.filterAndNormalizeTokens(tokens, pos_tags);
+      console.log(`✅ Filtered: ${processedTokens.length} valid tokens`);
 
-      // ✅ Các loại POS tags cần loại bỏ
-      const EXCLUDED_POS_TAGS = new Set([
-        'CH',  // Dấu câu (punctuation)
-        'M',   // Số từ (numerals)
-        'FW',  // Foreign words (từ nước ngoài)
-      ]);
-
-      // ✅ Dấu câu cần loại bỏ
-      const PUNCTUATIONS = new Set([
-        '?', '!', '.', ',', ';', ':', '-', '–', '—',
-        '(', ')', '[', ']', '{', '}', '"', "'", '«', '»',
-        '...', '…'
-      ]);
-
-      console.log(`📝 Raw input: "${text}"`);
-      console.log(`📊 Total tokens from POS: ${tokens.length}`);
-
-      // ✅ BƯỚC 0: Preprocess và filter tokens
-      const processedTokens = [];
-      const processedPosTags = [];
-
-      for (let i = 0; i < tokens.length; i++) {
-        const rawToken = tokens[i];
-        const posTag = Array.isArray(pos_tags[i]) ? pos_tags[i][1] : pos_tags[i];
-
-        // Lowercase token
-        const lowerToken = rawToken.toLowerCase().trim();
-
-        // ✅ FILTER 1: Loại bỏ token rỗng
-        if (!lowerToken || lowerToken.length === 0) {
-          console.log(`  ❌ Skip empty token`);
-          continue;
-        }
-
-        // ✅ FILTER 2: Loại bỏ dấu câu
-        if (PUNCTUATIONS.has(lowerToken) || PUNCTUATIONS.has(rawToken)) {
-          console.log(`  ❌ Skip punctuation: "${rawToken}"`);
-          continue;
-        }
-
-        // ✅ FILTER 3: Loại bỏ POS tags không mong muốn (CH, M, FW)
-        if (EXCLUDED_POS_TAGS.has(posTag)) {
-          console.log(`  ❌ Skip excluded POS (${posTag}): "${rawToken}"`);
-          continue;
-        }
-
-        // ✅ FILTER 4: Loại bỏ chữ cái đơn (trừ 'à', 'ừ', 'ơ', 'ư' - từ cảm thán)
-        if (lowerToken.length === 1) {
-          const allowedSingleChars = new Set(['à', 'ừ', 'ơ', 'ư', 'ô', 'ạ', 'á']);
-          if (!allowedSingleChars.has(lowerToken)) {
-            console.log(`  ❌ Skip single character: "${rawToken}"`);
-            continue;
-          }
-        }
-
-        // ✅ FILTER 5: Loại bỏ viết tắt (chữ hoa liên tiếp, VD: "ABC", "UNESCO")
-        // Cho phép các từ viết tắt phổ biến
-        const commonAbbreviations = new Set([
-          'mr', 'mrs', 'ms', 'dr', 'phd', 'ceo', 'cto', 'vp',
-          'tp', 'hcm', 'hn', 'vn', 'usa', 'uk'
-        ]);
-
-        if (/^[A-Z]{2,}$/.test(rawToken) && !commonAbbreviations.has(lowerToken)) {
-          console.log(`  ❌ Skip abbreviation: "${rawToken}"`);
-          continue;
-        }
-
-        // ✅ FILTER 6: Loại bỏ số thuần túy (chỉ chứa số)
-        if (/^\d+$/.test(lowerToken)) {
-          console.log(`  ❌ Skip pure number: "${rawToken}"`);
-          continue;
-        }
-
-        // ✅ FILTER 7: Loại bỏ token chỉ chứa ký tự đặc biệt
-        if (/^[^a-záàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ0-9\s]+$/i.test(lowerToken)) {
-          console.log(`  ❌ Skip special characters only: "${rawToken}"`);
-          continue;
-        }
-
-        // ✅ PASS: Token hợp lệ, xác định POS tag cuối cùng
-        let finalPosTag = posTag;
-
-        // Override POS tag nếu là pronoun và ngăn chặn các node có tag là P nhưng không nằm trong set PRONOUNS
-        if (PRONOUNS.has(lowerToken)) {
-          finalPosTag = 'P';
-        }
-
-        if (finalPosTag === 'P' && !PRONOUNS.has(lowerToken)) {
-          finalPosTag = 'X'; // Gán lại thành Unknown nếu không phải đại từ
-        }
-
-        processedTokens.push(lowerToken);
-        processedPosTags.push(finalPosTag);
-
-        console.log(`  ✅ Keep: "${rawToken}" -> "${lowerToken}" (${finalPosTag})`);
-      }
-
-      console.log(`\n📊 After filtering: ${processedTokens.length} tokens (removed ${tokens.length - processedTokens.length})`);
-
-      // Kiểm tra nếu không còn token nào sau khi filter
       if (processedTokens.length === 0) {
         return {
           success: false,
           message: 'Không có token hợp lệ sau khi lọc',
-          text,
+          text: normalizedText,
           totalNodes: 0,
           totalRelations: 0,
-          totalPronouns: 0,
-          totalAffectedNodes: 0,
-          nodes: [],
-          relations: [],
-          pronouns: [],
+          results: [],
         };
       }
 
-      const createdNodes = [];
-      const updatedRelations = [];
-      const pronounNodes = [];
-      const affectedNodes = new Set<string>();
+      // 4.3: Lấy candidates từ Neo4j Graph cho mỗi token
+      const graphCandidates = await this.retrieveGraphCandidates(processedTokens, processedPosTags);
+      console.log(`✅ Retrieved ${graphCandidates.length} graph candidates`);
 
-      // ========== BƯỚC 1: Tạo nodes ==========
-      console.log('\n=== BƯỚC 1: XỬ LÝ NODES ===');
-      for (let i = 0; i < processedTokens.length; i++) {
+      // ========== BƯỚC 5: RE-RANK VỚI PHOBERT ==========
+      console.log('\n=== BƯỚC 5: RE-RANK HỢP TIẾP THEO CHO CÂU (PhoBERT) ===');
+
+      const rerankedResults = await this.rerankWithPhoBERT(
+        normalizedText,
+        graphCandidates,
+        processedTokens
+      );
+      console.log(`✅ Re-ranked ${rerankedResults.length} candidates`);
+
+      // ========== BƯỚC 6: PHÂN BỐ CÁC TỪ LIÊN QUAN VÀO 5 NÚT ==========
+      console.log('\n=== BƯỚC 6: PHÂN BỐ CÁC TỪ LIÊN QUAN VÀO 5 NÚT ===');
+
+      const clusteredResults = this.clusterIntoFiveNodes(rerankedResults);
+      console.log(`✅ Clustered into ${clusteredResults.clusters.length} semantic groups`);
+
+      // ========== BƯỚC 7: GỢI CÂU HỎI ==========
+      console.log('\n=== BƯỚC 7: GỢI CÂU HỎI ===');
+
+      const suggestions = this.generateSuggestions(clusteredResults, processedTokens);
+      console.log(`✅ Generated ${suggestions.length} suggestions`);
+
+      // ========== BƯỚC 8: TÁCH TỪ, PHÂN LOẠI TỪ (Underthesea) ==========
+      // (Đã thực hiện ở bước 4.1)
+      console.log('\n=== BƯỚC 8: TÁCH TỪ, PHÂN LOẠI TỪ ===');
+      console.log('✅ Already completed in step 4.1');
+
+      // ========== BƯỚC 9: LƯU VÀ CẬP NHẬT VÀO NEO4J ==========
+      console.log('\n=== BƯỚC 9: LƯU VÀ CẬP NHẬT ===');
+
+      const { nodes, relations } = await this.saveToNeo4j(
+        processedTokens,
+        processedPosTags,
+        rerankedResults
+      );
+      console.log(`✅ Saved ${nodes.length} nodes and ${relations.length} relations`);
+
+      // Chuẩn hóa weights
+      await this.normalizeAllWeights(nodes);
+      console.log('✅ Normalized weights');
+
+      // ========== LƯU VÀO QDRANT CACHE ==========
+      const resultPayload = {
+        text: normalizedText,
+        processedText: processedTokens.join(' '),
+        totalNodes: nodes.length,
+        totalRelations: relations.length,
+        clusters: clusteredResults.clusters,
+        suggestions,
+        nodes,
+        relations,
+        timestamp: new Date().toISOString(),
+      };
+
+      if (questionEmbedding) {
         try {
-          const nodePayload = {
-            label: processedPosTags[i],
-            name: processedTokens[i], // ✅ Đã lowercase
-          };
+          const questionId = `q_${Date.now()}_${Buffer.from(normalizedText).toString('base64').substring(0, 16)}`;
 
-          const node = await firstValueFrom(
-            this.neo4jClient.send('neo4j.create-node', nodePayload)
-          );
-
-          const nodeData = {
-            token: processedTokens[i],
-            posTag: processedPosTags[i],
-            posInfo: this.getPosTagInfo(processedPosTags[i]),
-            node,
-          };
-
-          createdNodes.push(nodeData);
-
-          // ✅ CHỈ thêm vào pronounNodes nếu label = 'P'
-          if (processedPosTags[i] === 'P') {
-            pronounNodes.push(nodeData);
-            console.log(`  👤 Pronoun detected: "${processedTokens[i]}" (label: P)`);
-          }
-
-        } catch (error) {
-          console.error(`Lỗi khi tạo node cho token "${processedTokens[i]}":`, error.message);
-        }
-      }
-
-      console.log(`📊 Tổng nodes: ${createdNodes.length}, Pronouns: ${pronounNodes.length}`);
-
-      // ========== BƯỚC 2: Xử lý relations và tăng weight ==========
-      console.log('\n=== BƯỚC 2: XỬ LÝ RELATIONS VÀ TĂNG WEIGHT ===');
-
-      for (let i = 0; i < processedTokens.length - 1; i++) {
-        const currentTag = processedPosTags[i];
-        const nextTag = processedPosTags[i + 1];
-
-        const relationType = this.determineRelationType(currentTag, nextTag);
-
-        try {
-          const existingRelation = await firstValueFrom(
-            this.neo4jClient.send('neo4j.get-relation', {
-              fromLabel: currentTag,
-              fromName: processedTokens[i],
-              toLabel: nextTag,
-              toName: processedTokens[i + 1],
-              relationType,
+          await firstValueFrom(
+            this.qdrantClient.send('qdrant.upsert-question', {
+              questionId,
+              vector: questionEmbedding,
+              payload: resultPayload,
             })
           );
-
-          let newWeight = 0;
-          let operation = '';
-
-          if (existingRelation && existingRelation.weight !== undefined) {
-            const oldWeight = existingRelation.weight;
-            const increment = await this.calculateWeightIncrement({
-              fromLabel: currentTag,
-              fromName: processedTokens[i],
-              toLabel: nextTag,
-              toName: processedTokens[i + 1],
-              currentWeight: oldWeight,
-            });
-
-            newWeight = oldWeight + increment;
-            operation = 'UPDATE';
-
-            console.log(`📈 "${processedTokens[i]}" -> "${processedTokens[i + 1]}": ${oldWeight.toFixed(4)} → ${newWeight.toFixed(4)} (+${increment.toFixed(4)})`);
-          } else {
-            newWeight = 0;
-            operation = 'CREATE';
-            console.log(`🆕 "${processedTokens[i]}" -> "${processedTokens[i + 1]}": CREATED with weight = 0`);
-          }
-
-          // Cập nhật relation
-          const relationPayload = {
-            fromLabel: currentTag,
-            fromName: processedTokens[i],
-            toLabel: nextTag,
-            toName: processedTokens[i + 1],
-            relationType,
-            weight: newWeight,
-          };
-
-          const relation = await firstValueFrom(
-            this.neo4jClient.send('neo4j.create-relation', relationPayload)
-          );
-
-          updatedRelations.push({
-            ...relation,
-            operation,
-            relationDescription: this.getRelationDescription(relationType),
-          });
-
-          // ✅ Track node bị ảnh hưởng
-          affectedNodes.add(`${currentTag}:${processedTokens[i]}`);
-
+          console.log('✅ Cached result in Qdrant');
         } catch (error) {
-          console.error(`Lỗi khi xử lý relation: "${processedTokens[i]}" -> "${processedTokens[i + 1]}"`, error.message);
+          console.warn('⚠️  Failed to cache in Qdrant:', error.message);
         }
       }
 
-      // ========== BƯỚC 3: Chuẩn hóa CHỈ các nodes bị ảnh hưởng ==========
-      console.log('\n=== BƯỚC 3: CHUẨN HÓA NODES BỊ ẢNH HƯỞNG ===');
-      console.log(`📊 Số nodes cần chuẩn hóa: ${affectedNodes.size}`);
-
-      for (const nodeKey of affectedNodes) {
-        const [label, ...nameParts] = nodeKey.split(':');
-        const name = nameParts.join(':'); // Handle case where name contains ':'
-
-        try {
-          await this.normalizeWeightsForNode(label, name);
-        } catch (error) {
-          console.error(`❌ Lỗi khi chuẩn hóa node ${nodeKey}:`, error.message);
-        }
-      }
-
-      // ========== BƯỚC 4: Lấy lại relations sau khi chuẩn hóa ==========
-      const normalizedRelations = await this.getUpdatedRelations(updatedRelations);
+      // ========== TRẢ VỀ KẾT QUẢ ==========
+      console.log('\n' + '='.repeat(80));
+      console.log('✅ HOÀN THÀNH PHÂN TÍCH SEMANTIC GRAPH');
+      console.log('='.repeat(80));
 
       return {
         success: true,
-        text,
-        processedText: processedTokens.join(' '), // ✅ Text sau khi xử lý
-        totalNodes: createdNodes.length,
-        totalRelations: updatedRelations.length,
-        totalPronouns: pronounNodes.length,
-        totalAffectedNodes: affectedNodes.size,
-        tokensRemoved: tokens.length - processedTokens.length, // ✅ Số token bị loại bỏ
-        nodes: createdNodes,
-        relations: normalizedRelations,
-        pronouns: pronounNodes,
+        fromCache: false,
+        ...resultPayload,
       };
+
     } catch (error) {
-      console.error('Lỗi trong quá trình tạo semantic graph:', error.message);
-      throw new InternalServerErrorException(`Không thể tạo semantic graph: ${error.message}`);
+      console.error('❌ Lỗi trong analyzeAndCreateSemanticGraph:', error.message);
+      throw new InternalServerErrorException(`Không thể phân tích: ${error.message}`);
     }
   }
 
+  /**
+ * Xử lý cặp câu hỏi - câu trả lời:
+ * 1. Câu hỏi: Tạo embedding và cache vào Qdrant
+ * 2. Câu trả lời: Phân tích POS bằng Underthesea
+ * 3. Lưu câu trả lời dạng tokens vào Neo4j
+ * 4. Lưu vào Qdrant với format: {question, answerTokens, answerPOS}
+ */
+  async processQuestionAnswer(
+    question: string,
+    answer: string,
+    metadata: Record<string, any> = {}
+  ): Promise<any> {
+    try {
+      console.log('\n' + '='.repeat(80));
+      console.log('💬 PROCESS QUESTION & ANSWER');
+      console.log('='.repeat(80));
+      console.log(`❓ Câu hỏi: "${question}"`);
+      console.log(`✅ Câu trả lời: "${answer}"`);
+
+      // ========== BƯỚC 1: XỬ LÝ CÂU HỎI ==========
+      console.log('\n=== BƯỚC 1: XỬ LÝ CÂU HỎI ===');
+
+      // 1.1: Tạo embedding cho câu hỏi
+      let questionEmbedding = null;
+      try {
+        questionEmbedding = await firstValueFrom(
+          this.embeddingClient.send('embedding.generate', question.trim())
+        );
+        console.log('✅ Generated question embedding');
+      } catch (error) {
+        console.warn('⚠️  Embedding service không khả dụng:', error.message);
+        questionEmbedding = null;
+      }
+
+      // 1.2: Kiểm tra cache trong Qdrant
+      let isCached = false;
+      let cachedResult = null;
+
+      if (questionEmbedding) {
+        try {
+          const searchResult = await firstValueFrom(
+            this.qdrantClient.send('qdrant.find-similar-questions', {
+              queryVector: questionEmbedding,
+              limit: 1,
+              minSimilarity: 0.9, // Ngưỡng cao hơn để đảm bảo câu hỏi tương tự
+            })
+          );
+
+          if (searchResult && searchResult.length > 0 && searchResult[0].similarity >= 0.9) {
+            isCached = true;
+            cachedResult = searchResult[0];
+            console.log(`✅ Tìm thấy cache với similarity: ${cachedResult.similarity.toFixed(4)}`);
+          }
+        } catch (error) {
+          console.warn('⚠️  Qdrant search failed:', error.message);
+        }
+      }
+
+      // ========== BƯỚC 2: XỬ LÝ CÂU TRẢ LỜI ==========
+      console.log('\n=== BƯỚC 2: PHÂN TÍCH CÂU TRẢ LỜI ===');
+
+      // 2.1: Phân tích POS cho câu trả lời bằng Underthesea
+      let answerTokens = [];
+      let answerPosTags = [];
+
+      try {
+        const posResult = await firstValueFrom(
+          this.undertheseaClient.send('underthesea.pos', { text: answer.trim() })
+        );
+
+        if (posResult.success) {
+          // Lọc và chuẩn hóa tokens
+          const filtered = this.filterAndNormalizeTokens(posResult.tokens, posResult.pos_tags);
+          answerTokens = filtered.processedTokens;
+          answerPosTags = filtered.processedPosTags;
+
+          console.log(`✅ Phân tích POS thành công: ${answerTokens.length} tokens`);
+          console.log('📝 Kết quả phân tích:');
+          answerTokens.forEach((token, idx) => {
+            const posInfo = this.getPosTagInfo(answerPosTags[idx]);
+            console.log(`  "${token}" → ${answerPosTags[idx]} (${posInfo.vnName})`);
+          });
+        } else {
+          throw new Error('Underthesea POS analysis failed');
+        }
+      } catch (error) {
+        console.error('❌ Lỗi khi phân tích câu trả lời:', error.message);
+        // Fallback: tách từ đơn giản
+        answerTokens = answer.trim().toLowerCase().split(/\s+/).filter(t => t.length > 0);
+        answerPosTags = new Array(answerTokens.length).fill('X'); // Unknown tag
+        console.log(`⚠️  Dùng fallback: ${answerTokens.length} tokens`);
+      }
+
+      // 2.2: Lưu câu trả lời vào Neo4j
+      console.log('\n=== BƯỚC 3: LƯU VÀO NEO4J ===');
+
+      const neo4jResult = await this.saveAnswerToNeo4j(
+        question,
+        answer,
+        answerTokens,
+        answerPosTags,
+        metadata
+      );
+
+      console.log(`✅ Đã lưu vào Neo4j: ${neo4jResult.nodes?.length || 0} nodes, ${neo4jResult.relations?.length || 0} relations`);
+
+      // ========== BƯỚC 3: LƯU VÀO QDRANT ==========
+      console.log('\n=== BƯỚC 4: LƯU VÀO QDRANT ===');
+
+      const qdrantResult = await this.saveToQdrant(
+        question,
+        questionEmbedding,
+        answer,
+        answerTokens,
+        answerPosTags,
+        metadata,
+        neo4jResult
+      );
+
+      console.log(`✅ Đã lưu vào Qdrant với ID: ${qdrantResult.questionId || 'unknown'}`);
+
+      // ========== TRẢ VỀ KẾT QUẢ ==========
+      console.log('\n' + '='.repeat(80));
+      console.log('✅ HOÀN THÀNH XỬ LÝ Q&A');
+      console.log('='.repeat(80));
+
+      return {
+        success: true,
+        fromCache: isCached,
+        question: {
+          text: question,
+          hasEmbedding: !!questionEmbedding,
+          cached: isCached,
+          similarity: cachedResult?.similarity || 0,
+        },
+        answer: {
+          text: answer,
+          tokens: answerTokens,
+          posTags: answerPosTags,
+          tokenCount: answerTokens.length,
+        },
+        neo4j: {
+          nodes: neo4jResult.nodes || [],
+          relations: neo4jResult.relations || [],
+          answerNodeId: neo4jResult.answerNodeId,
+        },
+        qdrant: {
+          questionId: qdrantResult.questionId,
+          collection: qdrantResult.collection,
+          vectorSize: questionEmbedding?.length || 0,
+        },
+        timestamp: new Date().toISOString(),
+        metadata,
+      };
+
+    } catch (error) {
+      console.error('❌ Lỗi trong processQuestionAnswer:', error);
+      throw new InternalServerErrorException(
+        `Không thể xử lý câu hỏi và câu trả lời: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Lưu câu trả lời vào Neo4j dưới dạng nodes và relations
+   */
+  private async saveAnswerToNeo4j(
+    question: string,
+    answer: string,
+    tokens: string[],
+    posTags: string[],
+    metadata: Record<string, any> = {}
+  ): Promise<any> {
+    try {
+      const nodes = [];
+      const relations = [];
+
+      // 1. Tạo node cho câu hỏi
+      const questionNode = await this.createOrGetNode({
+        label: 'Question',
+        name: question.substring(0, 100), // Giới hạn độ dài
+        properties: {
+          fullText: question,
+          tokenCount: tokens.length,
+          ...metadata,
+          type: 'question',
+          createdAt: new Date().toISOString(),
+        }
+      });
+      nodes.push(questionNode);
+
+      // 2. Tạo node cho câu trả lời
+      const answerNode = await this.createOrGetNode({
+        label: 'Answer',
+        name: answer.substring(0, 100),
+        properties: {
+          fullText: answer,
+          tokenCount: tokens.length,
+          tokens: JSON.stringify(tokens),
+          posTags: JSON.stringify(posTags),
+          ...metadata,
+          type: 'answer',
+          createdAt: new Date().toISOString(),
+        }
+      });
+      nodes.push(answerNode);
+
+      // 3. Tạo quan hệ QUESTION_HAS_ANSWER
+      const qaRelation = await this.createOrUpdateRelation({
+        fromLabel: 'Question',
+        fromName: questionNode.name,
+        toLabel: 'Answer',
+        toName: answerNode.name,
+        relationType: 'HAS_ANSWER',
+        weight: 1.0,
+        properties: {
+          confidence: 1.0,
+          ...metadata,
+          createdAt: new Date().toISOString(),
+        }
+      });
+      relations.push(qaRelation);
+
+      // 4. Tạo nodes cho từng token trong câu trả lời
+      const tokenNodes = [];
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        const posTag = posTags[i];
+
+        // Tạo node cho token
+        const tokenNode = await this.createOrGetNode({
+          label: posTag,
+          name: token,
+          properties: {
+            originalToken: token,
+            position: i,
+            inAnswer: answerNode.name,
+            ...metadata,
+          }
+        });
+        tokenNodes.push(tokenNode);
+        nodes.push(tokenNode);
+
+        // Tạo quan hệ ANSWER_CONTAINS_TOKEN
+        const containsRelation = await this.createOrUpdateRelation({
+          fromLabel: 'Answer',
+          fromName: answerNode.name,
+          toLabel: posTag,
+          toName: token,
+          relationType: 'CONTAINS_TOKEN',
+          weight: 0.8 - (i * 0.1), // Giảm weight theo vị trí
+          properties: {
+            position: i,
+            tokenIndex: i,
+            ...metadata,
+          }
+        });
+        relations.push(containsRelation);
+
+        // Nếu không phải token đầu tiên, tạo quan hệ giữa các tokens
+        if (i > 0) {
+          const prevToken = tokens[i - 1];
+          const prevPosTag = posTags[i - 1];
+
+          const tokenRelation = await this.createOrUpdateRelation({
+            fromLabel: prevPosTag,
+            fromName: prevToken,
+            toLabel: posTag,
+            toName: token,
+            relationType: this.determineRelationType(prevPosTag, posTag),
+            weight: 0.7,
+            properties: {
+              sequence: `${i - 1}->${i}`,
+              inAnswer: answerNode.name,
+              ...metadata,
+            }
+          });
+          relations.push(tokenRelation);
+        }
+      }
+
+      // 5. Tạo quan hệ giữa các tokens (skip-gram style)
+      if (tokenNodes.length >= 2) {
+        for (let i = 0; i < tokenNodes.length; i++) {
+          for (let j = Math.max(0, i - 2); j <= Math.min(tokenNodes.length - 1, i + 2); j++) {
+            if (i !== j) {
+              const distance = Math.abs(i - j);
+              const weight = 0.6 / distance; // Weight giảm theo khoảng cách
+
+              const skipGramRelation = await this.createOrUpdateRelation({
+                fromLabel: posTags[i],
+                fromName: tokens[i],
+                toLabel: posTags[j],
+                toName: tokens[j],
+                relationType: 'CO_OCCURS_WITH',
+                weight: weight,
+                properties: {
+                  distance: distance,
+                  inAnswer: answerNode.name,
+                  windowSize: 2,
+                  ...metadata,
+                }
+              });
+              relations.push(skipGramRelation);
+            }
+          }
+        }
+      }
+
+      return {
+        success: true,
+        questionNode,
+        answerNode,
+        answerNodeId: answerNode.id,
+        tokenNodes,
+        nodes,
+        relations,
+      };
+
+    } catch (error) {
+      console.error('❌ Lỗi khi lưu vào Neo4j:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Tạo mới hoặc lấy node đã tồn tại trong Neo4j
+   */
+  private async createOrGetNode(params: {
+    label: string;
+    name: string;
+    properties?: Record<string, any>;
+  }): Promise<any> {
+    try {
+      // Thử lấy node đã tồn tại
+      const existingNode = await firstValueFrom(
+        this.neo4jClient.send('neo4j.get-node', {
+          label: params.label,
+          name: params.name,
+        })
+      );
+
+      if (existingNode && existingNode.id) {
+        // Cập nhật properties nếu node đã tồn tại
+        if (params.properties) {
+          await firstValueFrom(
+            this.neo4jClient.send('neo4j.update-node-properties', {
+              label: params.label,
+              name: params.name,
+              properties: params.properties,
+            })
+          );
+        }
+        return { ...existingNode, existed: true };
+      }
+
+      // Tạo node mới
+      const newNode = await firstValueFrom(
+        this.neo4jClient.send('neo4j.create-node', {
+          label: params.label,
+          name: params.name,
+          properties: params.properties,
+        })
+      );
+
+      return { ...newNode, existed: false };
+
+    } catch (error) {
+      console.error(`❌ Lỗi trong createOrGetNode:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Tạo mới hoặc cập nhật relation trong Neo4j
+   */
+  private async createOrUpdateRelation(params: {
+    fromLabel: string;
+    fromName: string;
+    toLabel: string;
+    toName: string;
+    relationType: string;
+    weight: number;
+    properties?: Record<string, any>;
+  }): Promise<any> {
+    try {
+      // Kiểm tra relation đã tồn tại
+      const existingRelation = await firstValueFrom(
+        this.neo4jClient.send('neo4j.get-relation', {
+          fromLabel: params.fromLabel,
+          fromName: params.fromName,
+          toLabel: params.toLabel,
+          toName: params.toName,
+          relationType: params.relationType,
+        })
+      );
+
+      if (existingRelation && existingRelation.id) {
+        // Cập nhật weight và properties
+        const updatedWeight = existingRelation.weight
+          ? (existingRelation.weight + params.weight) / 2 // Trung bình cộng
+          : params.weight;
+
+        const updatedRelation = await firstValueFrom(
+          this.neo4jClient.send('neo4j.update-relation-weight', {
+            fromLabel: params.fromLabel,
+            fromName: params.fromName,
+            toLabel: params.toLabel,
+            toName: params.toName,
+            relationType: params.relationType,
+            weight: updatedWeight,
+            properties: {
+              ...existingRelation.properties,
+              ...params.properties,
+              updatedAt: new Date().toISOString(),
+              updateCount: (existingRelation.properties?.updateCount || 0) + 1,
+            },
+          })
+        );
+
+        return { ...updatedRelation, existed: true, action: 'updated' };
+      }
+
+      // Tạo relation mới
+      const newRelation = await firstValueFrom(
+        this.neo4jClient.send('neo4j.create-relation', {
+          fromLabel: params.fromLabel,
+          fromName: params.fromName,
+          toLabel: params.toLabel,
+          toName: params.toName,
+          relationType: params.relationType,
+          weight: params.weight,
+          properties: {
+            ...params.properties,
+            createdAt: new Date().toISOString(),
+          },
+        })
+      );
+
+      return { ...newRelation, existed: false, action: 'created' };
+
+    } catch (error) {
+      console.error(`❌ Lỗi trong createOrUpdateRelation:`, error);
+      throw error;
+    }
+  }
+
+  // ==================== HÀM PHỤ TRỢ: saveToQdrant ====================
+  /**
+   * Lưu câu hỏi và câu trả lời vào Qdrant
+   */
+  private async saveToQdrant(
+    question: string,
+    questionEmbedding: number[] | null,
+    answer: string,
+    answerTokens: string[],
+    answerPosTags: string[],
+    metadata: Record<string, any> = {},
+    neo4jResult: any
+  ): Promise<any> {
+    try {
+      // ✅ Kiểm tra embedding trước khi lưu
+      if (!questionEmbedding || !Array.isArray(questionEmbedding) || questionEmbedding.length === 0) {
+        console.warn('⚠️  Không có embedding hợp lệ, bỏ qua Qdrant');
+        return {
+          success: false,
+          reason: 'no_valid_embedding',
+          questionId: null
+        };
+      }
+
+      // ✅ Validate vector values
+      const hasInvalidValues = questionEmbedding.some(v =>
+        v === null || v === undefined || isNaN(v) || !isFinite(v)
+      );
+
+      if (hasInvalidValues) {
+        console.error('❌ Embedding chứa giá trị không hợp lệ (NaN/Infinity)');
+        return {
+          success: false,
+          reason: 'invalid_embedding_values',
+          questionId: null
+        };
+      }
+
+      const questionId = `qa_${Date.now()}_${Buffer.from(question).toString('base64').substring(0, 16)}`;
+
+      // ✅ Giảm payload size - chỉ lưu thông tin cần thiết
+      const payload = {
+        question: {
+          text: question.substring(0, 500), // Giới hạn độ dài
+          length: question.length,
+        },
+        answer: {
+          text: answer.substring(0, 500), // Giới hạn độ dài
+          tokens: answerTokens.slice(0, 50), // Giới hạn số token
+          posTags: answerPosTags.slice(0, 50),
+          tokenCount: answerTokens.length,
+        },
+        neo4j: {
+          answerNodeId: neo4jResult.answerNodeId,
+          nodeCount: neo4jResult.nodes?.length || 0,
+          relationCount: neo4jResult.relations?.length || 0,
+        },
+        metadata: {
+          processedAt: new Date().toISOString(),
+          version: '1.0',
+        }
+      };
+
+      // ✅ Gọi với error handling tốt hơn
+      const upsertResult = await firstValueFrom(
+        this.qdrantClient.send('qdrant.upsert-question', {
+          questionId,
+          vector: questionEmbedding,
+          payload: payload,
+        }).pipe(
+          timeout(10000), // 10s timeout
+        )
+      );
+
+      console.log('✅ Đã lưu vào Qdrant:', questionId);
+
+      return {
+        success: true,
+        questionId,
+        collection: 'qa_pairs',
+        vectorSize: questionEmbedding.length,
+      };
+
+    } catch (error) {
+      console.error('❌ Lỗi khi lưu vào Qdrant:', error.message);
+      console.error('Stack:', error.stack);
+
+      // ✅ Không throw error để không ảnh hưởng flow chính
+      return {
+        success: false,
+        error: error.message,
+        questionId: null
+      };
+    }
+  }
+  // ========== HELPER FUNCTIONS ==========
+
+  /**
+   * Lọc và chuẩn hóa tokens
+   */
+  private filterAndNormalizeTokens(tokens: string[], pos_tags: any[]) {
+    const PRONOUNS = new Set([
+      'tôi', 'tui', 'tao', 'tớ', 'mình', 'chúng tôi', 'chúng ta',
+      'bạn', 'mày', 'cậu', 'họ', 'nó', 'hắn',
+      'anh', 'chị', 'em', 'ông', 'bà', 'cháu'
+    ]);
+
+    const EXCLUDED_POS = new Set(['CH', 'M', 'FW']);
+    const PUNCTUATIONS = new Set(['?', '!', '.', ',', ';', ':', '-', '(', ')', '[', ']']);
+
+    const processedTokens = [];
+    const processedPosTags = [];
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i].toLowerCase().trim();
+      let posTag = Array.isArray(pos_tags[i]) ? pos_tags[i][1] : pos_tags[i];
+
+      if (!token || PUNCTUATIONS.has(token) || EXCLUDED_POS.has(posTag)) {
+        continue;
+      }
+
+      if (PRONOUNS.has(token)) {
+        posTag = 'P';
+      }
+
+      processedTokens.push(token);
+      processedPosTags.push(posTag);
+    }
+
+    return { processedTokens, processedPosTags };
+  }
+
+  /**
+   * Lấy candidates từ Neo4j Graph
+   */
+  private async retrieveGraphCandidates(tokens: string[], posTags: string[]) {
+    const candidates = [];
+
+    for (let i = 0; i < tokens.length - 1; i++) {
+      const currentToken = tokens[i];
+      const nextToken = tokens[i + 1];
+      const currentTag = posTags[i];
+      const nextTag = posTags[i + 1];
+
+      try {
+        const suggestions = await firstValueFrom(
+          this.neo4jClient.send('neo4j.get-suggestions', {
+            word: currentToken,
+            limit: 10
+          })
+        );
+
+        if (suggestions && suggestions.length > 0) {
+          candidates.push({
+            fromToken: currentToken,
+            fromTag: currentTag,
+            toToken: nextToken,
+            toTag: nextTag,
+            suggestions,
+            position: i,
+          });
+        }
+      } catch (error) {
+        console.warn(`⚠️  Failed to get suggestions for "${currentToken}"`);
+      }
+    }
+
+    return candidates;
+  }
+
+  /**
+   * Re-rank candidates với PhoBERT
+   */
+  private async rerankWithPhoBERT(context: string, candidates: any[], tokens: string[]) {
+    const reranked = [];
+
+    for (const candidate of candidates) {
+      const { fromToken, suggestions, position } = candidate;
+
+      // Tạo context window
+      const contextStart = Math.max(0, position - 3);
+      const contextEnd = Math.min(tokens.length, position + 4);
+      const localContext = tokens.slice(contextStart, contextEnd).join(' ');
+
+      const candidateWords = suggestions.map(s =>
+        s.suggestion || s.word || s.toWord
+      ).filter(Boolean);
+
+      try {
+        const phobertScores = await this.scoreWithPhoBERT(
+          localContext,
+          candidateWords,
+          10
+        );
+
+        const scored = suggestions.map(sug => {
+          const word = (sug.suggestion || sug.word || sug.toWord).toLowerCase();
+          const phobertScore = phobertScores.find(p => p.word.toLowerCase() === word)?.score || 0;
+          const neo4jScore = sug.score || sug.weight || 0;
+
+          return {
+            ...sug,
+            word,
+            neo4jScore,
+            phobertScore,
+            finalScore: this.mergeScores(neo4jScore, phobertScore),
+            fromToken,
+            position,
+          };
+        });
+
+        scored.sort((a, b) => b.finalScore - a.finalScore);
+        reranked.push(...scored.slice(0, 5));
+
+      } catch (error) {
+        console.warn(`⚠️  PhoBERT failed for position ${position}`);
+        reranked.push(...suggestions.slice(0, 3));
+      }
+    }
+
+    return reranked;
+  }
+
+  /**
+   * Phân bố các từ vào 5 nhóm ngữ nghĩa
+   */
+  private clusterIntoFiveNodes(results: any[]) {
+    const clusters = {
+      noun: [],      // Danh từ
+      verb: [],      // Động từ
+      adjective: [], // Tính từ
+      pronoun: [],   // Đại từ
+      other: [],     // Khác
+    };
+
+    for (const result of results) {
+      const posTag = result.toLabel || result.posTag || 'X';
+
+      if (posTag.startsWith('N')) {
+        clusters.noun.push(result);
+      } else if (posTag.startsWith('V')) {
+        clusters.verb.push(result);
+      } else if (posTag.startsWith('A')) {
+        clusters.adjective.push(result);
+      } else if (posTag === 'P') {
+        clusters.pronoun.push(result);
+      } else {
+        clusters.other.push(result);
+      }
+    }
+
+    return {
+      clusters: [
+        { type: 'noun', items: clusters.noun.slice(0, 10) },
+        { type: 'verb', items: clusters.verb.slice(0, 10) },
+        { type: 'adjective', items: clusters.adjective.slice(0, 10) },
+        { type: 'pronoun', items: clusters.pronoun.slice(0, 10) },
+        { type: 'other', items: clusters.other.slice(0, 10) },
+      ]
+    };
+  }
+
+  /**
+   * Tạo gợi ý câu hỏi
+   */
+  private generateSuggestions(clusteredResults: any, tokens: string[]) {
+    const suggestions = [];
+
+    // Gợi ý hoàn chỉnh câu
+    for (const cluster of clusteredResults.clusters) {
+      if (cluster.items.length > 0) {
+        suggestions.push({
+          type: 'complete',
+          category: cluster.type,
+          words: cluster.items.slice(0, 5).map(item => item.word),
+        });
+      }
+    }
+
+    // Gợi ý về chủ đề
+    const lastToken = tokens[tokens.length - 1];
+    suggestions.push({
+      type: 'topic',
+      baseWord: lastToken,
+      words: clusteredResults.clusters
+        .flatMap(c => c.items)
+        .slice(0, 10)
+        .map(item => item.word),
+    });
+
+    // Gợi ý mở rộng
+    suggestions.push({
+      type: 'expansion',
+      words: ['thế nào', 'như thế nào', 'ra sao', 'không', 'được'],
+    });
+
+    return suggestions;
+  }
+
+  /**
+   * Lưu nodes và relations vào Neo4j
+   */
+  private async saveToNeo4j(tokens: string[], posTags: string[], results: any[]) {
+    const nodes = [];
+    const relations = [];
+
+    // Tạo nodes
+    for (let i = 0; i < tokens.length; i++) {
+      try {
+        const node = await firstValueFrom(
+          this.neo4jClient.send('neo4j.create-node', {
+            label: posTags[i],
+            name: tokens[i],
+          })
+        );
+
+        nodes.push({
+          token: tokens[i],
+          posTag: posTags[i],
+          node,
+        });
+      } catch (error) {
+        console.warn(`⚠️  Failed to create node for "${tokens[i]}"`);
+      }
+    }
+
+    // Tạo relations
+    for (let i = 0; i < tokens.length - 1; i++) {
+      const relationType = this.determineRelationType(posTags[i], posTags[i + 1]);
+
+      try {
+        const relation = await firstValueFrom(
+          this.neo4jClient.send('neo4j.create-relation', {
+            fromLabel: posTags[i],
+            fromName: tokens[i],
+            toLabel: posTags[i + 1],
+            toName: tokens[i + 1],
+            relationType,
+            weight: 0.5,
+          })
+        );
+
+        relations.push(relation);
+      } catch (error) {
+        console.warn(`⚠️  Failed to create relation: ${tokens[i]} -> ${tokens[i + 1]}`);
+      }
+    }
+
+    return { nodes, relations };
+  }
+
+  /**
+   * Chuẩn hóa weights cho tất cả nodes
+   */
+  private async normalizeAllWeights(nodes: any[]) {
+    for (const node of nodes) {
+      try {
+        await this.normalizeWeightsForNode(node.posTag, node.token);
+      } catch (error) {
+        console.warn(`⚠️  Failed to normalize weights for ${node.token}`);
+      }
+    }
+  }
   // ========== HÀM 1: Chuẩn hóa CHO 1 NODE CỤ THỂ (có tham số) ==========
   private async normalizeWeightsForNode(fromLabel: string, fromName: string): Promise<void> {
     try {
