@@ -18,6 +18,7 @@ export class NotificationService {
   }
 
   getNotificationsByUser(userId: string) {
+    console.log('Fetching notifications for user:', userId);
     return this.notificationClient.send('notification.getByUser', userId);
   }
 

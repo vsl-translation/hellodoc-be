@@ -20,6 +20,7 @@ export class NotificationController {
 
   @Get('get-by-user-id/:userId/unread')
   async getUnreadNotifications(@Param('userId') userId: string) {
+    console.log('Getting unread notifications for user:', userId);
     return await this.notificationService.getUnreadNotifications(userId);
   }
 

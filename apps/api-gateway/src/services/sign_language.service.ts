@@ -17,7 +17,7 @@ export class SignLanguageService {
         }
         console.log("Chạy được service")
 
-        return this.signClient.send('gesture_code.getGestureWordCode', { videoUrl: urlMedia })
+        return this.signClient.send('gesture_code.getGestureWordCode', { videoUrl: videoUrl })
 
     }
 

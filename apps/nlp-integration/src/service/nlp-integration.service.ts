@@ -1202,7 +1202,7 @@ export class NlpIntegrationService {
                 fromName: tokens[i],
                 toLabel: posTags[j],
                 toName: tokens[j],
-                relationType: 'CO_OCCURS_WITH',
+                relationType: this.determineRelationType(posTags[i], posTags[j]),
                 weight: weight,
                 properties: {
                   distance: distance,
