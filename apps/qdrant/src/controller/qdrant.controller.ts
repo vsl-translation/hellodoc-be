@@ -12,6 +12,15 @@ export class QdrantController {
     return this.qdrantService.upsertPost(postId, vector, payload);
   }
 
+  @MessagePattern('qdrant.search')
+  async searchQdrant(
+    @Payload() data: { queryVector: number[]; limit?: number; minSimilarity?: number }
+  ) {
+    const { queryVector, limit = 5, minSimilarity = 0.5 } = data;
+    console.log(`QdrantController: Searching Qdrant with limit ${limit} and minSimilarity ${minSimilarity}`);
+    return await this.qdrantService.searchQdrant(queryVector, limit, minSimilarity);
+  }
+
   @MessagePattern('qdrant.find-similar-posts')
   async findSimilarPostsQdrant(
     @Payload() data: { queryVector: number[]; limit?: number; minSimilarity?: number, postId?: string }
