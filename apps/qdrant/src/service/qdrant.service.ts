@@ -378,7 +378,27 @@ export class QdrantService implements OnModuleInit {
 
 
     // ========== SEARCH OPERATIONS ==========
+    async searchQdrant(
+        queryVector: number[],
+        limit = 5,
+        minSimilarity = 0.9
+    ) {
+        this.logger.log(
+            `QdrantService: Searching Qdrant with limit=${limit}, minSimilarity=${minSimilarity}`
+        );
+        const results = await this.client.search(this.postCollectionName, {
+            vector: this.normalizeVector(queryVector),
+            limit,
+            score_threshold: minSimilarity,
+        });
+        if (!results.length) return [];
 
+        return results.map((r) => ({
+            postId: r.payload?.postId,
+            similarity: r.score,
+            payload: r.payload,
+        }));
+    }
     async findSimilarPostsQdrant(
         queryVector: number[],
         limit = 5,
@@ -418,7 +438,7 @@ export class QdrantService implements OnModuleInit {
     async findSimilarQuestionsQdrant(
         queryVector: number[],
         limit = 5,
-        minSimilarity = 0.5
+        minSimilarity = 0.9
     ) {
         this.logger.log(
             `QdrantService: Searching similar questions limit=${limit}, minSimilarity=${minSimilarity}`
