@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Param, Patch, Delete, Query, UploadedFiles, UseInterceptors, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Param, Patch, Delete, Query, UploadedFiles, UseInterceptors, Req, ValidationPipe, UsePipes } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -25,9 +25,11 @@ export class PostController {
   }
 
   @Get()
-  async getAll(@Payload() data: GetPostsDto) {
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getAll(@Query() data: GetPostsDto) {
     const limit = data.limit ?? 10;
     const skip = data.skip ?? 0;
+    console.log("Received getAll with parameters:", data.limit, data.skip);
     console.log("limit =", limit, "skip =", skip);
     console.log("Type of limit:", typeof limit);
     console.log("Type of skip:", typeof skip);
