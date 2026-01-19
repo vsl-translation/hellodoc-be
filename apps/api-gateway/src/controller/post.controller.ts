@@ -1,10 +1,11 @@
 import { Body, Controller, Get, Post, Param, Patch, Delete, Query, UploadedFiles, UseInterceptors, Req } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { CreatePostDto } from '../core/dto/post/createPost.dto';
 import { UpdatePostDto, UpdateKeywordsDto } from '../core/dto/post/updatePost.dto';
 import { PostService } from '../services/post.service';
+import { GetPostsDto } from '../core/dto/post/getPost.dto';
 
 @Controller('post')
 export class PostController {
@@ -24,10 +25,12 @@ export class PostController {
   }
 
   @Get()
-  async getAll(
-    @Query('limit') limit = 10,
-    @Query('skip') skip = 0,
-  ) {
+  async getAll(@Payload() data: GetPostsDto) {
+    const limit = data.limit ?? 10;
+    const skip = data.skip ?? 0;
+    console.log("limit =", limit, "skip =", skip);
+    console.log("Type of limit:", typeof limit);
+    console.log("Type of skip:", typeof skip);
     return this.postService.getAll(limit, skip);
   }
 
