@@ -25,8 +25,8 @@ export class PostController {
 
   @Get()
   async getAll(
-    @Query('limit') limit = '10',
-    @Query('skip') skip = '0',
+    @Query('limit') limit = 10,
+    @Query('skip') skip = 0,
   ) {
     return this.postService.getAll(limit, skip);
   }

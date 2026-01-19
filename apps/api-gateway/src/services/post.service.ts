@@ -12,8 +12,8 @@ export class PostService {
         return lastValueFrom(this.postClient.send('post.create', { createPostDto, files }));
     }
 
-    getAll(limit?: string, skip?: string) {
-        return this.postClient.send('post.get-all', { limit:limit.toString(), skip:skip.toString() });
+    async getAll(limit?: number, skip?: number) {
+        return this.postClient.send('post.get-all', { limit:limit, skip:skip });
     }
 
     async getAllWithFilter(limit?: string, offset?: string, searchText?: string) {
