@@ -207,10 +207,12 @@ export class AuthService {
   async sendOTPEmail(to: string, otp: string): Promise<void> {
     console.log('sendOTPEmail');
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // use SSL
       auth: {
         user: 'hellodoc2000@gmail.com',
-        pass: 'hsdr pjat ybkc fazy', // phải là app password
+        pass: this.configService.get<string>('EMAILPASSWORD'),
       },
     });
 
