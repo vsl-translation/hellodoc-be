@@ -9,6 +9,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { PendingDoctor, PendingDoctorStatus } from '../core/schema/PendingDoctor.schema';
 import { Specialty } from 'apps/specialty/src/core/schema/specialty.schema';
 import { lastValueFrom, timeout } from 'rxjs';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 
 @Injectable()
 export class DoctorService {
@@ -18,11 +19,11 @@ export class DoctorService {
     @Inject('USERS_CLIENT') private usersClient: ClientProxy,
     @Inject('SPECIALTY_CLIENT') private specialtyClient: ClientProxy,
     @Inject('APPOINTMENT_CLIENT') private appointmentClient: ClientProxy,
-    @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
+    @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
     @Inject('REVIEW_CLIENT') private reviewClient: ClientProxy,
-
     private cacheService: CacheService,
-  ) { }
+    private readonly mediaUrlHelper: MediaUrlHelper,
+  ) {}
   async getDoctorById(id: string) {
     //console.log('Received doctor ID:', id, typeof id);
 
@@ -38,7 +39,9 @@ export class DoctorService {
     const cached = await this.cacheService.getCache(cacheKey);
     if (cached) {
       //console.log('Cache HIT');
-      return cached;
+      return this.mediaUrlHelper.constructObjectUrls(cached, [
+        'avatarURL', 'licenseUrl', 'frontCccdUrl', 'backCccdUrl', 'faceUrl', 'services'
+      ]);
     }
 
     //console.log('Cache MISS - querying DB');
@@ -51,7 +54,9 @@ export class DoctorService {
     const specialtyId = doctor.specialty?.toString();
 
     if (!specialtyId) {
-      return doctor;
+      return this.mediaUrlHelper.constructObjectUrls(doctor, [
+        'avatarURL', 'licenseUrl', 'frontCccdUrl', 'backCccdUrl', 'faceUrl', 'services'
+      ]);
     }
 
     // Lấy thông tin specialty chi tiết
@@ -74,7 +79,9 @@ export class DoctorService {
     await this.cacheService.setCache(cacheKey, result, 30 * 1000);
     //console.log('Ket qua tra ve: ' + result);
 
-    return result;
+    return this.mediaUrlHelper.constructObjectUrls(result, [
+      'avatarURL', 'licenseUrl', 'frontCccdUrl', 'backCccdUrl', 'faceUrl', 'services'
+    ]);
   }
 
   async getAllDoctor() {
@@ -87,7 +94,9 @@ export class DoctorService {
     )];
 
     if (specialtyIds.length === 0) {
-      return doctors;
+      return this.mediaUrlHelper.constructArrayUrls(doctors, [
+        'avatarURL', 'licenseUrl', 'frontCccdUrl', 'backCccdUrl', 'faceUrl', 'services'
+      ]);
     }
 
     // Gửi đúng format
@@ -102,10 +111,14 @@ export class DoctorService {
         s => s._id.toString() === specialtyId
       );
 
-      return {
+      const result = {
         ...doctorObj,
         specialty: specialtyData || doctorObj.specialty
       };
+      
+      return this.mediaUrlHelper.constructObjectUrls(result, [
+        'avatarURL', 'licenseUrl', 'frontCccdUrl', 'backCccdUrl', 'faceUrl', 'services'
+      ]);
     });
   }
 
@@ -133,7 +146,10 @@ export class DoctorService {
     )];
 
     if (specialtyIds.length === 0) {
-      return { doctors, total };
+      const doctorsWithURLs = this.mediaUrlHelper.constructArrayUrls(doctors, [
+        'avatarURL', 'licenseUrl', 'frontCccdUrl', 'backCccdUrl', 'faceUrl', 'services'
+      ]);
+      return { doctors: doctorsWithURLs, total };
     }
 
     const specialties = await this.specialtyClient
@@ -147,10 +163,14 @@ export class DoctorService {
         s => s._id.toString() === specialtyId
       );
 
-      return {
+      const result = {
         ...doctorObj,
         specialty: specialtyData || doctorObj.specialty
       };
+      
+      return this.mediaUrlHelper.constructObjectUrls(result, [
+        'avatarURL', 'licenseUrl', 'frontCccdUrl', 'backCccdUrl', 'faceUrl', 'services'
+      ]);
     });
 
     return { data: doctorsWithSpecialty, total };
@@ -214,7 +234,10 @@ export class DoctorService {
   }
 
   async getPendingDoctors() {
-    return this.pendingDoctorModel.find({ status: { $ne: PendingDoctorStatus.REJECTED } });
+    const pendingDoctors = await this.pendingDoctorModel.find({ status: { $ne: PendingDoctorStatus.REJECTED } });
+    return this.mediaUrlHelper.constructArrayUrls(pendingDoctors, [
+      'avatarURL', 'licenseUrl', 'frontCccdUrl', 'backCccdUrl', 'faceUrl'
+    ]);
   }
 
   async getRejectedDoctors() {
@@ -308,76 +331,76 @@ export class DoctorService {
     // Xử lý tải lên giấy phép
     if (dataToUpdate.license) {
       try {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
+        const uploadResult = await this.mediaClient
+          .send('media.upload', {
             buffer: dataToUpdate.license.buffer,
             filename: dataToUpdate.license.originalname,
             mimetype: dataToUpdate.license.mimetype,
-            folder: `Doctors/${objectId}/License`,
+            folder: `doctor/${objectId}/license`,
           })
           .toPromise();
-        filteredUpdateData['licenseUrl'] = uploadResult.secure_url;
-        console.log('Giấy phép đã được tải lên Cloudinary:', uploadResult.secure_url);
+        filteredUpdateData['licenseUrl'] = uploadResult.relative_path;
+        console.log('Giấy phép đã được tải lên. Relative path:', uploadResult.relative_path);
       } catch (error) {
-        console.error('Lỗi Cloudinary:', error);
-        throw new BadRequestException('Lỗi khi tải giấy phép lên Cloudinary');
+        console.error('Lỗi Media:', error);
+        throw new BadRequestException('Lỗi khi tải giấy phép lên Media');
       }
     }
 
     // Xử lý tải lên ảnh hồ sơ (avatar)
     if (dataToUpdate.image) {
       try {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
+        const uploadResult = await this.mediaClient
+          .send('media.upload', {
             buffer: dataToUpdate.image.buffer,
             filename: dataToUpdate.image.originalname,
             mimetype: dataToUpdate.image.mimetype,
-            folder: `Doctors/${objectId}/Avatar`,  // Sửa folder để tránh nhầm
+            folder: `doctor/${objectId}/avatar`,  // Sửa folder để tránh nhầm
           })
           .toPromise();
-        filteredUpdateData['avatarURL'] = uploadResult.secure_url;
-        console.log('Ảnh hồ sơ đã được tải lên Cloudinary:', uploadResult.secure_url);
+        filteredUpdateData['avatarURL'] = uploadResult.relative_path;
+        console.log('Ảnh hồ sơ đã được tải lên. Relative path:', uploadResult.relative_path);
       } catch (error) {
-        console.error('Lỗi Cloudinary:', error);
-        throw new BadRequestException('Lỗi khi tải ảnh hồ sơ lên Cloudinary');
+        console.error('Lỗi Media:', error);
+        throw new BadRequestException('Lỗi khi tải ảnh hồ sơ lên Media');
       }
     }
 
     // Xử lý tải lên mặt trước CCCD
     if (dataToUpdate.frontCccd) {
       try {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
+        const uploadResult = await this.mediaClient
+          .send('media.upload', {
             buffer: dataToUpdate.frontCccd.buffer,
             filename: dataToUpdate.frontCccd.originalname,
             mimetype: dataToUpdate.frontCccd.mimetype,
-            folder: `Doctors/${objectId}/Info`,
+            folder: `doctor/${objectId}/info`,
           })
           .toPromise();
-        filteredUpdateData['frontCccdUrl'] = uploadResult.secure_url;
-        console.log('Front Cccd đã được tải lên Cloudinary:', uploadResult.secure_url);
+        filteredUpdateData['frontCccdUrl'] = uploadResult.relative_path;
+        console.log('Front Cccd đã được tải lên. Relative path:', uploadResult.relative_path);
       } catch (error) {
-        console.error('Lỗi Cloudinary:', error);
-        throw new BadRequestException('Lỗi khi tải front Cccd lên Cloudinary');
+        console.error('Lỗi Media:', error);
+        throw new BadRequestException('Lỗi khi tải front Cccd lên Media');
       }
     }
 
     // Xử lý tải lên mặt sau CCCD
     if (dataToUpdate.backCccd) {
       try {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
+        const uploadResult = await this.mediaClient
+          .send('media.upload', {
             buffer: dataToUpdate.backCccd.buffer,
             filename: dataToUpdate.backCccd.originalname,
             mimetype: dataToUpdate.backCccd.mimetype,
-            folder: `Doctors/${objectId}/Info`,
+            folder: `doctor/${objectId}/info`,
           })
           .toPromise();
-        filteredUpdateData['backCccdUrl'] = uploadResult.secure_url;
-        console.log('Back Cccd đã được tải lên Cloudinary:', uploadResult.secure_url);
+        filteredUpdateData['backCccdUrl'] = uploadResult.relative_path;
+        console.log('Back Cccd đã được tải lên. Relative path:', uploadResult.relative_path);
       } catch (error) {
-        console.error('Lỗi Cloudinary:', error);
-        throw new BadRequestException('Lỗi khi tải back Cccd lên Cloudinary');
+        console.error('Lỗi Media:', error);
+        throw new BadRequestException('Lỗi khi tải back Cccd lên Media');
       }
     }
 
@@ -718,17 +741,17 @@ export class DoctorService {
     const uploaded: string[] = [];
 
     for (const file of files) {
-      //const result = await this.cloudinaryService.uploadFile(file, `Doctors/${doctorId}/Services`);
-      const result = await this.cloudinaryClient
-        .send('cloudinary.upload', {
+      //const result = await this.mediaService.uploadFile(file, `Doctors/${doctorId}/Services`);
+        const uploadResult = await this.mediaClient
+          .send('media.upload', {
           buffer: file.buffer,
           filename: file.originalname,
           mimetype: file.mimetype,
-          folder: `Doctors/${doctorId}/Services`,
+          folder: `doctor/${doctorId}/services`,
         })
         .toPromise();
 
-      uploaded.push(result.secure_url);
+      uploaded.push(uploadResult.relative_path);
     }
 
     return uploaded;

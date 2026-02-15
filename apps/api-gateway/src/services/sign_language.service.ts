@@ -10,9 +10,9 @@ export class SignLanguageService {
         @Inject('SIGNLANGUAGE_CLIENT') private readonly signClient: ClientProxy
     ) { }
 
-    async postVideoUrl(urlMedia: string) {
-        console.log("urlMedia ", urlMedia)
-        if (!urlMedia) {
+    async postVideoUrl(videoUrl: string) {
+        console.log("videoUrl ", videoUrl)
+        if (!videoUrl) {
             throw new BadRequestException('Cần cung cấp url');
         }
         console.log("Chạy được service")

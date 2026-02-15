@@ -9,6 +9,7 @@ import { CacheService } from 'libs/cache.service';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { PendingDoctor, PendingDoctorSchema } from '../core/schema/PendingDoctor.schema';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 
 @Module({
   imports: [
@@ -62,7 +63,7 @@ import { PendingDoctor, PendingDoctorSchema } from '../core/schema/PendingDoctor
         }
       },
       {
-        name: 'CLOUDINARY_CLIENT',
+        name: 'MEDIA_CLIENT',
         transport: Transport.TCP,
         options: {
           host: 'localhost',
@@ -80,6 +81,6 @@ import { PendingDoctor, PendingDoctorSchema } from '../core/schema/PendingDoctor
     ])
   ],
   controllers: [DoctorController],
-  providers: [DoctorService, CacheService],
+  providers: [DoctorService, CacheService, MediaUrlHelper],
 })
 export class DoctorModule { }

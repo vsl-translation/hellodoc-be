@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { HttpService } from '@nestjs/axios';
 import { ClientProxy } from '@nestjs/microservices';
@@ -22,7 +23,8 @@ export class SignLanguageService {
     @InjectModel(Video.name, "signLanguageConnection") private videoModel: Model<Video>,
     @Inject("PHOWHISPER_CLIENT") private phowhisperClient: ClientProxy,
     @Inject("UNDERTHESEA_CLIENT") private undertheseaClient: ClientProxy,
-    @Inject("CLOUDINARY_CLIENT") private cloudinaryService: ClientProxy,
+    @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
+    private readonly mediaUrlHelper: MediaUrlHelper,
   ) { }
 
   private parseSRTContent(srtContent: string): string {
@@ -335,8 +337,8 @@ export class SignLanguageService {
         }
       }
 
-      // --- STEP 5: Upload combined gesture codes to Cloudinary ---
-      this.logger.log(`Step 5: Uploading combined gesture codes to Cloudinary...`);
+      // --- STEP 5: Upload combined gesture codes to Media ---
+      this.logger.log(`Step 5: Uploading combined gesture codes to Media...`);
 
       const combinedGestureCodesUrl = await this.uploadCombinedGestureCodes(
         videoUrl,
@@ -429,11 +431,11 @@ export class SignLanguageService {
       }
 
       // Upload individual gesture data
-      const cloudinaryUrl = await this.uploadGestureToCloudinary(word, gestureData);
+      const mediaUrl = await this.uploadGestureToMedia(word, gestureData);
 
       return {
         word: word,
-        code: cloudinaryUrl, // URL to individual gesture
+        code: mediaUrl, // URL to individual gesture
         originalVideoUrl: videoUrl,
         accuracy: accuracy,
         gross: gross,
@@ -485,13 +487,13 @@ export class SignLanguageService {
     throw new Error('Max polling attempts reached');
   }
 
-  private async uploadGestureToCloudinary(word: string, gestureData: any): Promise<string> {
+  private async uploadGestureToMedia(word: string, gestureData: any): Promise<string> {
     try {
       const jsonString = JSON.stringify(gestureData, null, 2);
 
-      const uploadResponse = await firstValueFrom(
-        this.cloudinaryService.send(
-          'cloudinary.upload-json',
+      const uploadResponse = await lastValueFrom(
+        this.mediaClient.send(
+          'media.upload-json',
           {
             jsonData: jsonString,
             publicId: `gesture_${word}_${Date.now()}`,
@@ -502,10 +504,10 @@ export class SignLanguageService {
         )
       );
 
-      return uploadResponse.secure_url || uploadResponse.url;
+      return (uploadResponse as any).relative_path;
 
     } catch (error) {
-      this.logger.error(`Error uploading to Cloudinary for word "${word}": ${error.message}`);
+      this.logger.error(`Error uploading to Media for word "${word}": ${error.message}`);
       throw error;
     }
   }
@@ -516,9 +518,9 @@ export class SignLanguageService {
       const videoId = Buffer.from(videoUrl).toString('base64').substring(0, 20);
       const jsonString = JSON.stringify(gestureCodes, null, 2);
 
-      const uploadResponse = await firstValueFrom(
-        this.cloudinaryService.send(
-          'cloudinary.upload-json',
+      const uploadResponse = await lastValueFrom(
+        this.mediaClient.send(
+          'media.upload-json',
           {
             jsonData: jsonString,
             publicId: `video_gestures_${videoId}_${Date.now()}`,
@@ -529,7 +531,7 @@ export class SignLanguageService {
         )
       );
 
-      return uploadResponse.secure_url || uploadResponse.url;
+      return (uploadResponse as any).relative_path;
 
     } catch (error) {
       this.logger.error(`Error uploading combined gesture codes: ${error.message}`);
@@ -538,30 +540,14 @@ export class SignLanguageService {
   }
 
   async getWordByWord(word: string) {
-    return await this.wordModel.findOne({ word });
+    const wordResult = await this.wordModel.findOne({ word });
+    return this.mediaUrlHelper.constructObjectUrls(wordResult?.toObject(), ['code']);
   }
 
   async getVideoByUrl(videoUrl: string) {
     const video = await this.videoModel.findOne({ videoUrl });
-
-    if (video && video.wordCodes) {
-      // Fetch gesture codes from URL
-      try {
-        const gestureResponse = await firstValueFrom(
-          this.httpService.get(video.wordCodes)
-        );
-
-        return {
-          ...video.toObject(),
-          gestureCodes: gestureResponse.data
-        };
-      } catch (error) {
-        this.logger.error(`Failed to fetch gesture codes: ${error.message}`);
-        return video;
-      }
-    }
-
-    return video;
+    const videoWithUrls = this.mediaUrlHelper.constructObjectUrls(video?.toObject(), ['wordCodes']);
+    return videoWithUrls;
   }
 
   async getAllWords(skip = 0, limit = 50) {
@@ -612,7 +598,7 @@ export class SignLanguageService {
     const video = await this.videoModel.findOne({ videoUrl: videoUrl });
     if (video && video.wordCodes) {
       console.log("Da co video trong db, tra ve wordCodes");
-      return { wordCodes: video.wordCodes };
+      return this.mediaUrlHelper.constructObjectUrls(video.toObject(), ['wordCodes']);
     }
     console.log("Chua co video trong db, goi getGestureCode với videoUrl: ", videoUrl)
     return this.getGestureCode(videoUrl);

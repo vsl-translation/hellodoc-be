@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model, Types } from 'mongoose';
 import { News } from '../core/schema/news.schema';
@@ -10,10 +11,13 @@ import { ClientProxy } from '@nestjs/microservices';
 export class NewsService {
   constructor(
     @InjectModel(News.name, 'newsConnection') private newsModel: Model<News>,
-    @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy) { }
+    @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
+    private readonly mediaUrlHelper: MediaUrlHelper,
+) { }
 
   async getAll(): Promise<News[]> {
-    return await this.newsModel.find({ isHidden: false }).sort({ createdAt: -1 }).exec();
+    const news = await this.newsModel.find({ isHidden: false }).sort({ createdAt: -1 }).exec();
+    return this.mediaUrlHelper.constructArrayUrls(news, ['media']);
   }
 
   async getAllWithFilter(limit: number, skip: number, searchText?: string) {
@@ -33,13 +37,15 @@ export class NewsService {
       .limit(limit)
       .exec();
 
-    return { data: news, total };
+    const newsWithUrls = this.mediaUrlHelper.constructArrayUrls(news, ['media']);
+
+    return { data: newsWithUrls, total };
   }
 
   async getOne(id: string): Promise<News> {
     const news = await this.newsModel.findById(id).exec();
     if (!news) throw new NotFoundException('Không tìm thấy tin tức');
-    return news;
+    return this.mediaUrlHelper.constructObjectUrls(news.toObject(), ['media']);
   }
   async update(id: string, updateDto: UpdateNewsDto): Promise<News> {
     console.log('updateDto', updateDto);
@@ -61,18 +67,19 @@ export class NewsService {
         try {
           console.log(`Uploading image: ${imageData.originalname}`);
 
-          // Gửi Base64 string tới Cloudinary service
-          const upload = await this.cloudinaryClient
-            .send('cloudinary.upload', {
+          // Gửi Base64 string tới Media service
+          const uploadResult = await this.mediaClient
+            .send('media.upload', {
               buffer: imageData.buffer, // Base64 string
               filename: imageData.originalname,
               mimetype: imageData.mimetype,
-              folder: `News/${news.admin}`,
+              folder: `news/${id}/thumbnail`,
             })
             .toPromise();
 
-          console.log(`Upload success: ${upload.secure_url}`);
-          uploadedMediaUrls.push(upload.secure_url);
+          console.log(`Upload success: ${uploadResult.relative_path}`);
+          if (!news.media) news.media = [];
+          news.media.push(uploadResult.relative_path);
         } catch (error) {
           console.error(
             `Error uploading image ${imageData.originalname}:`,
@@ -85,7 +92,7 @@ export class NewsService {
       }
 
       // Nếu có ảnh upload, cập nhật media
-      news.media = uploadedMediaUrls;
+      // media updated directly in the loop
     }
     // Giữ media cũ nếu FE gửi lại
     else if (updateDto.media && updateDto.media.length > 0) {
@@ -96,7 +103,8 @@ export class NewsService {
     if (updateDto.content) news.content = updateDto.content;
 
     // Lưu document
-    return await news.save();
+    const savedNews = await news.save();
+    return this.mediaUrlHelper.constructObjectUrls(savedNews.toObject(), ['media']);
   }
 
 

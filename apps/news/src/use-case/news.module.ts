@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { NewsController } from '../controller/news.controller';
 import { NewsService } from '../service/news.service';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from 'apps/config/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -41,7 +42,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     //ket noi voi cloudnary service
     ClientsModule.register([
       {
-        name: 'CLOUDINARY_CLIENT',
+        name: 'MEDIA_CLIENT',
         transport: Transport.TCP,
         options: {
           port: 3006,
@@ -50,6 +51,6 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     ]),
   ],
   controllers: [NewsController],
-  providers: [NewsService],
+  providers: [NewsService, MediaUrlHelper],
 })
 export class NewsModule { }

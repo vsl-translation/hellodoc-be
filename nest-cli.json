@@ -70,13 +70,13 @@
         "tsConfigPath": "apps/news/tsconfig.app.json"
       }
     },
-    "cloudinary": {
+    "media": {
       "type": "application",
-      "root": "apps/cloudinary",
+      "root": "apps/media",
       "entryFile": "main",
-      "sourceRoot": "apps/cloudinary/src",
+      "sourceRoot": "apps/media/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/cloudinary/tsconfig.app.json"
+        "tsConfigPath": "apps/media/tsconfig.app.json"
       }
     },
     "auth": {

@@ -42,15 +42,19 @@ export class AdminController {
     @Put('updateUser/:id')
     async updateUser(
         @Param('id') id: string,
+        @UploadedFile() avatar: Express.Multer.File,
         @Body() updateUserdata: any,
     ) {
         console.log("Đã vào updateUser");
+        console.log("Avatar file:", avatar);
+        console.log("Update data:", updateUserdata);
 
         if (!Types.ObjectId.isValid(id)) {
             throw new BadRequestException('ID không hợp lệ');
         }
 
-        return this.adminService.updateUser(id, updateUserdata);
+        // Pass avatar file to service
+        return this.adminService.updateUser(id, { ...updateUserdata, avatar });
     }
 
 

@@ -11,6 +11,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom, timeout } from 'rxjs';
 import * as dayjs from 'dayjs';
 import { firstValueFrom } from 'rxjs';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 
 @Injectable()
 export class PostService {
@@ -18,11 +19,12 @@ export class PostService {
     constructor(
         @Inject('USERS_CLIENT') private usersClient: ClientProxy,
         @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
-        @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
+        @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
         @Inject('EMBEDDING_CLIENT') private embeddingClient: ClientProxy,
         @Inject('QDRANT_CLIENT') private qdrantClient: ClientProxy,
         @InjectModel(Post.name, 'postConnection') private postModel: Model<Post>,
         private cacheService: CacheService,
+        private readonly mediaUrlHelper: MediaUrlHelper,
     ) { }
 
     async create(createPostDto: CreatePostDto): Promise<Post> {
@@ -36,18 +38,18 @@ export class PostService {
                     try {
                         console.log(`Uploading image: ${file.originalname}`);
 
-                        // Gửi qua Cloudinary Client (RPC)
-                        const uploadResult = await this.cloudinaryClient
-                            .send('cloudinary.upload', {
+                        // Gửi qua Media Client (RPC)
+                        const uploadResult = await this.mediaClient
+                            .send('media.upload', {
                                 buffer: file.buffer, // Base64 string
                                 filename: file.originalname,
                                 mimetype: file.mimetype,
-                                folder: `Post/${createPostDto.userId}/Image`,
+                                folder: `post/${createPostDto.userId}/media`,
                             })
                             .toPromise();
 
-                        console.log(`Upload success: ${uploadResult.secure_url}`);
-                        uploadedMediaUrls.push(uploadResult.secure_url);
+                        console.log(`Upload success: ${uploadResult.relative_path}`);
+                        uploadedMediaUrls.push(uploadResult.relative_path);
                     } catch (error) {
                         console.error(
                             `Error uploading image ${file.originalname}:`,
@@ -90,8 +92,8 @@ export class PostService {
 
             return savedPost;
         } catch (error) {
-            this.logger.error('Error creating post:', error);
-            throw new InternalServerErrorException('Lỗi khi tạo bài viết');
+            console.error('Lỗi Media:', error);
+        throw new BadRequestException('Lỗi khi tải ảnh bài viết lên Media');
         }
     }
 
@@ -117,11 +119,11 @@ export class PostService {
 
                         return {
                             postUserId: post.user.toString(),   // để mapping chính xác
-                            data: {
+                            data: this.mediaUrlHelper.constructObjectUrls({
                                 _id: owner._id,
                                 name: owner.name,
                                 avatarURL: owner.avatarURL
-                            }
+                            }, ['avatarURL']) as any
                         };
 
                     } catch (error) {
@@ -139,15 +141,20 @@ export class PostService {
             );
 
             // gán lại dữ liệu user
-            const postsWithOwners = posts.map(post => ({
-                ...post.toObject(),
-                userInfo: ownerMap.get(post.user.toString()) || null // thêm field mới
-            }));
+            const postsWithOwners = posts.map(post => {
+                const postObj = post.toObject();
+                const userInfo = ownerMap.get(post.user.toString()) || null;
+                const postWithMedia = this.mediaUrlHelper.constructObjectUrls(postObj, ['media']);
+                return {
+                    ...postWithMedia,
+                    userInfo
+                };
+            });
 
             const hasMore = skip + posts.length < total;
 
             // TRẢ VỀ postsWithOwners thay vì posts
-            return { posts: postsWithOwners, hasMore, total };
+            return { posts: postsWithOwners as any, hasMore, total };
 
         } catch (error) {
             this.logger.error('Error getting paginated posts:', error);
@@ -185,11 +192,13 @@ export class PostService {
                         );
 
                         return {
-                            ...post.toObject(),
+                            ...this.mediaUrlHelper.constructObjectUrls(post.toObject(), ['media']),
                             userInfo: owner ? {
-                                _id: owner._id,
-                                name: owner.name,
-                                avatarURL: owner.avatarURL
+                                ...this.mediaUrlHelper.constructObjectUrls({
+                                    _id: owner._id,
+                                    name: owner.name,
+                                    avatarURL: owner.avatarURL
+                                }, ['avatarURL'])
                             } : null
                         };
 
@@ -246,11 +255,11 @@ export class PostService {
 
                 const postWithOwner = {
                     ...post.toObject(),
-                    userInfo: {
+                    userInfo: this.mediaUrlHelper.constructObjectUrls({
                         _id: owner._id,
                         name: owner.name,
                         avatarURL: owner.avatarURL
-                    }
+                    }, ['avatarURL'])
                 };
 
                 return postWithOwner;
@@ -342,11 +351,13 @@ export class PostService {
                         );
 
                         return {
-                            ...post.toObject(),
+                            ...this.mediaUrlHelper.constructObjectUrls(post.toObject(), ['media']),
                             userInfo: userInfo ? {
-                                _id: userInfo._id,
-                                name: userInfo.name,
-                                avatarURL: userInfo.avatarURL
+                                ...this.mediaUrlHelper.constructObjectUrls({
+                                    _id: userInfo._id,
+                                    name: userInfo.name,
+                                    avatarURL: userInfo.avatarURL
+                                }, ['avatarURL'])
                             } : null
                         };
                     } catch (error) {
@@ -408,9 +419,9 @@ export class PostService {
                     try {
                         console.log(`Uploading image: ${file.originalname}`);
 
-                        // Gửi qua Cloudinary Client (RPC)
-                        const uploadResult = await this.cloudinaryClient
-                            .send('cloudinary.upload', {
+                        // Gửi qua Media Client (RPC)
+                        const uploadResult = await this.mediaClient
+                            .send('media.upload', {
                                 buffer: file.buffer, // Base64 string
                                 filename: file.originalname,
                                 mimetype: file.mimetype,

@@ -16,7 +16,7 @@ import { AppointmentModule } from './appointment.module';
 import { SpecialtyModule } from './specialty.module';
 import { NotificationModule } from './notification.module';
 import { PostModule } from './post.module';
-import { CloudinaryModule } from './cloudinary.module';
+import { MediaModule } from './media.module';
 import { QdrantModule } from './qdrant.module';
 import { EmbeddingModule } from './embedding.module';
 import { AdminModule } from './admin.module';
@@ -71,7 +71,7 @@ import { SignLanguageModule } from './sign-language.module';
     NotificationModule,
     AdminModule,
     MedicalOptionModule,
-    CloudinaryModule,
+    MediaModule,
     QdrantModule,
     EmbeddingModule,
     PostFavoriteModule,

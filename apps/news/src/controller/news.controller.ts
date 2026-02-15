@@ -11,7 +11,7 @@ import { UpdateNewsDto } from '../core/dto/updateNews.dto';
 @Controller()
 export class NewsController {
   constructor(
-    @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
+    @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
 
     @InjectModel(News.name, 'newsConnection') private newsModel: Model<News>,
     private readonly newsService: NewsService
@@ -46,9 +46,9 @@ export class NewsController {
 
             console.log(`Uploading image: ${imageData.originalname}`);
 
-            // Gửi Base64 string (không phải Buffer) tới Cloudinary service
-            const upload = await this.cloudinaryClient
-              .send('cloudinary.upload', {
+            // Gửi Base64 string (không phải Buffer) tới Media service
+            const upload = await this.mediaClient
+              .send('media.upload', {
                 buffer: imageData.buffer, // Gửi Base64 string, không phải Buffer!
                 filename: imageData.originalname,
                 mimetype: imageData.mimetype,

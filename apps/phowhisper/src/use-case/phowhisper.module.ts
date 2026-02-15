@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PhowhisperController } from '../controller/phowhisper.controller';
 import { PhowhisperService } from '../service/phowhisper.service';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 import { MongooseModule } from '@nestjs/mongoose';
 import { VideoSubtitle, VideoSubtitleSchema } from '../core/subtitle.schema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -42,7 +43,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     }),
     ClientsModule.register([
       {
-        name: 'CLOUDINARY_CLIENT',
+        name: 'MEDIA_CLIENT',
         transport: Transport.TCP,
         options: {
           port: 3006,
@@ -51,6 +52,6 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     ]),
   ],
   controllers: [PhowhisperController],
-  providers: [PhowhisperService],
+  providers: [PhowhisperService, MediaUrlHelper],
 })
 export class PhowhisperModule {}

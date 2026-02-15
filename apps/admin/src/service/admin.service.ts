@@ -15,6 +15,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { SignupDto } from '../core/dto/signup.dto';
 import { updateUserDto } from '../core/dto/updateUser.dto';
 import { lastValueFrom, timeout, catchError } from 'rxjs';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 
 @Injectable()
 export class AdminService {
@@ -22,8 +23,8 @@ export class AdminService {
         @InjectModel(Admin.name, 'adminConnection') private AdminModel: Model<Admin>,
         @Inject('USERS_CLIENT') private usersClient: ClientProxy,
         @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
-        @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
-        // private jwtService: JwtService,
+        @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
+        private readonly mediaUrlHelper: MediaUrlHelper,
     ) { }
 
     async getUsers() {
@@ -80,22 +81,29 @@ export class AdminService {
 
         // Prepare the update object
         const updateFields: Partial<updateUserDto> = {};
-        if (updateData.avatarURL) {
+        if (updateData.avatar) {
             try {
-                //const uploadResult = await this.cloudinaryService.uploadFile(updateData.avatarURL, `Doctors/${id}/License`);
-                const uploadResult = await this.cloudinaryClient
-                    .send('cloudinary.upload', {
-                        buffer: updateData.avatarURL.buffer, // Base64 string
-                        filename: updateData.avatarURL.originalname,
-                        mimetype: updateData.avatarURL.mimetype,
-                        folder: `Doctors/${id}/License`,
+                console.log('Processing avatar upload:', {
+                    hasBuffer: !!updateData.avatar.buffer,
+                    filename: updateData.avatar.originalname,
+                    size: updateData.avatar.size
+                });
+                //const uploadResult = await this.mediaService.uploadFile(updateData.avatarURL, `Doctors/${id}/License`);
+                const uploadResult = await this.mediaClient
+                    .send('media.upload', {
+                        buffer: updateData.avatar.buffer, // Base64 string
+                        filename: updateData.avatar.originalname,
+                        mimetype: updateData.avatar.mimetype,
+                        folder: `user/${id}/avatar`,
                     })
                     .toPromise();
-                updateFields.avatarURL = uploadResult.secure_url;
-                console.log('Avatar da tai len:', updateData.avatarURL);
+                // Save relative path to database instead of full URL
+                updateFields.avatarURL = uploadResult.relative_path;
+                console.log('Avatar uploaded successfully. Relative path:', uploadResult.relative_path);
+                console.log('Full URL:', uploadResult.secure_url);
             } catch (error) {
-                console.error('Lỗi Cloudinary:', error);
-                throw new BadRequestException('Lỗi khi tải avatar lên Cloudinary');
+                console.error('Media upload error:', error);
+                throw new BadRequestException('Lỗi khi tải avatar lên Media');
             }
         }
 

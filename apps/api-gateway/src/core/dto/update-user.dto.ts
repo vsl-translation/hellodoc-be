@@ -1,8 +1,6 @@
-import { Type } from "class-transformer";
 import { IsEmail, IsOptional, IsNumberString, IsString, Matches, MinLength } from "class-validator";
-import { Express } from 'express';
 
-export class updateUserDto {
+export class UpdateUserDto {
     @IsOptional()
     @IsString()
     name?: string;
@@ -31,10 +29,5 @@ export class updateUserDto {
     role?: string;
 
     @IsOptional()
-    @Type(() => Object)
-    avatar?: {
-        buffer: any;
-        originalname: string;
-        mimetype: string;
-    };
+    avatar?: any; // This will be handled by FileInterceptor
 }

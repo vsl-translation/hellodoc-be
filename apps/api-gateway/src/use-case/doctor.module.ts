@@ -15,7 +15,7 @@ import { DoctorService } from '../services/doctor.service';
                 },
             },
             {
-                name: 'CLOUDINARY_CLIENT',
+                name: 'MEDIA_CLIENT',
                 transport: Transport.TCP,
                 options: {
                     host: 'localhost',

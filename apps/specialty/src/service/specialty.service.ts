@@ -9,6 +9,7 @@ import { CreateSpecialtyDto } from '../core/dto/create-specialty.dto';
 import { UpdateSpecialtyDto } from '../core/dto/update-specialty.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 
 
 @Injectable()
@@ -16,62 +17,26 @@ export class SpecialtyService {
   constructor(
     @InjectModel(Specialty.name, 'specialtyConnection') private SpecialtyModel: Model<Specialty>,
     @Inject('DOCTOR_CLIENT') private doctorClient: ClientProxy,
-    @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
+    @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
     private cacheService: CacheService,
     private discordLoggerService: DiscordLoggerService,
-  ) { }
+    private readonly mediaUrlHelper: MediaUrlHelper,
+  ) {}
 
   async getSpecialties() {
     try {
-      // const cacheKey = 'all_specialties';
-      // //console.log('Trying to get specialties from cache...');
-
-      // const cached = await this.cacheService.getCache(cacheKey);
-      // if (cached) {
-      //   //console.log('Cache specialty HIT');
-      //   return cached;
-      // }
-
-      //console.log('Cache MISS - querying DB');
       const data = await this.SpecialtyModel.find();
 
       // Lấy thông tin bác sĩ cho mỗi specialty
       const specialtiesWithDoctors = await Promise.all(
         data.map(async (specialty) => {
-          // Lấy thông tin chi tiết của từng bác sĩ
-          const doctorDetails = await Promise.all(
-            specialty.doctors.map(async (doctorId) => {
-              try {
-                const doctorObjId = new Types.ObjectId(doctorId);
-                const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
-                return {
-                  _id: doctor._id,
-                  name: doctor.name,
-                  avatarURL: doctor.avatarURL
-                }
-              } catch (error) {
-                console.error(`Error fetching doctor ${doctorId}:`, error);
-                return null;
-              }
-            })
-          );
-
-          // Lọc bỏ các doctor null (trường hợp lỗi)
-          const validDoctors = doctorDetails.filter(doc => doc !== null);
-
-          return {
-            ...specialty.toObject(), // hoặc specialty._doc nếu dùng Mongoose
-            doctors: validDoctors
-          };
+          const specialtyObj = specialty.toObject();
+          return this.mediaUrlHelper.constructObjectUrls(specialtyObj, ['icon']) as any;
         })
       );
 
-      //console.log('Setting cache...');
-      //await this.cacheService.setCache(cacheKey, specialtiesWithDoctors, 30 * 1000);
-
       return specialtiesWithDoctors;
     } catch (error) {
-      // Log error to Discord
       await this.discordLoggerService.sendError(error, 'SpecialtyService - getSpecialties');
       throw error;
     }
@@ -97,29 +62,8 @@ export class SpecialtyService {
       // Lấy thông tin bác sĩ (tái sử dụng logic từ getSpecialties)
       const specialtiesWithDoctors = await Promise.all(
         data.map(async (specialty) => {
-          const doctorDetails = await Promise.all(
-            specialty.doctors.map(async (doctorId) => {
-              try {
-                const doctorObjId = new Types.ObjectId(doctorId);
-                const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
-                return {
-                  _id: doctor._id,
-                  name: doctor.name,
-                  avatarURL: doctor.avatarURL
-                }
-              } catch (error) {
-                console.error(`Error fetching doctor ${doctorId}:`, error);
-                return null;
-              }
-            })
-          );
-  
-          const validDoctors = doctorDetails.filter(doc => doc !== null);
-  
-          return {
-            ...specialty.toObject(),
-            doctors: validDoctors
-          };
+          const specialtyObj = specialty.toObject();
+          return this.mediaUrlHelper.constructObjectUrls(specialtyObj, ['icon']) as any;
         })
       );
   
@@ -147,18 +91,19 @@ export class SpecialtyService {
         try {
           console.log(`Uploading image: ${createSpecialtyDto.image.originalname}`);
 
-          // Gửi qua Cloudinary Client (RPC)
-          const uploadResult = await this.cloudinaryClient
-            .send('cloudinary.upload', {
+          const tempId = new Types.ObjectId().toHexString();
+          // Gửi qua Media Client (RPC)
+          const uploadResult = await this.mediaClient
+            .send('media.upload', {
               buffer: createSpecialtyDto.image.buffer, // Base64 string
               filename: createSpecialtyDto.image.originalname,
               mimetype: createSpecialtyDto.image.mimetype,
-              folder: `Specialty/${createSpecialtyDto.name}/Icon`,
+              folder: `specialty/${tempId}/icon`,
             })
             .toPromise();
 
-          console.log(`Upload success: ${uploadResult.secure_url}`);
-          uploadedMediaUrl = uploadResult.secure_url;
+          console.log('Icon đã được tải lên. Relative path:', uploadResult.relative_path);
+          uploadedMediaUrl = uploadResult.relative_path;
         } catch (error) {
           console.error(
             `Error uploading image ${createSpecialtyDto.image.originalname}:`,
@@ -202,15 +147,15 @@ export class SpecialtyService {
       let uploadedMediaUrl: string = '';
   
       if (updateSpecialtyDto.image) {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
+        const uploadResult = await this.mediaClient
+          .send('media.upload', {
             buffer: updateSpecialtyDto.image.buffer, // Base64 string
             filename: updateSpecialtyDto.image.originalname,
             mimetype: updateSpecialtyDto.image.mimetype,
-            folder: `Specialty/${updateSpecialtyDto.name}/Icon`,
+            folder: `specialty/${id}/icon`,
           })
           .toPromise();
-        uploadedMediaUrl = uploadResult.secure_url;
+        uploadedMediaUrl = uploadResult.relative_path;
       }
   
       const updatedSpecialty = await this.SpecialtyModel.findByIdAndUpdate(
@@ -276,10 +221,8 @@ export class SpecialtyService {
       // Lọc bỏ các doctor null (trường hợp lỗi)
       const validDoctors = doctorDetails.filter(doc => doc !== null);
   
-      return {
-        ...specialty.toObject(), // hoặc specialty._doc nếu dùng Mongoose
-        doctors: validDoctors
-      };
+      const specialtyObj = specialty.toObject();
+      return this.mediaUrlHelper.constructObjectUrls(specialtyObj, ['icon']);
     } catch (error) {
       await this.discordLoggerService.sendError(error, 'SpecialtyService - getSpecialtyById');
       throw error;
@@ -304,10 +247,8 @@ export class SpecialtyService {
           this.doctorClient.send('doctor.get-by-ids-with-home-service', specialty.doctors)
         );
 
-        return {
-          ...specialty.toObject(),
-          doctors: validDoctors,
-        };
+        const specialtyObj = specialty.toObject();
+        return this.mediaUrlHelper.constructObjectUrls(specialtyObj, ['icon']);
       } catch (error) {
         console.error('Error fetching doctors with home service:', error);
         return {
@@ -323,9 +264,14 @@ export class SpecialtyService {
 
   async findByIds(ids: string[]) {
     try {
-      return await this.SpecialtyModel.find({
+      const specialties = await this.SpecialtyModel.find({
         _id: { $in: ids }
       }).select('_id name icon description doctors');
+      
+      return specialties.map(s => {
+        const obj = s.toObject();
+        return this.mediaUrlHelper.constructObjectUrls(obj, ['icon']);
+      });
     } catch (error) {
       await this.discordLoggerService.sendError(error, 'SpecialtyService - findByIds');
       throw error;

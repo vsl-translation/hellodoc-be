@@ -2,14 +2,14 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 
 @Injectable()
-export class CloudinaryService {
+export class MediaService {
     constructor(
-        @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
+        @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
 
     ) { }
 
     async uploadFile(file: Express.Multer.File) {
-        return this.cloudinaryClient.send('cloudinary.upload', file)
+        return this.mediaClient.send('media.upload', file)
     }
 
 }
