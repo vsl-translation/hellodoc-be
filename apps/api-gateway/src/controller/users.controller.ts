@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { UsersService } from '../services/users.service';
-import { Payload } from '@nestjs/microservices';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UpdateUserDto } from '../core/dto/update-user.dto';
 
 @Controller('user')
 export class UsersController {
@@ -32,7 +33,19 @@ export class UsersController {
   }
 
   @Put('updateUser/:id')
-  updateUser(@Param('id') id: string, @Body() data: any) {
+  @UseInterceptors(FileInterceptor('avatar'))
+  updateUser(
+    @Param('id') id: string,
+    @Body() data: UpdateUserDto,
+    @UploadedFile() avatar?: Express.Multer.File,
+  ) {
+    if (avatar) {
+      data.avatar = {
+        buffer: avatar.buffer,
+        originalname: avatar.originalname,
+        mimetype: avatar.mimetype,
+      };
+    }
     return this.usersService.updateUser(id, data);
   }
 

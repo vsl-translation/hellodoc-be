@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
+import { UpdateUserDto } from '../core/dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -26,7 +27,7 @@ export class UsersService {
     return this.usersClient.send('user.getuserbyid', id);
   }
 
-  updateUser(id: string, data: any) {
+  updateUser(id: string, data: UpdateUserDto) {
     return this.usersClient.send('user.update', { id, data });
   }
 

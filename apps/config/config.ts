@@ -5,9 +5,8 @@ export default () => ({
     database: {
         connectionString: process.env.MONGO_URL
     },
-    cloudinary: {
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-        api_key: process.env.CLOUDINARY_API_KEY,
-        api_secret: process.env.CLOUDINARY_API_SECRET,
+    media: {
+        upload_root: process.env.UPLOAD_ROOT || 'uploads',
+        base_url: process.env.MEDIA_BASE_URL || 'http://localhost:4000',
     }
 });

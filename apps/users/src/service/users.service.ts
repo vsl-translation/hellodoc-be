@@ -10,6 +10,7 @@ import { CreateUserDto } from '../core/dto/createUser.dto';
 import * as bcrypt from 'bcrypt';
 import { updateUserDto } from '../core/dto/updateUser.dto';
 import * as admin from 'firebase-admin';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 
 @Injectable()
 export class UsersService {
@@ -17,9 +18,10 @@ export class UsersService {
     @InjectModel(User.name, 'userConnection') private UserModel: Model<User>,
     @Inject('DOCTOR_CLIENT') private readonly doctorClient: ClientProxy,
     @Inject('SPECIALTY_CLIENT') private readonly specialtyClient: ClientProxy,
-    @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
-    @Inject('ADMIN_CLIENT') private readonly adminClient: ClientProxy
-  ) { }
+    @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
+    @Inject('ADMIN_CLIENT') private readonly adminClient: ClientProxy,
+    private readonly mediaUrlHelper: MediaUrlHelper,
+  ) {}
 
   async updateFcmToken(userId: string, updateFcmDto: UpdateFcmDto) {
     if (updateFcmDto.userModel == 'User') {
@@ -52,6 +54,9 @@ export class UsersService {
   async getAllUsers() {
     const users = await this.UserModel.find({ isDeleted: false });
 
+    // Construct full avatar URLs for all users
+    const usersWithFullURLs = this.mediaUrlHelper.constructArrayUrls(users, ['avatarURL']);
+
     try {
       const doctors = await lastValueFrom(
         this.doctorClient.send('doctor.get-all', {}).pipe(timeout(3000))
@@ -59,11 +64,16 @@ export class UsersService {
       const admins = await lastValueFrom(
         this.adminClient.send('admin.get-all', {}).pipe(timeout(3000))
       )
+      
+      // Construct full avatar URLs for doctors and admins
+      const doctorsWithFullURLs = this.mediaUrlHelper.constructArrayUrls(doctors, ['avatarURL']);
+      const adminsWithFullURLs = this.mediaUrlHelper.constructArrayUrls(admins, ['avatarURL']);
+      
       //Nối 3 danh sách lại với nhau
-      return users.concat(doctors, admins);
+      return [...usersWithFullURLs, ...doctorsWithFullURLs, ...adminsWithFullURLs];
     } catch (e) {
       console.warn('Doctor service timeout hoặc lỗi, trả về rỗng');
-      return { users, doctors: [] }; // fallback
+      return [...usersWithFullURLs]; // fallback
     }
   }
 
@@ -98,7 +108,8 @@ export class UsersService {
     const user = await this.UserModel.findById(id);
     if (user) {
       //console.log('Ket qua tra ve tu user service' + user);
-      return user;
+      // Construct full avatar URL from relative path
+      return this.mediaUrlHelper.constructObjectUrls(user.toObject(), ['avatarURL']);
     }
 
     try {
@@ -107,7 +118,8 @@ export class UsersService {
       );
       if (doctor) {
         //console.log('Ket qua tra ve tu doctor service' + doctor);
-        return doctor;
+        // Construct full avatar URL for doctor too
+        return this.mediaUrlHelper.constructObjectUrls(doctor, ['avatarURL']);
       }
     } catch (e) {
       console.error('Doctor service unavailable:', e.message);
@@ -366,22 +378,29 @@ export class UsersService {
     console.log('Current user data:', user);
 
     // Prepare the update object
-    const updateFields: Partial<updateUserDto> = {};
+    const updateFields: any = {};
+    
+    // Check if avatarURL is already provided (uploaded by admin service)
     if (updateData.avatarURL) {
+      updateFields.avatarURL = updateData.avatarURL;
+      console.log('Using pre-uploaded avatar URL:', updateFields.avatarURL);
+    } else if (updateData.avatar) {
+      // Upload avatar if buffer is provided
       try {
-        const uploadResult = await this.cloudinaryClient
-          .send('cloudinary.upload', {
-            buffer: updateData.avatarURL.buffer, // Base64 string
-            filename: updateData.avatarURL.originalname,
-            mimetype: updateData.avatarURL.mimetype,
-            folder: `Doctors/${id}/Avatar`,
+        const uploadResult = await lastValueFrom(
+          this.mediaClient.send('media.upload', {
+            buffer: updateData.avatar.buffer,
+            filename: updateData.avatar.originalname,
+            mimetype: updateData.avatar.mimetype,
+            folder: `user/${id}/avatar`,
           })
-          .toPromise();
-        updateFields.avatarURL = uploadResult.secure_url;
-        console.log('Avatar da tai len:', updateData.avatarURL);
+        );
+        // Save relative path to database instead of full URL
+        updateFields.avatarURL = uploadResult.relative_path;
+        console.log('Avatar uploaded successfully. Relative path:', uploadResult.relative_path);
       } catch (error) {
-        console.error('Lỗi Cloudinary:', error);
-        throw new BadRequestException('Lỗi khi tải avatar lên Cloudinary');
+        console.error('Media upload error:', error);
+        throw new BadRequestException('Lỗi khi tải avatar lên Media');
       }
     }
 

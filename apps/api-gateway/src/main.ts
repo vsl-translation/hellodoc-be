@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ApiGatewayModule } from './use-case/api-gateway.module';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import * as dotenv from 'dotenv';
 import * as admin from 'firebase-admin';
@@ -36,7 +37,16 @@ async function bootstrap() {
     credential: admin.credential.cert(serviceAccount),
   });
 
-  const app = await NestFactory.create(ApiGatewayModule);
+  const app = await NestFactory.create<NestExpressApplication>(ApiGatewayModule);
+
+  // Serve static files from 'uploads' directory
+  const uploadsPath = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(uploadsPath, { recursive: true });
+  }
+  app.useStaticAssets(uploadsPath, {
+    prefix: '/uploads/',
+  });
 
   //Thêm CORS vào để FE access BE
   app.enableCors({

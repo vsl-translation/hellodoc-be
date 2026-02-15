@@ -1,13 +1,13 @@
 import { Injectable, Module } from "@nestjs/common";
 import { ClientsModule, Transport } from "@nestjs/microservices";
-import { CloudinaryController } from "../controller/cloudinary.controller";
-import { CloudinaryService } from "../services/cloudinary.service";
+import { MediaController } from "../controller/media.controller";
+import { MediaService } from "../services/media.service";
 
 @Module({
     imports: [
         ClientsModule.register([
             {
-                name: 'CLOUDINARY_CLIENT',
+                name: 'MEDIA_CLIENT',
                 transport: Transport.TCP,
                 options: {
                     host: 'localhost',
@@ -16,8 +16,8 @@ import { CloudinaryService } from "../services/cloudinary.service";
             }
         ])
     ],
-    controllers: [CloudinaryController],
-    providers: [CloudinaryService],
+    controllers: [MediaController],
+    providers: [MediaService],
 })
 
-export class CloudinaryModule { }
+export class MediaModule { }

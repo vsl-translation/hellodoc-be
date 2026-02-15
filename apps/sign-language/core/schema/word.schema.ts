@@ -8,7 +8,7 @@ export class Word extends Document {
     word: string;
 
     @Prop({ required: true })
-    code: string; // Cloudinary JSON URL
+    code: string; // Media JSON URL
 
     @Prop()
     originalVideoUrl: string;

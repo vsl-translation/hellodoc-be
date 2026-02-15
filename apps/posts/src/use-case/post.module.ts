@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PostService } from '../service/post.service';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from 'apps/config/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -65,7 +66,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         },
       },
       {
-        name: 'CLOUDINARY_CLIENT',
+        name: 'MEDIA_CLIENT',
         transport: Transport.TCP,
         options: {
           port: 3006,
@@ -88,6 +89,6 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     ]),
   ],
   controllers: [PostController],
-  providers: [PostService, CacheService],
+  providers: [PostService, CacheService, MediaUrlHelper],
 })
 export class PostModule { }

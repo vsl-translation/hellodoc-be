@@ -9,7 +9,7 @@ import { ClientProxy } from '@nestjs/microservices';
 export class DoctorController {
     constructor(
         private readonly doctorService: DoctorService,
-        @Inject('CLOUDINARY_CLIENT') private cloudinaryClient: ClientProxy,
+        @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
     ) { }
 
     //trong microservices sử dụng message và event
@@ -61,8 +61,8 @@ export class DoctorController {
             file: Express.Multer.File,
             folder: string,
         ) => {
-            return await this.cloudinaryClient
-                .send('cloudinary.upload', {
+            return await this.mediaClient
+                .send('media.upload', {
                     buffer: file.buffer,
                     filename: file.originalname,
                     mimetype: file.mimetype,
@@ -76,14 +76,14 @@ export class DoctorController {
                 files.faceUrl[0],
                 `PendingDoctors/${userId}/Face`,
             );
-            doctorData.faceUrl = res.secure_url;
+            doctorData.faceUrl = res.relative_path;
         }
         if (files?.avatarURL?.[0]) {
             const res = await upload(
                 files.avatarURL[0],
                 `PendingDoctors/${userId}/Avatar`,
             );
-            doctorData.avatarURL = res.secure_url;
+            doctorData.avatarURL = res.relative_path;
         }
 
         if (files?.licenseUrl?.[0]) {
@@ -91,21 +91,21 @@ export class DoctorController {
                 files.licenseUrl[0],
                 `PendingDoctors/${userId}/License`,
             );
-            doctorData.licenseUrl = res.secure_url;
+            doctorData.licenseUrl = res.relative_path;
         }
         if (files?.frontCccdUrl?.[0]) {
             const res = await upload(
                 files.frontCccdUrl[0],
                 `PendingDoctors/${userId}/Info`,
             );
-            doctorData.frontCccdUrl = res.secure_url;
+            doctorData.frontCccdUrl = res.relative_path;
         }
         if (files?.backCccdUrl?.[0]) {
             const res = await upload(
                 files.backCccdUrl[0],
                 `PendingDoctors/${userId}/Info`,
             );
-            doctorData.backCccdUrl = res.secure_url;
+            doctorData.backCccdUrl = res.relative_path;
         }
 
         return this.doctorService.applyForDoctor(userId, doctorData);

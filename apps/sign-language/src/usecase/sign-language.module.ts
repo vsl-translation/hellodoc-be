@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SignLanguageController } from '../controller/sign-language.controller';
 import { SignLanguageService } from '../service/sign-language.service';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import config from 'apps/config/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -35,7 +36,7 @@ import { Video, VideoSchema } from 'apps/sign-language/core/schema/sign_language
     ], 'signLanguageConnection'),
     ClientsModule.register([
       {
-        name: 'CLOUDINARY_CLIENT',
+        name: 'MEDIA_CLIENT',
         transport: Transport.TCP,
         options: {
           port: 3006,
@@ -58,6 +59,6 @@ import { Video, VideoSchema } from 'apps/sign-language/core/schema/sign_language
     ]),
   ],
   controllers: [SignLanguageController],
-  providers: [SignLanguageService],
+  providers: [SignLanguageService, MediaUrlHelper],
 })
 export class SignLanguageModule { }

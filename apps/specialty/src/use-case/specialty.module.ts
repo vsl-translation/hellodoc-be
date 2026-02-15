@@ -11,7 +11,7 @@ import { SpecialtyController } from '../controller/specialty.controller';
 import { SpecialtyService } from '../service/specialty.service';
 import { CacheService } from 'libs/cache.service';
 import { DiscordLoggerService } from 'libs/discord-logger.service';
-//import { CloudinaryService } from 'libs/cloudinary/src/service/cloudinary.service';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 
 @Module({
   imports: [
@@ -56,7 +56,7 @@ import { DiscordLoggerService } from 'libs/discord-logger.service';
         },
       },
       {
-        name: 'CLOUDINARY_CLIENT',
+        name: 'MEDIA_CLIENT',
         transport: Transport.TCP,
         options: {
           port: 3006,
@@ -66,6 +66,6 @@ import { DiscordLoggerService } from 'libs/discord-logger.service';
 
   ],
   controllers: [SpecialtyController],
-  providers: [SpecialtyService, CacheService, DiscordLoggerService],
+  providers: [SpecialtyService, CacheService, DiscordLoggerService, MediaUrlHelper],
 })
 export class SpecialtyModule { }

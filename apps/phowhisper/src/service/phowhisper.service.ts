@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 import * as FormData from 'form-data';
 import { AxiosError } from 'axios';
 import { InjectModel } from '@nestjs/mongoose';
@@ -11,11 +12,13 @@ import { ClientProxy } from '@nestjs/microservices';
 
 @Injectable()
 export class PhowhisperService {
+  private readonly logger = new Logger(PhowhisperService.name);
 
   constructor(
     private readonly httpService: HttpService,
     @InjectModel(VideoSubtitle.name, 'subtitleConnection') private videoSubtitleModel: Model<VideoSubtitle>,
-    @Inject('CLOUDINARY_CLIENT') private readonly cloudinaryClient: ClientProxy,
+    @Inject('MEDIA_CLIENT') private mediaClient: ClientProxy,
+    private readonly mediaUrlHelper: MediaUrlHelper,
   ) { }
   private PHOWHISPER_URL = process.env.PHOWHISPER_URL;
 
@@ -37,7 +40,7 @@ export class PhowhisperService {
         return {
           cached: true,
           videoUrl: existed.videoUrl,
-          subtitleUrl: existed.subtitleUrl,
+          subtitleUrl: this.mediaUrlHelper.constructUrl(existed.subtitleUrl),
         };
       }
     }
@@ -100,7 +103,7 @@ export class PhowhisperService {
       console.log('⬇️ Downloading temp subtitle from:', tempSrtUrl);
 
       // ==============================
-      // 4️⃣ TẢI FILE TẠM -> UPLOAD CLOUDINARY
+      // 4️⃣ TẢI FILE TẠM -> UPLOAD MEDIA
       // ==============================
 
       const srtFileResponse = await firstValueFrom(
@@ -117,18 +120,18 @@ export class PhowhisperService {
       const srtBuffer = Buffer.from(srtFileResponse.data);
       const srtBase64 = srtBuffer.toString('base64');
 
-      console.log(`☁️ Uploading to Cloudinary (Base64 size: ${srtBase64.length})...`);
+      console.log(`☁️ Uploading to Media (Base64 size: ${srtBase64.length})...`);
 
-      const cloudinaryResult = await firstValueFrom(
-        this.cloudinaryClient.send('cloudinary.upload-raw', {
+      const mediaResult = await lastValueFrom(
+        this.mediaClient.send('media.upload-raw', {
           file: srtBase64,
           filename: `${request_id}.srt`,
           folder: 'Subtitles',
-        })
+        }),
       );
 
-      const permanentSubtitleUrl = cloudinaryResult.secure_url;
-      console.log('✅ Upload success:', permanentSubtitleUrl);
+      const permanentSubtitleUrl = mediaResult.relative_path;
+      this.logger.log(`Media upload successful: ${mediaResult.secure_url}`);
 
       // ==============================
       // 5️⃣ LƯU VÀO MONGODB
@@ -147,7 +150,7 @@ export class PhowhisperService {
       return {
         cached: false,
         videoUrl,
-        subtitleUrl: permanentSubtitleUrl,
+        subtitleUrl: this.mediaUrlHelper.constructUrl(permanentSubtitleUrl),
         requestId: request_id,
       };
 
@@ -177,6 +180,7 @@ export class PhowhisperService {
 
   private handleError(error: any) {
     if (error instanceof AxiosError) {
+      this.logger.error(`Media upload failed: ${error.message}`);
       console.error(`Python API Error: ${error.message}`);
       console.error('Response data:', error.response?.data);
       console.error('Response status:', error.response?.status);

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { UsersController } from '../controller/users.controller';
 import { UsersService } from '../service/users.service';
+import { MediaUrlHelper } from 'libs/media-url.helper';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from '../core/schema/user.schema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -64,7 +65,7 @@ import KeyvRedis from '@keyv/redis';
         },
       },
       {
-        name: 'CLOUDINARY_CLIENT',
+        name: 'MEDIA_CLIENT',
         transport: Transport.TCP,
         options: {
           port: 3006,
@@ -80,6 +81,6 @@ import KeyvRedis from '@keyv/redis';
     ]),
   ],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService, MediaUrlHelper],
 })
 export class UsersModule { }

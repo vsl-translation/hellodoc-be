@@ -1,14 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { CloudinaryModule } from '../src/use-case/cloudinary.module';
+import { MediaModule } from '../src/use-case/media.module';
 
-describe('CloudinaryController (e2e)', () => {
+describe('MediaController (e2e)', () => {
   let app: INestApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [CloudinaryModule],
+      imports: [MediaModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
