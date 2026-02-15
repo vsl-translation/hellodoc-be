@@ -143,22 +143,14 @@ export class PostService {
             );
 
             // gán lại dữ liệu user
-<<<<<<< HEAD
             const postsWithOwners = posts.map(post => {
-                const postObj = post.toObject();
                 const userInfo = ownerMap.get(post.user.toString()) || null;
-                const postWithMedia = this.mediaUrlHelper.constructObjectUrls(postObj, ['media']);
+                const postWithMedia = this.mediaUrlHelper.constructObjectUrls(post, ['media']);
                 return {
                     ...postWithMedia,
                     userInfo
                 };
             });
-=======
-            const postsWithOwners = posts.map(post => ({
-                ...post,
-                userInfo: ownerMap.get(post.user.toString()) || null // thêm field mới
-            }));
->>>>>>> 2feccdc01e8ac5f80047d8027f747b817d0817bf
 
             const hasMore = skip + posts.length < total;
             console.log("hasMore =", hasMore);
