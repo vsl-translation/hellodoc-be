@@ -28,6 +28,22 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
           port: 3008,         // port microservice Neo4j
         },
       },
+      {
+        name: 'QDRANT_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',  // host microservice Word Embedding
+          port: 3013,         // port microservice Word Embedding
+        },
+      },
+      {
+        name: 'EMBEDDING_CLIENT',
+        transport: Transport.TCP,
+        options: {
+          host: 'localhost',  // host microservice Word Embedding
+          port: 3012,         // port microservice Word Embedding
+        },
+      }
     ]),
   ],
   controllers: [NlpIntegrationController],

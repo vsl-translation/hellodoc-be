@@ -113,4 +113,15 @@ export class NlpController {
         return await this.nlpService.buildKnowledgeGraph(texts);
     }
 
+    @Post('process-question-answer')
+    async processQuestionAnswer(
+        @Body('question') question: string,
+        @Body('answer') answer: string
+    ) {
+        if (!question || !answer) {
+            return { error: 'Thiếu tham số question hoặc answer' };
+        }
+        return await this.nlpService.processQuestionAnswer(question, answer);
+    }
+
 }

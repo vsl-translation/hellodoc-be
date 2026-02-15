@@ -21,6 +21,11 @@ export class NlpIntegrationController {
     return this.nlpIntegrationService.analyzeAndCreateSemanticGraph(text);
   }
 
+  @MessagePattern('nlp-integration.processQuestionAnswer')
+  async processQuestion(@Payload() data: { question: string; answer: string }) {
+    console.log('Received question for processing:', data.question, data.answer);
+    return this.nlpIntegrationService.processQuestionAnswer(data.question, data.answer);
+  }
 
   @MessagePattern('nlp-integration.find-word')
   async findWord(@Payload() data: {

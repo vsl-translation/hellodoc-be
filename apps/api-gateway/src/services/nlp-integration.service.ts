@@ -83,5 +83,10 @@ export class NlpIntegrationService {
         );
     }
 
+    async processQuestionAnswer(question: string, answer: string) {
+        return firstValueFrom(
+            this.nlpClient.send('nlp-integration.processQuestionAnswer', { question, answer })
+        );
+    }
 
 }

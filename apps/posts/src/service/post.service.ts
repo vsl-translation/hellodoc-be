@@ -101,13 +101,15 @@ export class PostService {
         try {
             const filter = { $or: [{ isHidden: false }, { isHidden: { $exists: false } }] };
 
-            const total = await this.postModel.countDocuments(filter);
-
-            const posts = await this.postModel
-                .find(filter)
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limit);
+            // Sử dụng .lean() để lấy object nhẹ hơn (Performance)
+            const [total, posts] = await Promise.all([
+                this.postModel.countDocuments(filter),
+                this.postModel.find(filter)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean() // Trả về Plain Object, không cần .toObject() sau này
+            ]);
 
             // Lấy thông tin user cho từng post
             const owners = await Promise.all(
@@ -141,6 +143,7 @@ export class PostService {
             );
 
             // gán lại dữ liệu user
+<<<<<<< HEAD
             const postsWithOwners = posts.map(post => {
                 const postObj = post.toObject();
                 const userInfo = ownerMap.get(post.user.toString()) || null;
@@ -150,9 +153,19 @@ export class PostService {
                     userInfo
                 };
             });
+=======
+            const postsWithOwners = posts.map(post => ({
+                ...post,
+                userInfo: ownerMap.get(post.user.toString()) || null // thêm field mới
+            }));
+>>>>>>> 2feccdc01e8ac5f80047d8027f747b817d0817bf
 
             const hasMore = skip + posts.length < total;
-
+            console.log("hasMore =", hasMore);
+            console.log("skip =", skip);
+            console.log("posts.length =", posts.length);
+            console.log("skip + posts.length =", skip + posts.length);
+            console.log("total =", total);
             // TRẢ VỀ postsWithOwners thay vì posts
             return { posts: postsWithOwners as any, hasMore, total };
 
