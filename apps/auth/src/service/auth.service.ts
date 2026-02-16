@@ -55,16 +55,18 @@ export class AuthService {
   async login(loginData: loginDto) {
     try {
       const { email, password } = loginData;
-
+      
+      console.log('Login attempt for email:', email);
       const response = await firstValueFrom(
         this.usersClient.send('user.getallusers', {})
       );
 
       const users = response || [];
-      const user = users.find((u) => u.email === email && u.isDeleted === false);
-
+      console.log('Fetched users:', users[1]); // Log the first user for debugging
+      // ✅ Tìm kiếm người dùng trong mảng đã lấy với điều kiện email khớp và isDeleted là false
+      const user = Array.isArray(users) ? users.find((u) => u.email === email && u.isDeleted === false) : null;
+      console.log('User found:', user ? user.toString() : 'null'); // Log the found user for debugging
       if (!user) {
-
         // ✅ Trả về error object
         return {
           success: false,

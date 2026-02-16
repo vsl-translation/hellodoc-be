@@ -52,9 +52,9 @@ export class UsersService {
   }
 
   async getAllUsers() {
-    const users = await this.UserModel.find({ isDeleted: false });
+    const users = await this.UserModel.find({ isDeleted: false }).lean(); 
 
-    // Construct full avatar URLs for all users
+    // Các logic còn lại giữ nguyên, mediaUrlHelper sẽ hoạt động tốt hơn với plain object
     const usersWithFullURLs = this.mediaUrlHelper.constructArrayUrls(users, ['avatarURL']);
 
     try {
@@ -70,7 +70,8 @@ export class UsersService {
       const adminsWithFullURLs = this.mediaUrlHelper.constructArrayUrls(admins, ['avatarURL']);
       
       //Nối 3 danh sách lại với nhau
-      return [...usersWithFullURLs, ...doctorsWithFullURLs, ...adminsWithFullURLs];
+      const allUsers = [...usersWithFullURLs, ...doctorsWithFullURLs, ...adminsWithFullURLs];
+      return allUsers;
     } catch (e) {
       console.warn('Doctor service timeout hoặc lỗi, trả về rỗng');
       return [...usersWithFullURLs]; // fallback
