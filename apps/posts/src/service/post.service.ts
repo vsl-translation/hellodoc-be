@@ -108,7 +108,7 @@ export class PostService {
                     .sort({ createdAt: -1 })
                     .skip(skip)
                     .limit(limit)
-                    .lean() // Trả về Plain Object, không cần .toObject() sau này
+                    .lean()
             ]);
 
             // Lấy thông tin user cho từng post
@@ -184,6 +184,7 @@ export class PostService {
 
             const posts = await this.postModel
                 .find(filter)
+                .lean()
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit);
@@ -197,7 +198,7 @@ export class PostService {
                         );
 
                         return {
-                            ...this.mediaUrlHelper.constructObjectUrls(post.toObject(), ['media']),
+                            ...this.mediaUrlHelper.constructObjectUrls(post, ['media']),
                             userInfo: owner ? {
                                 ...this.mediaUrlHelper.constructObjectUrls({
                                     _id: owner._id,
@@ -210,7 +211,7 @@ export class PostService {
                     } catch (error) {
                         console.error(`Error fetching owner ${post.user}:`, error);
                         return {
-                            ...post.toObject(),
+                            ...post,
                             userInfo: null
                         };
                     }

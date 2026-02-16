@@ -25,13 +25,32 @@ export class SpecialtyService {
 
   async getSpecialties() {
     try {
-      const data = await this.SpecialtyModel.find();
+      const data = await this.SpecialtyModel.find().lean();
 
       // Lấy thông tin bác sĩ cho mỗi specialty
       const specialtiesWithDoctors = await Promise.all(
         data.map(async (specialty) => {
-          const specialtyObj = specialty.toObject();
-          return this.mediaUrlHelper.constructObjectUrls(specialtyObj, ['icon']) as any;
+          const doctorDetails = await Promise.all(
+            specialty.doctors.map(async (doctorId) => {
+              try {
+                const doctorObjId = new Types.ObjectId(doctorId);
+                const doctor = await firstValueFrom(this.doctorClient.send('doctor.get-by-id', doctorObjId));
+                return {
+                  _id: doctor._id,
+                  name: doctor.name,
+                  avatarURL: doctor.avatarURL
+                }
+              } catch (error) {
+                console.error(`Error fetching doctor ${doctorId}:`, error);
+                return null;
+              }
+            })
+          );
+          const specialtyWithMedia = this.mediaUrlHelper.constructObjectUrls(specialty, ['icon']) as any;
+          return {
+            ...specialtyWithMedia,
+            doctors: doctorDetails.filter(doc => doc !== null) // Lọc bỏ các doctor null (trường hợp lỗi)
+          };
         })
       );
 
@@ -197,7 +216,7 @@ export class SpecialtyService {
 
   async getSpecialtyById(id: string) {
     try {
-      const specialty = await this.SpecialtyModel.findById(id);
+      const specialty = await this.SpecialtyModel.findById(id).lean();
   
       const doctorDetails = await Promise.all(
         specialty.doctors.map(async (doctorId) => {
@@ -221,8 +240,7 @@ export class SpecialtyService {
       // Lọc bỏ các doctor null (trường hợp lỗi)
       const validDoctors = doctorDetails.filter(doc => doc !== null);
   
-      const specialtyObj = specialty.toObject();
-      return this.mediaUrlHelper.constructObjectUrls(specialtyObj, ['icon']);
+      return this.mediaUrlHelper.constructObjectUrls(specialty, ['icon']);
     } catch (error) {
       await this.discordLoggerService.sendError(error, 'SpecialtyService - getSpecialtyById');
       throw error;
@@ -235,7 +253,7 @@ export class SpecialtyService {
     }
 
     try {
-      const specialty = await this.SpecialtyModel.findOne({ name });
+      const specialty = await this.SpecialtyModel.findOne({ name }).lean();
 
       if (!specialty) {
         return null;
@@ -247,12 +265,11 @@ export class SpecialtyService {
           this.doctorClient.send('doctor.get-by-ids-with-home-service', specialty.doctors)
         );
 
-        const specialtyObj = specialty.toObject();
-        return this.mediaUrlHelper.constructObjectUrls(specialtyObj, ['icon']);
+        return this.mediaUrlHelper.constructObjectUrls(specialty, ['icon']);
       } catch (error) {
         console.error('Error fetching doctors with home service:', error);
         return {
-          ...specialty.toObject(),
+          ...specialty,
           doctors: [],
         };
       }
@@ -266,11 +283,10 @@ export class SpecialtyService {
     try {
       const specialties = await this.SpecialtyModel.find({
         _id: { $in: ids }
-      }).select('_id name icon description doctors');
+      }).lean().select('_id name icon description doctors');
       
       return specialties.map(s => {
-        const obj = s.toObject();
-        return this.mediaUrlHelper.constructObjectUrls(obj, ['icon']);
+        return this.mediaUrlHelper.constructObjectUrls(s, ['icon']);
       });
     } catch (error) {
       await this.discordLoggerService.sendError(error, 'SpecialtyService - findByIds');

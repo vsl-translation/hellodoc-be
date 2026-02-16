@@ -16,7 +16,7 @@ export class NewsService {
 ) { }
 
   async getAll(): Promise<News[]> {
-    const news = await this.newsModel.find({ isHidden: false }).sort({ createdAt: -1 }).exec();
+    const news = await this.newsModel.find({ isHidden: false }).lean().sort({ createdAt: -1 }).exec();
     return this.mediaUrlHelper.constructArrayUrls(news, ['media']);
   }
 
@@ -31,7 +31,7 @@ export class NewsService {
 
     const total = await this.newsModel.countDocuments(filter);
 
-    const news = await this.newsModel.find(filter)
+    const news = await this.newsModel.find(filter).lean()
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -43,9 +43,9 @@ export class NewsService {
   }
 
   async getOne(id: string): Promise<News> {
-    const news = await this.newsModel.findById(id).exec();
+    const news = await this.newsModel.findById(id).lean().exec();
     if (!news) throw new NotFoundException('Không tìm thấy tin tức');
-    return this.mediaUrlHelper.constructObjectUrls(news.toObject(), ['media']);
+    return this.mediaUrlHelper.constructObjectUrls(news, ['media']);
   }
   async update(id: string, updateDto: UpdateNewsDto): Promise<News> {
     console.log('updateDto', updateDto);
